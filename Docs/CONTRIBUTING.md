@@ -57,11 +57,11 @@ git config user.email <GitHub提供の非公開メールアドレス>
 2.  `新しいブランチを作成`をクリックし、作成するブランチ名を入力する。
     ブランチの命名は[Git / GitHub 運用フロー](../Docs/GIT_WORKFLOW.md)を参考にしてください。
 
-        ![](image/branch-select.png)
-
-        ブランチが正常に作成されると左下の表記が作成したブランチ名になります。
-
-        ![](image/branch-after.png)
+    ![](image/branch-select.png)
+    
+    ブランチが正常に作成されると左下の表記が作成したブランチ名になります。
+    
+    ![](image/branch-after.png)
 
 ### コードの変更
 
