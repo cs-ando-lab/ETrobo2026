@@ -1,0 +1,276 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    min-height: 100vh;
+    padding: 15px;
+}
+
+.container {
+    display: flex;
+    gap: 15px;
+    max-width: 1600px;
+    margin: 0 auto;
+    height: calc(100vh - 30px);
+}
+
+h1 {
+    color: #4fc1ff;
+    margin-bottom: 8px;
+    font-size: 20px;
+}
+
+/* Left Panel */
+.left-panel {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.panel-section {
+    background: #252526;
+    padding: 15px;
+    border-radius: 6px;
+}
+
+.panel-section h3 {
+    font-size: 13px;
+    color: #808080;
+    margin-bottom: 10px;
+    font-weight: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+button {
+    background: #0e639c;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+button:last-child {
+    margin-bottom: 0;
+}
+
+button:hover:not(:disabled) {
+    background: #1177bb;
+}
+
+button:disabled {
+    background: #3c3c3c;
+    cursor: not-allowed;
+}
+
+button.disconnect {
+    background: #c75450;
+}
+
+button.disconnect:hover:not(:disabled) {
+    background: #e06c75;
+}
+
+button.secondary {
+    background: #3c3c3c;
+}
+
+button.secondary:hover:not(:disabled) {
+    background: #4e4e4e;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #6e6e6e;
+}
+
+.status-indicator.connected {
+    background: #4ec9b0;
+    box-shadow: 0 0 6px #4ec9b0;
+}
+
+.status-indicator.connecting {
+    background: #dcdcaa;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.device-info {
+    font-size: 12px;
+}
+
+.device-info-row {
+    margin-bottom: 6px;
+    display: flex;
+    flex-direction: column;
+}
+
+.device-info-label {
+    color: #808080;
+    font-size: 11px;
+}
+
+.device-info-value {
+    color: #d4d4d4;
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+    word-break: break-all;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+input[type="checkbox"] {
+    cursor: pointer;
+}
+
+/* Right Panel */
+.right-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #252526;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.log-header {
+    background: #333333;
+    padding: 10px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #3c3c3c;
+}
+
+.log-header h2 {
+    font-size: 14px;
+    font-weight: normal;
+}
+
+.log-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.log-actions button {
+    width: auto;
+    padding: 5px 12px;
+    font-size: 11px;
+    margin-bottom: 0;
+}
+
+#log {
+    flex: 1;
+    overflow: auto;
+    padding: 8px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.3;
+}
+
+.log-entry {
+    margin-bottom: 1px;
+    display: flex;
+    gap: 6px;
+}
+
+.timestamp {
+    color: #858585;
+    flex-shrink: 0;
+    font-size: 10px;
+}
+
+.data {
+    color: #d4d4d4;
+    word-break: break-all;
+}
+
+.data.info {
+    color: #4fc1ff;
+}
+
+.data.error {
+    color: #f48771;
+}
+
+.empty-state {
+    color: #6e6e6e;
+    text-align: center;
+    padding: 50px;
+}
+
+/* Filter bar */
+.filter-bar {
+    background: #1e1e1e;
+    padding: 8px 15px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    border-bottom: 1px solid #3c3c3c;
+}
+
+.filter-bar input {
+    flex: 1;
+    background: #3c3c3c;
+    border: 1px solid #3c3c3c;
+    color: #d4d4d4;
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.filter-bar input:focus {
+    outline: none;
+    border-color: #0e639c;
+}
+
+.filter-bar button {
+    width: auto;
+    padding: 5px 12px;
+    font-size: 11px;
+    margin-bottom: 0;
+}
+
+.filter-stats {
+    font-size: 11px;
+    color: #808080;
+    margin-left: 10px;
+}

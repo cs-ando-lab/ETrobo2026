@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pybricks BLE Monitor</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <div>
+                <h1>Pybricks BLE Monitor</h1>
+            </div>
+            
+            <!-- Connection Section -->
+            <div class="panel-section">
+                <h3>接続</h3>
+                <button id="connectBtn" onclick="connect()">接続</button>
+                <button id="disconnectBtn" class="disconnect" onclick="disconnect()" disabled>切断</button>
+            </div>
+            
+            <!-- Status Section -->
+            <div class="panel-section">
+                <h3>ステータス</h3>
+                <div class="status">
+                    <div id="statusIndicator" class="status-indicator"></div>
+                    <span id="statusText">未接続</span>
+                </div>
+            </div>
+            
+            <!-- Device Info Section -->
+            <div class="panel-section" id="deviceInfoSection" style="display: none;">
+                <h3>デバイス情報</h3>
+                <div class="device-info">
+                    <div class="device-info-row">
+                        <span class="device-info-label">名前</span>
+                        <span id="infoName" class="device-info-value">-</span>
+                    </div>
+                    <div class="device-info-row">
+                        <span class="device-info-label">ID</span>
+                        <span id="infoId" class="device-info-value">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Options Section -->
+            <div class="panel-section">
+                <h3>オプション</h3>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="autoScroll" checked>
+                        自動スクロール
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showTimestamp" checked>
+                        タイムスタンプ表示
+                    </label>
+                    <label>
+                        <input type="checkbox" id="cellMode">
+                        CSVセル表示モード
+                    </label>
+                    <label>
+                        <input type="checkbox" id="pauseLog">
+                        ログ追加を停止
+                    </label>
+                </div>
+                <div id="cellWidthControl" style="margin-top: 10px; display: none;">
+                    <label style="font-size: 11px; color: #808080;">セル幅（桁数）:</label>
+                    <input type="number" id="cellWidth" value="8" min="3" max="20" style="width: 60px; background: #3c3c3c; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 3px; margin-left: 5px;">
+                </div>
+            </div>
+            
+            <!-- Log Actions Section -->
+            <div class="panel-section">
+                <h3>ログ操作</h3>
+                <button onclick="copyLog()">クリップボードにコピー</button>
+                <button onclick="saveLogCSV()" class="secondary">CSVで保存 (UTF-8)</button>
+                <button onclick="saveLogText()" class="secondary">テキストで保存 (UTF-8)</button>
+                <button id="streamBtn" onclick="toggleStreaming()" class="secondary">ストリーミング保存開始</button>
+                <button onclick="clearLog()" class="secondary">ログをクリア</button>
+                <div id="streamStatus" style="margin-top: 8px; font-size: 11px; color: #808080; display: none;">
+                    ストリーミング中: <span id="streamCount">0</span> 行書き込み済み
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div class="log-header">
+                <h2>受信データ</h2>
+                <div class="log-actions">
+                    <span id="logStats" style="font-size: 11px; color: #808080; margin-right: 10px;">0 行</span>
+                </div>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="filterInput" placeholder="フィルタ（例: ACCEL, GYRO）">
+                <button onclick="applyFilter()">適用</button>
+                <button onclick="clearFilter()" class="secondary">クリア</button>
+                <span id="filterStats" class="filter-stats"></span>
+            </div>
+            <div id="log">
+                <div class="empty-state">接続ボタンをクリックしてPybricksハブに接続してください</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script src="js/bluetooth.js"></script>
+    <script src="js/log.js"></script>
+    <script src="js/file.js"></script>
+</body>
+</html>
