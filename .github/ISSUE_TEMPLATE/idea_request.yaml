@@ -1,6 +1,6 @@
 name: ✨ 新しいアイデアを提案 (Idea)
 description: プロジェクトに新しいアイデアや改善案を提案します。
-title: "<idea>: <ここにアイデアのタイトルを簡潔に記入>"
+title: "idea: <ここにアイデアのタイトルを簡潔に記入>"
 labels:
   - idea
 body:

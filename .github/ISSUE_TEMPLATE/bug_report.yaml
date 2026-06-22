@@ -1,6 +1,6 @@
 name: 🐛 バグ報告 (Bug Fix)
 description: 発見したバグや不具合を報告する際はこちらを選択してください。
-title: "<bug/fix>: <ここにバグの概要を簡潔に記入>"
+title: "bug/fix: <ここにバグの概要を簡潔に記入>"
 labels:
   - bug/fix
 body:

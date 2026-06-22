@@ -1,6 +1,6 @@
 name: 🛠️ 機能開発 (Feature)
 description: 実装が確定した新機能や大きな機能修正に関するタスク
-title: "<feat>: <ここに機能のタイトルを簡潔に記入>"
+title: "feat: <ここに機能のタイトルを簡潔に記入>"
 labels:
   - feature
 body:

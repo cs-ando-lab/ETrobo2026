@@ -1,6 +1,6 @@
 name: 🧹 メンテナンス・その他作業 (Maintenance)
 description: リファクタリング、ドキュメント更新、設定ファイル変更など、挙動を変えないタスク。
-title: "<Prefix>: <ここに作業の概要を簡潔に記入>"
+title: "Prefix: <ここに作業の概要を簡潔に記入>"
 labels:
   -
 body:
