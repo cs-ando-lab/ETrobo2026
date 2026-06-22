@@ -2,3 +2,8 @@
 /asp
 /log.txt
 /main/build
+
+# astah* のバックアップ/ロックファイル
+models/*.asta~
+models/*.asta.bak
+models/.~lock.*
