@@ -10,7 +10,7 @@ set -e
 # ターゲットディレクトリの指定 (引数があればそれを使用、なければ main)
 TARGET_DIR=${1:-main}
 
-# プロジェクト名の取得 (実行ファイルの親ディレクトリ名。例: ETrobo2026_code)
+# プロジェクト名の取得 (実行ファイルの親ディレクトリ名。例: ETrobo2026)
 PRJ_NAME=$(basename $(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P))
 
 # etrobo環境のルートディレクトリを取得 (../../ に相当)

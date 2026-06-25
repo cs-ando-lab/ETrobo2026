@@ -4,6 +4,6 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - .:/etrobo/spike-rt/sdk/workspace/ETrobo2026_code
+      - .:/etrobo/spike-rt/sdk/workspace/ETrobo2026
     # デフォルトのコマンドを実行しないよう待機状態にする
     command: tail -f /dev/null

@@ -28,4 +28,4 @@ WORKDIR /etrobo
 RUN git clone --depth=1 https://github.com/ETrobocon/spike-rt-RasPike-ART.git spike-rt -b main
 
 # 作業ディレクトリをソースコードの場所に設定
-WORKDIR /etrobo/workspace/ETrobo2026_code
+WORKDIR /etrobo/workspace/ETrobo2026

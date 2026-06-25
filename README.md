@@ -48,7 +48,7 @@
 1. ターミナルで対象のディレクトリに移動します。
 
    ```bash
-   cd ~/etrobo/workspace/ETrobo2026_code
+   cd ~/etrobo/workspace/ETrobo2026
    ```
 
 2. 以下のテスト用スクリプトを実行します。
