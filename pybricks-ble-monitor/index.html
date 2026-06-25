@@ -13,15 +13,13 @@
             <div>
                 <h1>Pybricks BLE Monitor</h1>
             </div>
-            
-            <!-- Connection Section -->
+
             <div class="panel-section">
                 <h3>接続</h3>
                 <button id="connectBtn" onclick="connect()">接続</button>
                 <button id="disconnectBtn" class="disconnect" onclick="disconnect()" disabled>切断</button>
             </div>
-            
-            <!-- Status Section -->
+
             <div class="panel-section">
                 <h3>ステータス</h3>
                 <div class="status">
@@ -29,8 +27,7 @@
                     <span id="statusText">未接続</span>
                 </div>
             </div>
-            
-            <!-- Device Info Section -->
+
             <div class="panel-section" id="deviceInfoSection" style="display: none;">
                 <h3>デバイス情報</h3>
                 <div class="device-info">
@@ -44,8 +41,7 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- Options Section -->
+
             <div class="panel-section">
                 <h3>オプション</h3>
                 <div class="checkbox-group">
@@ -71,8 +67,7 @@
                     <input type="number" id="cellWidth" value="8" min="3" max="20" style="width: 60px; background: #3c3c3c; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 3px; margin-left: 5px;">
                 </div>
             </div>
-            
-            <!-- Log Actions Section -->
+
             <div class="panel-section">
                 <h3>ログ操作</h3>
                 <button onclick="copyLog()">クリップボードにコピー</button>
@@ -85,30 +80,56 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Right Panel -->
         <div class="right-panel">
-            <div class="log-header">
-                <h2>受信データ</h2>
-                <div class="log-actions">
-                    <span id="logStats" style="font-size: 11px; color: #808080; margin-right: 10px;">0 行</span>
+
+            <!-- 上半分: 全センサー現在値 -->
+            <div class="sensors-panel">
+                <div class="sensors-grid" id="sensorsGrid"></div>
+            </div>
+
+            <!-- 下半分: ログ -->
+            <div class="log-section">
+                <div class="log-header">
+                    <div class="log-title-area">
+                        <h2>受信データ</h2>
+                        <div class="tab-bar-inline" id="tabBar">
+                            <button id="tab-ALL" class="tab active" onclick="switchTab('ALL')">すべて</button>
+                        </div>
+                    </div>
+                    <div class="log-actions">
+                        <button class="view-btn active" id="btnViewLog" onclick="setView('log')">ログ</button>
+                        <button class="view-btn" id="btnViewGraph" onclick="setView('graph')">グラフ</button>
+                        <span id="logStats" style="font-size: 11px; color: #808080; margin-left: 8px;">0 行</span>
+                    </div>
                 </div>
-            </div>
-            <div class="filter-bar">
-                <input type="text" id="filterInput" placeholder="フィルタ（例: ACCEL, GYRO）">
-                <button onclick="applyFilter()">適用</button>
-                <button onclick="clearFilter()" class="secondary">クリア</button>
-                <span id="filterStats" class="filter-stats"></span>
-            </div>
-            <div id="log">
-                <div class="empty-state">接続ボタンをクリックしてPybricksハブに接続してください</div>
+
+                <div class="filter-bar" id="filterBarEl">
+                    <input type="text" id="filterInput" placeholder="フィルタ（例: ACCEL, GYRO）">
+                    <button onclick="applyFilter()">適用</button>
+                    <button onclick="clearFilter()" class="secondary">クリア</button>
+                    <span id="filterStats" class="filter-stats"></span>
+                </div>
+
+                <div class="col-headers" id="colHeaders" style="display:none"></div>
+
+                <div id="log">
+                    <div class="empty-state">接続ボタンをクリックしてPybricksハブに接続してください</div>
+                </div>
+
+                <div id="graphContainer">
+                    <canvas id="graphCanvas"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
+    <script src="js/chart.min.js"></script>
     <script src="js/main.js"></script>
     <script src="js/bluetooth.js"></script>
     <script src="js/log.js"></script>
+    <script src="js/graph.js"></script>
     <script src="js/file.js"></script>
 </body>
 </html>
