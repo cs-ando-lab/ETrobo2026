@@ -109,7 +109,7 @@ input[type="checkbox"] { cursor: pointer; }
 
 /* ===== 上半分: 全センサー現在値パネル ===== */
 .sensors-panel {
-    height: 460px;
+    height: 580px;
     flex-shrink: 0;
     overflow-y: auto;
     background: #1a1a1a;
