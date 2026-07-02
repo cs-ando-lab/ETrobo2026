@@ -16,10 +16,10 @@ using namespace spikeapi;
 Tracer tracer;
 
 namespace {
-    const char *const TRACER_LABEL     = "Tracer";
-    const int         TRACER_LABEL_LEN = 6;  /* strlen(TRACER_LABEL) */
-    const int         LABEL_CHANGE_CYCLES = 3; /* 100ms * 3 = 300ms毎に1文字切替 */
-}
+    const char* const TRACER_LABEL = "Tracer";
+    const int TRACER_LABEL_LEN = 6;    /* strlen(TRACER_LABEL) */
+    const int LABEL_CHANGE_CYCLES = 3; /* 100ms * 3 = 300ms毎に1文字切替 */
+}  // namespace
 
 /* メインタスク(起動時にのみ関数コールされる) */
 void main_task(intptr_t unused) {
@@ -36,7 +36,7 @@ void main_task(intptr_t unused) {
 
     /* フォースセンサーが押されるまでライントレース開始を待つ */
     display.off();
-    while (!forceSensor.isTouched()) {
+    while(!forceSensor.isTouched()) {
         dly_tsk(50 * 1000);
     }
 
@@ -57,7 +57,7 @@ void main_task(intptr_t unused) {
 
     while(1) {
         /* センターボタンで停止 */
-        if (button.isCenterPressed()) {
+        if(button.isCenterPressed()) {
             break;
         }
 
@@ -66,7 +66,7 @@ void main_task(intptr_t unused) {
 
         /* ライントレース中は"Tracer"の文字を1文字ずつ循環表示 */
         int labelIndex = (count / LABEL_CHANGE_CYCLES) % TRACER_LABEL_LEN;
-        if (labelIndex != prevLabelIndex) {
+        if(labelIndex != prevLabelIndex) {
             display.showChar(TRACER_LABEL[labelIndex]);
             prevLabelIndex = labelIndex;
         }

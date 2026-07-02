@@ -1,8 +1,9 @@
 #include "Tracer.h"
 
-Tracer::Tracer() : leftWheel(EPort::PORT_B, Motor::EDirection::COUNTERCLOCKWISE, true),
-                   rightWheel(EPort::PORT_A, Motor::EDirection::CLOCKWISE, true),
-                   colorSensor(EPort::PORT_E) {
+Tracer::Tracer()
+    : leftWheel(EPort::PORT_B, Motor::EDirection::COUNTERCLOCKWISE, true),
+      rightWheel(EPort::PORT_A, Motor::EDirection::CLOCKWISE, true),
+      colorSensor(EPort::PORT_E) {
 }
 
 void Tracer::init() {
