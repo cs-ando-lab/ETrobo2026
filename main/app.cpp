@@ -57,7 +57,7 @@ void main_task(intptr_t unused) {
 
     while(1) {
         /* センターボタンで停止 */
-        if(button.isCenterPressed()) {
+        if(button.isCenterPressed() || tracer.isOnBlue()) {
             break;
         }
 
