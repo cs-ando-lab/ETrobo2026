@@ -1,0 +1,51 @@
+{
+    "configurations": [
+        {
+            "name": "ETrobo",
+            "compilerPath": "${env:HOME}/etrobo/gcc-arm-none-eabi-10.3-2021.10/bin/arm-none-eabi-g++",
+            "compilerArgs": [
+                "-mcpu=cortex-m4",
+                "-mthumb"
+            ],
+            "includePath": [
+                "${workspaceFolder}/main",
+                "${workspaceFolder}/main/app",
+                "${workspaceFolder}/main/build",
+                "${workspaceFolder}/main/build/gen",
+                "${env:HOME}/etrobo/spike-rt/drivers",
+                "${env:HOME}/etrobo/spike-rt/drivers/include",
+                "${env:HOME}/etrobo/spike-rt/drivers/include/libcpp",
+                "${env:HOME}/etrobo/spike-rt/drivers/include/libcpp/spike",
+                "${env:HOME}/etrobo/spike-rt/external/libpybricks/lib/lego",
+                "${env:HOME}/etrobo/spike-rt/external/libpybricks/lib/pbio/include",
+                "${env:HOME}/etrobo/spike-rt/external/libpybricks/lib/pbio/platform/prime_hub_spike-rt",
+                "${env:HOME}/etrobo/spike-rt/asp3",
+                "${env:HOME}/etrobo/spike-rt/asp3/include",
+                "${env:HOME}/etrobo/spike-rt/asp3/target/primehub_gcc",
+                "${env:HOME}/etrobo/spike-rt/asp3/arch/gcc",
+                "${env:HOME}/etrobo/spike-rt/asp3/arch/arm_m_gcc/common",
+                "${env:HOME}/etrobo/spike-rt/asp3/arch/arm_m_gcc/stm32f4xx_stm32cube",
+                "${env:HOME}/etrobo/gcc-arm-none-eabi-10.3-2021.10/lib/gcc/arm-none-eabi/10.3.1/include",
+                "${env:HOME}/etrobo/gcc-arm-none-eabi-10.3-2021.10/lib/gcc/arm-none-eabi/10.3.1/include-fixed",
+                "${env:HOME}/etrobo/gcc-arm-none-eabi-10.3-2021.10/arm-none-eabi/include"
+            ],
+            "defines": [
+                "SPIKERT"
+            ],
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-arm",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/main",
+                    "${env:HOME}/etrobo/spike-rt/drivers",
+                    "${env:HOME}/etrobo/spike-rt/drivers/include",
+                    "${env:HOME}/etrobo/spike-rt/external/libpybricks/lib",
+                    "${env:HOME}/etrobo/spike-rt/asp3"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            }
+        }
+    ],
+    "version": 4
+}
