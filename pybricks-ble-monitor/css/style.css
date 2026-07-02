@@ -1,0 +1,430 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    min-height: 100vh;
+    padding: 15px;
+}
+
+.container {
+    display: flex;
+    gap: 15px;
+    max-width: 1600px;
+    margin: 0 auto;
+    height: calc(100vh - 30px);
+}
+
+h1 {
+    color: #4fc1ff;
+    margin-bottom: 8px;
+    font-size: 20px;
+}
+
+/* ===== Left Panel ===== */
+.left-panel {
+    width: 260px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+}
+
+.panel-section {
+    background: #252526;
+    padding: 12px;
+    border-radius: 6px;
+}
+
+.panel-section h3 {
+    font-size: 11px;
+    color: #808080;
+    margin-bottom: 8px;
+    font-weight: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+button {
+    background: #0e639c;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.2s;
+    width: 100%;
+    margin-bottom: 6px;
+}
+
+button:last-child { margin-bottom: 0; }
+
+button:hover:not(:disabled) { background: #1177bb; }
+
+button:disabled { background: #3c3c3c; cursor: not-allowed; }
+
+button.disconnect { background: #c75450; }
+button.disconnect:hover:not(:disabled) { background: #e06c75; }
+
+button.secondary { background: #3c3c3c; }
+button.secondary:hover:not(:disabled) { background: #4e4e4e; }
+
+.status { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+
+.status-indicator { width: 10px; height: 10px; border-radius: 50%; background: #6e6e6e; }
+
+.status-indicator.connected { background: #4ec9b0; box-shadow: 0 0 6px #4ec9b0; }
+
+.status-indicator.connecting { background: #dcdcaa; animation: pulse 1s infinite; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.device-info { font-size: 11px; }
+.device-info-row { margin-bottom: 4px; display: flex; flex-direction: column; }
+.device-info-label { color: #808080; font-size: 10px; }
+.device-info-value { color: #d4d4d4; font-family: 'Consolas', monospace; font-size: 10px; word-break: break-all; }
+
+.checkbox-group { display: flex; flex-direction: column; gap: 6px; font-size: 11px; }
+.checkbox-group label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+input[type="checkbox"] { cursor: pointer; }
+
+/* ===== Right Panel ===== */
+.right-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #252526;
+    border-radius: 6px;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* ===== 上半分: 全センサー現在値パネル ===== */
+.sensors-panel {
+    height: 580px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    background: #1a1a1a;
+    padding: 10px 12px;
+}
+
+.sensors-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 8px;
+    height: 100%;
+}
+
+/* ===== センサーパネルとログ欄の間のリサイズハンドル ===== */
+.resize-handle {
+    height: 7px;
+    flex-shrink: 0;
+    background: #2d2d2d;
+    border-top: 1px solid #3c3c3c;
+    border-bottom: 1px solid #3c3c3c;
+    cursor: row-resize;
+    position: relative;
+}
+
+.resize-handle:hover,
+.resize-handle.dragging {
+    background: #0e639c;
+}
+
+.resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 36px;
+    height: 2px;
+    background: #6e6e6e;
+    border-radius: 1px;
+}
+
+/* センサーカード */
+.sensor-card {
+    background: #252526;
+    border: 1px solid #3c3c3c;
+    border-radius: 6px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.sensor-card-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #a0a0a0;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #3c3c3c;
+    flex-shrink: 0;
+}
+
+.sensor-no-data {
+    color: #444;
+    font-size: 28px;
+    text-align: center;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Consolas', monospace;
+}
+
+/* カラーセンサー用スウォッチ */
+.sensor-color-swatch {
+    width: 100%;
+    flex: 1;
+    min-height: 40px;
+    border-radius: 4px;
+    border: 1px solid #555;
+}
+
+.sensor-values {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    min-height: 0;
+}
+
+.sensor-value-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.sv-label {
+    font-size: 16px;
+    color: #808080;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.sv-value {
+    font-family: 'Consolas', monospace;
+    font-size: 24px;
+    font-weight: bold;
+    color: #4fc1ff;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.sv-value.highlight {
+    color: #f48771;
+}
+
+/* ===== 下半分: ログセクション ===== */
+.log-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.log-header {
+    background: #2d2d2d;
+    padding: 6px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #3c3c3c;
+    flex-shrink: 0;
+    gap: 8px;
+    min-height: 0;
+}
+
+.log-title-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+}
+
+.log-title-area h2 {
+    font-size: 13px;
+    font-weight: normal;
+    white-space: nowrap;
+    flex-shrink: 0;
+    color: #d4d4d4;
+}
+
+/* ヘッダー内インラインタブバー */
+.tab-bar-inline {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    flex: 1;
+    min-width: 0;
+}
+
+.tab-bar-inline::-webkit-scrollbar { height: 2px; }
+.tab-bar-inline::-webkit-scrollbar-track { background: transparent; }
+.tab-bar-inline::-webkit-scrollbar-thumb { background: #555; border-radius: 1px; }
+
+.tab {
+    background: transparent;
+    color: #606060;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 11px;
+    width: auto;
+    margin-bottom: 0;
+    border-radius: 0;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tab:hover:not(:disabled) { background: transparent; color: #d4d4d4; }
+
+.tab.active { color: #4fc1ff; border-bottom-color: #4fc1ff; background: transparent; }
+
+.log-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.log-actions button {
+    width: auto;
+    padding: 4px 10px;
+    font-size: 11px;
+    margin-bottom: 0;
+}
+
+/* ===== View Toggle ===== */
+.view-btn {
+    background: #3c3c3c;
+    color: #808080;
+    border: none;
+    padding: 3px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    width: auto;
+    margin-bottom: 0;
+    transition: background 0.15s, color 0.15s;
+}
+
+.view-btn:hover:not(:disabled) { background: #4e4e4e; color: #d4d4d4; }
+.view-btn.active { background: #0e639c; color: white; }
+
+/* ===== Filter Bar ===== */
+.filter-bar {
+    background: #1e1e1e;
+    padding: 6px 12px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    border-bottom: 1px solid #3c3c3c;
+    flex-shrink: 0;
+}
+
+.filter-bar input {
+    flex: 1;
+    background: #3c3c3c;
+    border: 1px solid #3c3c3c;
+    color: #d4d4d4;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+.filter-bar input:focus { outline: none; border-color: #0e639c; }
+
+.filter-bar button { width: auto; padding: 4px 10px; font-size: 11px; margin-bottom: 0; }
+
+.filter-stats { font-size: 11px; color: #808080; }
+
+/* ===== Column Headers ===== */
+.col-headers {
+    background: #2a2a2a;
+    padding: 2px 8px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    border-bottom: 1px solid #3c3c3c;
+    font-family: 'Consolas', monospace;
+    font-size: 10px;
+    color: #808080;
+    flex-shrink: 0;
+}
+
+.col-header-time { flex-shrink: 0; width: 80px; color: #555; }
+
+.col-header-item {
+    padding: 1px 6px;
+    background: #333;
+    border-radius: 2px;
+    min-width: 40px;
+    text-align: center;
+}
+
+/* ===== Log ===== */
+#log {
+    flex: 1;
+    overflow: auto;
+    padding: 6px 8px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.log-entry {
+    margin-bottom: 1px;
+    display: flex;
+    gap: 6px;
+}
+
+.timestamp { color: #858585; flex-shrink: 0; font-size: 10px; }
+
+.data { color: #d4d4d4; word-break: break-all; }
+.data.info { color: #4fc1ff; }
+.data.error { color: #f48771; }
+
+.empty-state { color: #6e6e6e; text-align: center; padding: 40px; }
+
+/* ===== Threshold Highlight ===== */
+.log-entry.threshold-hit .data { color: #f48771; }
+.log-entry.threshold-hit { background: rgba(244, 135, 113, 0.08); border-radius: 2px; }
+
+/* ===== Graph Container ===== */
+#graphContainer {
+    display: none;
+    flex: 1;
+    padding: 12px;
+    overflow: hidden;
+    min-height: 0;
+    position: relative;
+}
+
+#graphCanvas {
+    position: absolute;
+    top: 12px; left: 12px; right: 12px; bottom: 12px;
+    width: calc(100% - 24px) !important;
+    height: calc(100% - 24px) !important;
+}
