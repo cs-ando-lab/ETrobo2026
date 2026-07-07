@@ -3,7 +3,9 @@
 #include <t_syslog.h>
 #include "debug_log.h"
 
+#include "DriveBase.h"
 #include "Tracer.h"
+#include "ColorSensor.h"
 #include "Speaker.h"
 #include "Display.h"
 #include "Button.h"
@@ -13,7 +15,13 @@
 
 using namespace spikeapi;
 
-Tracer tracer;
+/* デバイス */
+ColorSensor colorSensor(EPort::PORT_E);
+UltrasonicSensor ultrasonicSensor(EPort::PORT_F);
+
+/* 走行制御 */
+DriveBase driveBase;
+Tracer tracer(driveBase, colorSensor);
 
 namespace {
     const char* const TRACER_LABEL = "Tracer";
@@ -26,9 +34,7 @@ void main_task(intptr_t unused) {
     Speaker speaker;
     Display display;
     Button button;
-    UltrasonicSensor ultrasonicSensor(EPort::PORT_F);
     ForceSensor forceSensor(EPort::PORT_D);
-
     speaker.setVolume(50);
     display.showChar('B');
     speaker.playTone(NOTE_A4, 300);
@@ -44,9 +50,9 @@ void main_task(intptr_t unused) {
     tracer.init();
 
     const debug_sensors_t sensors = {
-        .color = &tracer.getColorSensor(),
-        .left_motor = &tracer.getLeftMotor(),
-        .right_motor = &tracer.getRightMotor(),
+        .color = &colorSensor,
+        .left_motor = &driveBase.getLeftMotor(),
+        .right_motor = &driveBase.getRightMotor(),
         .ultrasonic = &ultrasonicSensor,
         .force = &forceSensor,
     };
