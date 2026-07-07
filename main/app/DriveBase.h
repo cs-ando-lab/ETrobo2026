@@ -12,8 +12,8 @@ using namespace spikeapi;
 class DriveBase {
 public:
     DriveBase();
-    void run(int8_t leftPower, int8_t rightPower);  // 左右モーターのパワーをセット
-    void stop();                                    // 左右のモーターを停止
+    void setPower(int leftPower, int rightPower);  // 左右モーターのパワーをセット
+    void stop();                                   // 左右のモーターを停止
 
     const Motor& getLeftMotor() const { return leftWheel; }
     const Motor& getRightMotor() const { return rightWheel; }
