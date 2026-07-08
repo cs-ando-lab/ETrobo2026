@@ -55,8 +55,8 @@ void main_task(intptr_t unused) {
 
     const debug_sensors_t sensors = {
         .color = &colorSensor,
-        .left_motor = &driveBase.getLeftMotor(),
-        .right_motor = &driveBase.getRightMotor(),
+        .left_motor = &leftWheel,
+        .right_motor = &rightWheel,
         .ultrasonic = &ultrasonicSensor,
         .force = &forceSensor,
     };
