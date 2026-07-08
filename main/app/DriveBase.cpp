@@ -1,8 +1,8 @@
 #include "DriveBase.h"
 
-DriveBase::DriveBase()
-    : leftWheel(EPort::PORT_B, Motor::EDirection::COUNTERCLOCKWISE, true),
-      rightWheel(EPort::PORT_A, Motor::EDirection::CLOCKWISE, true) {
+DriveBase::DriveBase(Motor& leftWheel, Motor& rightWheel)
+    : leftWheel(leftWheel),
+      rightWheel(rightWheel) {
 }
 
 void DriveBase::setPower(int leftPower, int rightPower) {

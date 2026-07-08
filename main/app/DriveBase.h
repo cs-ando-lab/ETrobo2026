@@ -6,12 +6,11 @@
 using namespace spikeapi;
 
 /**
- * 左右モーターを管理するクラス
- * 左右モーターの操作はこのクラスを通して行う。
+ * 左右モーターの操作を簡易化するためのクラス。
  */
 class DriveBase {
 public:
-    DriveBase();
+    DriveBase(Motor& leftWheel, Motor& rightWheel);
     void setPower(int leftPower, int rightPower);  // 左右モーターのパワーをセット
     void stop();                                   // 左右のモーターを停止
 
@@ -19,8 +18,8 @@ public:
     const Motor& getRightMotor() const { return rightWheel; }
 
 private:
-    Motor leftWheel;
-    Motor rightWheel;
+    Motor& leftWheel;
+    Motor& rightWheel;
 };
 
 #endif  // !DRIVEBASE_H_

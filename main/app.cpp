@@ -2,9 +2,11 @@
 #include "kernel_cfg.h"
 #include <t_syslog.h>
 #include "debug_log.h"
-
 #include "DriveBase.h"
 #include "Tracer.h"
+
+/* デバイス実体はすべてapp.cppが所有 */
+#include "Motor.h"
 #include "ColorSensor.h"
 #include "Speaker.h"
 #include "Display.h"
@@ -18,9 +20,11 @@ using namespace spikeapi;
 /* デバイス */
 ColorSensor colorSensor(EPort::PORT_E);
 UltrasonicSensor ultrasonicSensor(EPort::PORT_F);
+Motor leftWheel(EPort::PORT_B, Motor::EDirection::COUNTERCLOCKWISE, true);
+Motor rightWheel(EPort::PORT_A, Motor::EDirection::CLOCKWISE, true);
 
 /* 走行制御 */
-DriveBase driveBase;
+DriveBase driveBase(leftWheel, rightWheel);
 Tracer tracer(driveBase, colorSensor);
 
 namespace {
