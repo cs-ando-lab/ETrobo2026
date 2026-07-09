@@ -1,29 +1,22 @@
 #include "Tracer.h"
 
-Tracer::Tracer(DriveBase& driveBase, ColorSensor& colorSensor)
-    : driveBase(driveBase),
-      colorSensor(colorSensor) {
-}
-
-void Tracer::init() {
-    colorSensor.lightOn();
+Tracer::Tracer(Robot& robot)
+    : robot(robot) {
 }
 
 void Tracer::terminate() {
-    driveBase.stop();
+    robot.stop();
 }
 
 void Tracer::run() {
     float turn = calcPropValue();  // 比例制御の調整値を求める
     int pwm_l = PWM - turn;        // 基準値と調整値を使って操作量を求める
     int pwm_r = PWM + turn;
-    driveBase.setPower(pwm_l, pwm_r);
+    robot.setMotorPower(pwm_l, pwm_r);
 }
 
 bool Tracer::isOnBlue() {
-    ColorSensor::HSV hsv;
-    colorSensor.getColor(hsv, true);
-    if(hsv.h == TARGET_HUE) {
+    if(robot.isOnBlue()) {
         blueCount++;
     } else {
         blueCount = 0;
@@ -32,6 +25,6 @@ bool Tracer::isOnBlue() {
 }
 
 float Tracer::calcPropValue() const {
-    int diff = colorSensor.getReflection() - TARGET;  // 偏差を求める
-    return (KP * diff + BIAS);                        // 調整値を計算して返す
+    int diff = robot.getReflection() - TARGET;  // 偏差を求める
+    return (KP * diff + BIAS);                  // 調整値を計算して返す
 }
