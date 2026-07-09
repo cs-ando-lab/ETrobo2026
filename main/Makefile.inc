@@ -4,7 +4,8 @@ APPL_CXXOBJS +=\
     debug_log.o \
     Tracer.o \
     DriveBase.o \
-    Robot.o
+    Robot.o \
+    CourseConfig.o
 
 SRCLANG := c++
 
