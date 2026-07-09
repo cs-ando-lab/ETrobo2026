@@ -9,6 +9,8 @@
 #include "Display.h"
 #include "Button.h"
 #include "DriveBase.h"
+#include "ColorJudge.h"
+#include "Config.h"
 
 using namespace spikeapi;
 
@@ -21,11 +23,13 @@ public:
     Robot();
 
     // ── 移動 ──────────────────────────────────────────
-    // 指定した距離（mm）だけ直進する
-    void driveStraight(int distanceMm, int speed = 30);
+    // 指定した距離（mm）だけ直進する。distanceMmが負なら後退する
+    // speedDegPerSec: 目標回転速度 [°/秒]（setPowerではなくsetSpeedによる速度制御を使う）
+    void driveStraight(int distanceMm, int speedDegPerSec = Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
 
     // 指定した角度だけ超信地旋回する（+ = 右旋回、- = 左旋回）
-    void turn(float degrees, int speed = 20);
+    // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
+    void turn(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
 
     // 左右のモーターパワーを直接指定する（Tracerが使う）
     void setMotorPower(int left, int right);
@@ -40,8 +44,11 @@ public:
     // カラーセンサーの反射光強度を取得する [0〜100]
     int getReflection() const;
 
-    // 青色の上にいるかどうかを返す（LAPゲート検出に使う）
-    bool isOnBlue() const;
+    // カラーセンサーの生の測定値(RGB/HSV/反射率)をまとめて取得する
+    ColorJudge::Reading getColorReading() const;
+
+    // 現在の色を判定する（黒/白/赤/黄/緑/青）。LAPゲート検出や各課題での色判定に使う
+    ColorJudge::Color getColor() const;
 
     // フォースセンサーが押されているかどうかを返す
     bool isForceSensorPressed() const;
@@ -53,9 +60,9 @@ public:
     bool isCenterButtonPressed();
 
     // ── HMI ──────────────────────────────────────────
-    void showChar(char c);    // ディスプレイに1文字表示
-    void off();               // ディスプレイを消灯
-    void beep(int ms = 100);  // ビープ音
+    void showChar(char c);                        // ディスプレイに1文字表示
+    void off();                                   // ディスプレイを消灯
+    void beep(int ms = Config::BEEP_DEFAULT_MS);  // ビープ音
 
     // ── エンコーダー（距離計算に使う）───────────────────
     void resetMotorCounts();         // カウントをリセット
@@ -79,13 +86,6 @@ private:
     Speaker speaker;
     Display display;
     Button button;
-
-    static constexpr float WHEEL_RADIUS_MM = 28.0f;
-    static constexpr float TREAD_MM = 112.0f;
-    static constexpr float PI = 3.14159f;
-    static constexpr uint16_t BLUE_HUE = 240;           // 青色と判定するHUE値
-    static constexpr uint16_t BLUE_HUE_TOLERANCE = 20;  // Hueの許容誤差[度]
-    static constexpr uint8_t BLUE_MIN_SATURATION = 30;  // これ未満はグレー(黒/白)とみなし除外する彩度のしきい値
 };
 
 #endif  // !ROBOT_H_
