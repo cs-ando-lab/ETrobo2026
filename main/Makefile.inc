@@ -7,7 +7,8 @@ APPL_CXXOBJS +=\
     Robot.o \
     CourseConfig.o \
     Calibrator.o \
-    ColorJudge.o
+    ColorJudge.o \
+    Pid.o
 
 SRCLANG := c++
 
