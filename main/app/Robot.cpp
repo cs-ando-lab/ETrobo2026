@@ -32,10 +32,16 @@ void Robot::driveStraight(int distanceMm, int speedDegPerSec) {
     float traveledMm = 0.0f;
     int loopCount = 0;
     while(traveledMm < targetDistanceMm && loopCount < Config::DRIVE_TIMEOUT_LOOP_COUNT) {
+        if(isCenterButtonPressed()) {  // センターボタンで安全停止
+            break;
+        }
         dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
         int count = (getLeftMotorCount() + getRightMotorCount()) / 2;
         traveledMm = (std::abs(count) / 360.0f) * 2 * Config::PI * Config::WHEEL_RADIUS_MM;
         loopCount++;
+    }
+    if(loopCount >= Config::DRIVE_TIMEOUT_LOOP_COUNT) {
+        syslog(LOG_NOTICE, "DRIVE,TIMEOUT");
     }
 
     stop();
@@ -55,6 +61,9 @@ void Robot::turn(float degrees, int speedDegPerSec) {
     int loopCount = 0;
     float wheelDeg = 0.0f;
     while(wheelDeg < targetWheelDeg && loopCount < Config::TURN_TIMEOUT_LOOP_COUNT) {
+        if(isCenterButtonPressed()) {  // センターボタンで安全停止
+            break;
+        }
         dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
         wheelDeg = (std::abs(getLeftMotorCount()) + std::abs(getRightMotorCount())) / 2.0f;
         loopCount++;
