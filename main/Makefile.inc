@@ -3,7 +3,6 @@ mkfile_path := $(dir $(lastword $(MAKEFILE_LIST)))
 APPL_CXXOBJS +=\
     debug_log.o \
     Tracer.o \
-    DriveBase.o \
     Robot.o \
     CourseConfig.o \
     Calibrator.o \
