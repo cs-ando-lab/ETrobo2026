@@ -10,6 +10,8 @@ Robot::Robot()
       speaker(),
       display(),
       button() {
+    colorSensor.lightOn();
+    speaker.setVolume(50);
 }
 
 void Robot::driveStraight(int distanceMm, int speed) {
@@ -54,8 +56,16 @@ bool Robot::isRightButtonPressed() {
     return button.isRightPressed();
 }
 
+bool Robot::isCenterButtonPressed() {
+    return button.isCenterPressed();
+}
+
 void Robot::showChar(char c) {
     display.showChar(c);
+}
+
+void Robot::off() {
+    display.off();
 }
 
 void Robot::beep(int ms) {

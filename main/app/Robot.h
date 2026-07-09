@@ -50,15 +50,24 @@ public:
     // Button::isXxxPressed() がconstメソッドではないため、このメソッドもconstにできない
     bool isLeftButtonPressed();
     bool isRightButtonPressed();
+    bool isCenterButtonPressed();
 
     // ── HMI ──────────────────────────────────────────
     void showChar(char c);    // ディスプレイに1文字表示
+    void off();               // ディスプレイを消灯
     void beep(int ms = 100);  // ビープ音
 
     // ── エンコーダー（距離計算に使う）───────────────────
     void resetMotorCounts();         // カウントをリセット
     int getLeftMotorCount() const;   // 左モーターの回転量 [degree]
     int getRightMotorCount() const;  // 右モーターの回転量 [degree]
+
+    // ── デバッグログ用（BLE Monitorへのセンサー値送信にのみ使用）─────
+    const ColorSensor& getColorSensor() const { return colorSensor; }
+    const Motor& getLeftMotor() const { return leftMotor; }
+    const Motor& getRightMotor() const { return rightMotor; }
+    const UltrasonicSensor& getUltrasonicSensor() const { return ultrasonicSensor; }
+    const ForceSensor& getForceSensor() const { return forceSensor; }
 
 private:
     Motor leftMotor;                    // PORT_B, COUNTERCLOCKWISE
