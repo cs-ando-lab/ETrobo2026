@@ -3,7 +3,8 @@ mkfile_path := $(dir $(lastword $(MAKEFILE_LIST)))
 APPL_CXXOBJS +=\
     debug_log.o \
     Tracer.o \
-    DriveBase.o
+    DriveBase.o \
+    Robot.o
 
 SRCLANG := c++
 
