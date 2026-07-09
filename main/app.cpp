@@ -2,30 +2,14 @@
 #include "kernel_cfg.h"
 #include <t_syslog.h>
 #include "debug_log.h"
-#include "DriveBase.h"
+#include "Robot.h"
 #include "Tracer.h"
 
-/* デバイス実体はすべてapp.cppが所有 */
-#include "Motor.h"
-#include "ColorSensor.h"
-#include "Speaker.h"
-#include "Display.h"
-#include "Button.h"
-#include "UltrasonicSensor.h"
-#include "ForceSensor.h"
 #include <spike/hub/system.h>
 
-using namespace spikeapi;
-
-/* デバイス */
-ColorSensor colorSensor(EPort::PORT_E);
-UltrasonicSensor ultrasonicSensor(EPort::PORT_F);
-Motor leftWheel(EPort::PORT_B, Motor::EDirection::COUNTERCLOCKWISE, true);
-Motor rightWheel(EPort::PORT_A, Motor::EDirection::CLOCKWISE, true);
-
-/* 走行制御 */
-DriveBase driveBase(leftWheel, rightWheel);
-Tracer tracer(driveBase, colorSensor);
+/* ハードウェアの実体はすべてRobotが所有 */
+Robot robot;
+Tracer tracer(robot);
 
 namespace {
     const char* const TRACER_LABEL = "Tracer";
@@ -35,30 +19,22 @@ namespace {
 
 /* メインタスク(起動時にのみ関数コールされる) */
 void main_task(intptr_t unused) {
-    Speaker speaker;
-    Display display;
-    Button button;
-    ForceSensor forceSensor(EPort::PORT_D);
-    speaker.setVolume(50);
-    display.showChar('B');
-    speaker.playTone(NOTE_A4, 300);
+    robot.showChar('B');
+    robot.beep(300);
     dly_tsk(3 * 1000 * 1000); /* BLE接続待ち */
 
     /* フォースセンサーが押されるまでライントレース開始を待つ */
-    display.off();
-    while(!forceSensor.isTouched()) {
+    robot.off();
+    while(!robot.isForceSensorPressed()) {
         dly_tsk(50 * 1000);
     }
 
-    /* ライントレース初期化 */
-    tracer.init();
-
     const debug_sensors_t sensors = {
-        .color = &colorSensor,
-        .left_motor = &leftWheel,
-        .right_motor = &rightWheel,
-        .ultrasonic = &ultrasonicSensor,
-        .force = &forceSensor,
+        .color = &robot.getColorSensor(),
+        .left_motor = &robot.getLeftMotor(),
+        .right_motor = &robot.getRightMotor(),
+        .ultrasonic = &robot.getUltrasonicSensor(),
+        .force = &robot.getForceSensor(),
     };
     debug_log_init(&sensors);
 
@@ -67,7 +43,7 @@ void main_task(intptr_t unused) {
 
     while(1) {
         /* センターボタンで停止 */
-        if(button.isCenterPressed() || tracer.isOnBlue()) {
+        if(robot.isCenterButtonPressed() || tracer.isOnBlue()) {
             break;
         }
 
@@ -77,7 +53,7 @@ void main_task(intptr_t unused) {
         /* ライントレース中は"Tracer"の文字を1文字ずつ循環表示 */
         int labelIndex = (count / LABEL_CHANGE_CYCLES) % TRACER_LABEL_LEN;
         if(labelIndex != prevLabelIndex) {
-            display.showChar(TRACER_LABEL[labelIndex]);
+            robot.showChar(TRACER_LABEL[labelIndex]);
             prevLabelIndex = labelIndex;
         }
 
@@ -87,7 +63,7 @@ void main_task(intptr_t unused) {
         dly_tsk(100 * 1000); /* 100ms周期 */
     }
 
-    display.off();
+    robot.off();
     tracer.terminate();
 
     syslog(LOG_NOTICE, "stopped");
