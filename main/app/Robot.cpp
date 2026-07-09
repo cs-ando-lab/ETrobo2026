@@ -39,9 +39,17 @@ int Robot::getReflection() const {
 }
 
 bool Robot::isOnBlue() const {
+    // getColor()は6色(赤/黄/緑/青/白/黒)の中から最も近いものを選び、その基準値を返す実装のため、
+    // 僅差でも大差でも同じ値(青なら常にh=240,s=100,v=100)が返ってきて確信度が分からない。
+    // ここではgetHSV()で丸め込み前の生の値を取得し、Hueの近さと彩度の高さの両方で判定する
+    // （黒・白はほぼ無彩色=彩度が低いはずなので、境界付近のノイズでの誤判定を減らせる）。
     ColorSensor::HSV hsv;
-    colorSensor.getColor(hsv, true);
-    return (hsv.h == BLUE_HUE);
+    colorSensor.getHSV(hsv, true);
+    int hueDiff = static_cast<int>(hsv.h) - static_cast<int>(BLUE_HUE);
+    if(hueDiff < 0) {
+        hueDiff = -hueDiff;
+    }
+    return (hsv.s >= BLUE_MIN_SATURATION && hueDiff <= BLUE_HUE_TOLERANCE);
 }
 
 bool Robot::isForceSensorPressed() const {

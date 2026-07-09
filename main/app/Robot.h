@@ -83,7 +83,9 @@ private:
     static constexpr float WHEEL_RADIUS_MM = 28.0f;
     static constexpr float TREAD_MM = 112.0f;
     static constexpr float PI = 3.14159f;
-    static constexpr uint16_t BLUE_HUE = 240;  // 青色と判定するHUE値
+    static constexpr uint16_t BLUE_HUE = 240;           // 青色と判定するHUE値
+    static constexpr uint16_t BLUE_HUE_TOLERANCE = 20;  // Hueの許容誤差[度]
+    static constexpr uint8_t BLUE_MIN_SATURATION = 30;  // これ未満はグレー(黒/白)とみなし除外する彩度のしきい値
 };
 
 #endif  // !ROBOT_H_
