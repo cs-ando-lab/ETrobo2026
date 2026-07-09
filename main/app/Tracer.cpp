@@ -22,9 +22,9 @@ void Tracer::run() {
 
 bool Tracer::isOnBlue() {
     ColorSensor::HSV hsv;
-    colorSensor.getColor(hsv, true);
+    colorSensor.getHSV(hsv, true);
 
-    // 友達のコード（hsv.h == TARGET_HUE）を、俺らのフィルターに差し替え！
+    // フィルタ変更
     if(hsv.h >= 200 && hsv.h <= 280 && hsv.s > 60 && hsv.v > 20) {
         blueCount++;
     } else {
