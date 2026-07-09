@@ -1,0 +1,42 @@
+name: Notify Discord on PR Merge
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+jobs:
+  notify:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          MESSAGE="✅ mainブランチに変更がマージされました
+
+          **変更内容**
+          ${PR_TITLE}
+
+          **作成者**
+          ${PR_AUTHOR}
+
+          **ブランチ**
+          ${HEAD_BRANCH} → ${BASE_BRANCH}
+
+          **PR**
+          ${PR_URL}"
+
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d "$(jq -n --arg content "$MESSAGE" '{content: $content}')" \
+               "$DISCORD_WEBHOOK_URL"
