@@ -1,5 +1,6 @@
 #include "Calibrator.h"
 #include "CourseConfig.h"
+#include "Config.h"
 #include "kernel.h"
 
 Calibrator::Calibrator(Robot& robot)
@@ -8,8 +9,8 @@ Calibrator::Calibrator(Robot& robot)
 
 void Calibrator::run() {
     robot.showChar('B');
-    robot.beep(300);
-    dly_tsk(3 * 1000 * 1000); /* BLE接続待ち */
+    robot.beep(Config::CALIBRATOR_BEEP_MS);
+    dly_tsk(Config::CALIBRATOR_BLE_WAIT_US); /* BLE接続待ち */
 
     selectCourseAndWaitForStart();
 
@@ -27,6 +28,6 @@ void Calibrator::selectCourseAndWaitForStart() {
             CourseConfig::setCourse(CourseConfig::Course::R);
             robot.showChar('R');
         }
-        dly_tsk(50 * 1000);
+        dly_tsk(Config::CALIBRATOR_POLL_INTERVAL_US);
     }
 }
