@@ -5,8 +5,7 @@ extern "C" {
 #include <kernel.h>
 
 /* タスク優先度 */
-#define MAIN_PRIORITY 5   /* メインタスク */
-#define TRACER_PRIORITY 6 /* ライントレースタスク */
+#define MAIN_PRIORITY 5 /* メインタスク */
 
 #ifndef STACK_SIZE
 #define STACK_SIZE (4096)
