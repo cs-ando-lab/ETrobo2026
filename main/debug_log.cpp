@@ -43,15 +43,17 @@ void debug_log_all(const debug_sensors_t* sensors, int count) {
         case 1: {
             if(!sensors->color)
                 break;
-            ColorSensor::HSV approxColor;
-            sensors->color->getColor(approxColor, true);
+            /* getColor()は6色に丸め込んだ基準値を返すため、ColorJudgeの調整には
+             * 丸め込み前の生の値が見えるgetHSV()を使う */
+            ColorSensor::HSV rawColor;
+            sensors->color->getHSV(rawColor, true);
             static int32_t pah = -1;
             static int pas = -1, pav = -1;
-            if(approxColor.h != pah || approxColor.s != pas || approxColor.v != pav) {
-                syslog(LOG_NOTICE, "COLOR2,%d,%d,%d,%d", count, approxColor.h, approxColor.s, approxColor.v);
-                pah = approxColor.h;
-                pas = approxColor.s;
-                pav = approxColor.v;
+            if(rawColor.h != pah || rawColor.s != pas || rawColor.v != pav) {
+                syslog(LOG_NOTICE, "COLOR2,%d,%d,%d,%d", count, rawColor.h, rawColor.s, rawColor.v);
+                pah = rawColor.h;
+                pas = rawColor.s;
+                pav = rawColor.v;
             }
             break;
         }
