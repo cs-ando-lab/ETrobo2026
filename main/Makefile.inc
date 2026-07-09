@@ -5,7 +5,8 @@ APPL_CXXOBJS +=\
     Tracer.o \
     DriveBase.o \
     Robot.o \
-    CourseConfig.o
+    CourseConfig.o \
+    Calibrator.o
 
 SRCLANG := c++
 

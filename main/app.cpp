@@ -4,6 +4,7 @@
 #include "debug_log.h"
 #include "Robot.h"
 #include "Tracer.h"
+#include "Calibrator.h"
 
 #include <spike/hub/system.h>
 
@@ -19,15 +20,9 @@ namespace {
 
 /* メインタスク(起動時にのみ関数コールされる) */
 void main_task(intptr_t unused) {
-    robot.showChar('B');
-    robot.beep(300);
-    dly_tsk(3 * 1000 * 1000); /* BLE接続待ち */
-
-    /* フォースセンサーが押されるまでライントレース開始を待つ */
-    robot.off();
-    while(!robot.isForceSensorPressed()) {
-        dly_tsk(50 * 1000);
-    }
+    /* コース選択・スタート待ちなどの準備 */
+    Calibrator calibrator(robot);
+    calibrator.run();
 
     const debug_sensors_t sensors = {
         .color = &robot.getColorSensor(),
