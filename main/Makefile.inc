@@ -6,7 +6,8 @@ APPL_CXXOBJS +=\
     DriveBase.o \
     Robot.o \
     CourseConfig.o \
-    Calibrator.o
+    Calibrator.o \
+    ColorJudge.o
 
 SRCLANG := c++
 
