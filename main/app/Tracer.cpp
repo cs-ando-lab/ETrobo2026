@@ -22,13 +22,16 @@ void Tracer::run() {
 
 bool Tracer::isOnBlue() {
     ColorSensor::HSV hsv;
-    colorSensor.getColor(hsv, true);
-    if(hsv.h == TARGET_HUE) {
+    colorSensor.getHSV(hsv, true);
+
+    // フィルタ変更
+    if(hsv.h >= 200 && hsv.h <= 280 && hsv.s > 60 && hsv.v > 20) {
         blueCount++;
     } else {
         blueCount = 0;
     }
-    return (blueCount >= BLUE_DETECTION_COUNT);  // カラーセンサの取得値が一定期回数青色か判定
+    
+    return (blueCount >= BLUE_DETECTION_COUNT);  
 }
 
 float Tracer::calcPropValue() const {
