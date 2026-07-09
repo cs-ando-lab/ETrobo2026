@@ -6,7 +6,6 @@
 Robot::Robot()
     : leftMotor(EPort::PORT_B, Motor::EDirection::COUNTERCLOCKWISE, true),
       rightMotor(EPort::PORT_A, Motor::EDirection::CLOCKWISE, true),
-      driveBase(leftMotor, rightMotor),
       colorSensor(EPort::PORT_E),
       ultrasonicSensor(EPort::PORT_F),
       forceSensor(EPort::PORT_D),
@@ -76,11 +75,13 @@ void Robot::turn(float degrees, int speedDegPerSec) {
 }
 
 void Robot::setMotorPower(int left, int right) {
-    driveBase.setPower(left, right);
+    leftMotor.setPower(left);
+    rightMotor.setPower(right);
 }
 
 void Robot::stop() {
-    driveBase.stop();
+    leftMotor.stop();
+    rightMotor.stop();
 }
 
 int Robot::getUltrasonicDistance() const {

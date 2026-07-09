@@ -8,7 +8,6 @@
 #include "Speaker.h"
 #include "Display.h"
 #include "Button.h"
-#include "DriveBase.h"
 #include "ColorJudge.h"
 #include "Config.h"
 
@@ -79,7 +78,6 @@ public:
 private:
     Motor leftMotor;                    // PORT_B, COUNTERCLOCKWISE
     Motor rightMotor;                   // PORT_A, CLOCKWISE
-    DriveBase driveBase;                // 左右モーターをまとめて操作するためのヘルパー
     ColorSensor colorSensor;            // PORT_E
     UltrasonicSensor ultrasonicSensor;  // PORT_F
     ForceSensor forceSensor;            // PORT_D
