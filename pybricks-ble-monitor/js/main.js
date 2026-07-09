@@ -12,7 +12,7 @@ const TAB_CONFIGS = {
         thresholds: []
     },
     'COLOR2': {
-        headers: ['count', '近似H', '近似S', '近似V'],
+        headers: ['count', 'H', 'S', 'V'],
         thresholds: []
     },
     'MOTOR': {

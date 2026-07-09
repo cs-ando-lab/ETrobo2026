@@ -14,9 +14,6 @@ public:
     void setPower(int leftPower, int rightPower);  // 左右モーターのパワーをセット
     void stop();                                   // 左右のモーターを停止
 
-    const Motor& getLeftMotor() const { return leftWheel; }
-    const Motor& getRightMotor() const { return rightWheel; }
-
 private:
     Motor& leftWheel;
     Motor& rightWheel;
