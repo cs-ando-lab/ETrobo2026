@@ -37,9 +37,6 @@ void Robot::driveStraight(int distanceMm, int speedDegPerSec) {
         traveledMm = (std::abs(count) / 360.0f) * 2 * Config::PI * Config::WHEEL_RADIUS_MM;
         loopCount++;
     }
-    if(loopCount >= Config::DRIVE_TIMEOUT_LOOP_COUNT) {
-        syslog(LOG_NOTICE, "DRIVE,TIMEOUT");
-    }
 
     stop();
 }

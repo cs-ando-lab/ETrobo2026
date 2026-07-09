@@ -19,15 +19,6 @@ void GameRunner::run() {
     calib.run();
     debug_log_init(&sensors);
 
-    /* ── turn()動作確認用の一時テストコード（確認後に削除予定） ──
-     * robot.turn(90)で約90度右旋回して自動停止するかを確認する */
-    robot.showChar('T');
-    robot.turn(90);
-    dly_tsk(1000 * 1000);
-    robot.turn(-90);
-    robot.off();
-    /* ──────────────────────────────────────────── */
-
     // 2. LAPゲートまでライントレース → ET相撲
     if(!lineTraceUntilLap()) {
         return;
