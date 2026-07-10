@@ -63,10 +63,12 @@ void Robot::driveWaving(float swingDeg, int speedDegPerSec, ColorJudge::Color co
     int swingCnt = 0;
 
     while(swingCnt < Config::WAVE_MAX_SWING_COUNT) {
+        // 一回の旋回あたりのループカウンタ
+        int loopCount = 0;
+        float wheelDeg = 0.0f;
+
         if(swingCnt == 0) {  // 最初の旋回は半分の旋回角度で左旋回
             float firstTargetWheelDeg = targetWheelDeg / 2.0;
-            int loopCount = 0;
-            float wheelDeg = 0.0f;
 
             resetMotorCounts();
             leftMotor.stop();
@@ -81,9 +83,6 @@ void Robot::driveWaving(float swingDeg, int speedDegPerSec, ColorJudge::Color co
                 loopCount++;
             }
         } else if(swingCnt % 2 == 1) {  // 右旋回
-            int loopCount = 0;
-            float wheelDeg = 0.0f;
-
             resetMotorCounts();
             leftMotor.setSpeed(speedDegPerSec);
             rightMotor.stop();
@@ -97,9 +96,6 @@ void Robot::driveWaving(float swingDeg, int speedDegPerSec, ColorJudge::Color co
                 loopCount++;
             }
         } else {  // 左旋回
-            int loopCount = 0;
-            float wheelDeg = 0.0f;
-
             resetMotorCounts();
             leftMotor.stop();
             rightMotor.setSpeed(speedDegPerSec);
@@ -112,6 +108,9 @@ void Robot::driveWaving(float swingDeg, int speedDegPerSec, ColorJudge::Color co
                 wheelDeg = std::abs(getRightMotorCount());
                 loopCount++;
             }
+        }
+        if(loopCount >= Config::SWING_TIMEOUT_LOOP_COUNT) {
+            syslog(LOG_NOTICE, "SWING,TIMEOUT(%d)", swingCnt);
         }
         swingCnt++;
     }
