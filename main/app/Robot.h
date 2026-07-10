@@ -26,6 +26,10 @@ public:
     // speedDegPerSec: 目標回転速度 [°/秒]（setPowerではなくsetSpeedによる速度制御を使う）
     void driveStraight(int distanceMm, int speedDegPerSec = Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
 
+    // 指定された一回の旋回あたりの角度で蛇行運転を行う。
+    // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
+    void driveWaving(float swingDeg, int speedDegPerSec = Config::WAVE_DEFAULT_SPEED_DEG_PER_SEC, ColorJudge::Color color = ColorJudge::Color::BLACK);
+
     // 指定した角度だけ超信地旋回する（+ = 右旋回、- = 左旋回）
     // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
     void turn(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);

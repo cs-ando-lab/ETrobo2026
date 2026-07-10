@@ -14,12 +14,15 @@ public:
     static constexpr float TREAD_MM = 112.0f;        // 左右ホイール間の距離[mm]
     static constexpr float PI = 3.14159f;
 
-    // ── Robot: driveStraight / turn ─────────────────────
+    // ── Robot: driveStraight / driveWaving / turn ──────
     static constexpr int DRIVE_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 直進の既定速度[°/秒]
+    static constexpr int WAVE_DEFAULT_SPEED_DEG_PER_SEC = 300;   // 蛇行の既定速度[°/秒]
     static constexpr int TURN_DEFAULT_SPEED_DEG_PER_SEC = 300;   // 旋回の既定速度[°/秒]
     static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 500;         // 直進のタイムアウト(周期の回数)
+    static constexpr int WAVE_MAX_SWING_COUNT = 50;              // 蛇行の最大回数
+    static constexpr int SWING_TIMEOUT_LOOP_COUNT = 500;         // 蛇行/旋回のタイムアウト(周期の回数)
     static constexpr int TURN_TIMEOUT_LOOP_COUNT = 500;          // 旋回のタイムアウト(周期の回数)
-    static constexpr int MOTION_POLL_INTERVAL_US = 10 * 1000;    // 直進・旋回中のエンコーダー確認周期[us]
+    static constexpr int MOTION_POLL_INTERVAL_US = 10 * 1000;    // 直進・旋回・蛇行中のエンコーダー確認周期[us]
 
     // ── Robot: 起動時の設定 / HMI ────────────────────────
     static constexpr int SPEAKER_VOLUME = 50;    // スピーカー音量[0-100]
