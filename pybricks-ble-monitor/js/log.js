@@ -113,11 +113,13 @@ function renderAllSensors() {
 }
 
 function addLogEntry(text, type = 'data') {
-    const entry = { time: formatTime(new Date()), text, type };
+    const now = new Date();
+    const entry = { time: formatTime(now), date: now, text, type };
     const isPaused = document.getElementById('pauseLog')?.checked || false;
 
     if (type === 'data') {
         writeToStream(entry);
+        writeAutoSaveEntry(entry);
 
         if (!isPaused) {
             logEntries.push(entry);
