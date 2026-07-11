@@ -2,6 +2,7 @@
 /asp
 /log.txt
 /main/build
+/log/
 
 # astah* のバックアップ/ロックファイル
 models/*.asta~

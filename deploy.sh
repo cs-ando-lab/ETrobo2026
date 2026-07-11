@@ -57,10 +57,26 @@ fi
 
 echo "[ deploy: 完了しました。 ]"
 
-# 3. BLE Monitorの起動 (Windows側のChromeで直接index.htmlを開く)
+# 3. BLE Monitorの起動 (Windows側のChromeでhttp://localhost経由のindex.htmlを開く)
+#
+# file://wsl.localhost/... のようなホスト名付きURLで直接index.htmlを開くと、
+# ChromeがそのoriginにFile System Access API(自動保存機能が使う)の権限を
+# 正しく与えないことがあるため、ローカルサーバー経由でhttp://localhostとして開く。
 echo "[ deploy: BLE Monitorを起動します... ]"
 cd "$SCRIPT_DIR"
-BLE_MONITOR_URL="file:$(wslpath -m pybricks-ble-monitor/index.html)"
+
+BLE_PORT=8765
+BLE_MONITOR_DIR="$SCRIPT_DIR/pybricks-ble-monitor"
+
+# 既にサーバーが起動していれば二重起動しない (/dev/tcpでポートの応答を確認)
+if ! timeout 1 bash -c "echo > /dev/tcp/127.0.0.1/$BLE_PORT" 2>/dev/null; then
+    echo "[ deploy: BLE Monitor用のローカルサーバーを起動します (port $BLE_PORT)... ]"
+    (cd "$BLE_MONITOR_DIR" && nohup python3 -m http.server "$BLE_PORT" --bind 127.0.0.1 \
+        > /tmp/pybricks-ble-monitor-server.log 2>&1 &)
+    sleep 1
+fi
+
+BLE_MONITOR_URL="http://localhost:$BLE_PORT/index.html"
 BLE_TAB_TITLE="Pybricks BLE Monitor"
 CHROME_PATH='C:\Program Files\Google\Chrome\Application\chrome.exe'
 

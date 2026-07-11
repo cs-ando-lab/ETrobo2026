@@ -69,6 +69,18 @@
             </div>
 
             <div class="panel-section">
+                <h3>自動保存</h3>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="autoSaveEnabled" checked>
+                        接続時に自動でlogフォルダへ保存する
+                    </label>
+                </div>
+                <button onclick="chooseAutoSaveDirectory()" class="secondary">保存先フォルダを選択</button>
+                <div id="autoSaveStatus" style="margin-top: 8px; font-size: 11px; color: #808080;">保存先フォルダが未選択です</div>
+            </div>
+
+            <div class="panel-section">
                 <h3>ログ操作</h3>
                 <button onclick="copyLog()">クリップボードにコピー</button>
                 <button onclick="saveLogCSV()" class="secondary">CSVで保存 (UTF-8)</button>
@@ -130,6 +142,7 @@
 
     <script src="js/chart.min.js"></script>
     <script src="js/main.js"></script>
+    <script src="js/autosave.js"></script>
     <script src="js/bluetooth.js"></script>
     <script src="js/log.js"></script>
     <script src="js/graph.js"></script>

@@ -49,6 +49,7 @@ async function connect() {
         updateStatus('connected', '接続済み: ' + deviceName);
         updateButtons();
         addLogEntry('接続しました: ' + deviceName, 'info');
+        await startAutoSave();
 
     } catch (error) {
         console.error('Connection error:', error);
@@ -75,10 +76,11 @@ async function disconnect() {
     }
 }
 
-function onDisconnected(event) {
+async function onDisconnected(event) {
     updateStatus('disconnected', '切断されました');
     updateButtons();
     addLogEntry('切断されました', 'info');
+    await stopAutoSave();
 
     receiveBuffer = '';
 

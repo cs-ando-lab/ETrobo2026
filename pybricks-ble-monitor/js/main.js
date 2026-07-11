@@ -172,6 +172,7 @@ function initResizeHandle() {
 document.addEventListener('DOMContentLoaded', function () {
     updateButtons();
     initResizeHandle();
+    restoreAutoSaveDirectory();
 
     document.getElementById('filterInput').addEventListener('keypress', function (e) {
         if (e.key === 'Enter') applyFilter();
