@@ -14,12 +14,20 @@ public:
     static constexpr float TREAD_MM = 112.0f;        // 左右ホイール間の距離[mm]
     static constexpr float PI = 3.14159f;
 
-    // ── Robot: driveStraight / turn ─────────────────────
+    // ── Robot: 走行機能 ────────────────────────────────
+    // driveStraight
     static constexpr int DRIVE_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 直進の既定速度[°/秒]
-    static constexpr int TURN_DEFAULT_SPEED_DEG_PER_SEC = 300;   // 旋回の既定速度[°/秒]
     static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 500;         // 直進のタイムアウト(周期の回数)
-    static constexpr int TURN_TIMEOUT_LOOP_COUNT = 500;          // 旋回のタイムアウト(周期の回数)
-    static constexpr int MOTION_POLL_INTERVAL_US = 10 * 1000;    // 直進・旋回中のエンコーダー確認周期[us]
+    // turn
+    static constexpr int TURN_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 旋回の既定速度[°/秒]
+    static constexpr int TURN_TIMEOUT_LOOP_COUNT = 500;         // 旋回のタイムアウト(周期の回数)
+    // runUntilColor
+    static constexpr int RUC_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 既定速度[°/秒]
+    static constexpr int RUC_SWING_MAX_COUNT = 50;             // 蛇行/最大旋回回数
+    static constexpr float RUC_SWING_DEFAULT_DEG = 40.0f;      // 蛇行/1旋回における旋回角度[°]
+    static constexpr int RUC_SWING_TIMEOUT_LOOP_COUNT = 500;   // 蛇行/1旋回におけるタイムアウト(周期の回数)
+    // 共通
+    static constexpr int MOTION_POLL_INTERVAL_US = 10 * 1000;  // 直進・旋回・蛇行中のエンコーダー確認周期[us]
 
     // ── Robot: 起動時の設定 / HMI ────────────────────────
     static constexpr int SPEAKER_VOLUME = 50;    // スピーカー音量[0-100]
