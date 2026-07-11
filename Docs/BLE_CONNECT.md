@@ -24,12 +24,15 @@ make app=ETrobo2026_code/main up
 
 起動方法には、以下の2種類の方法があります。
 
-- **エクスプローラーから開く**
-  1. VSCodeで `pybricks-ble-monitor/index.html` を右クリックし、「エクスプローラーで表示する」をクリックする。
-  2. `index.html` をダブルクリックして、Chrome（またはEdge）で開く。
+- **`start.bat` から開く**
+  1. VSCodeで `pybricks-ble-monitor/start.bat` を右クリックし、「エクスプローラーで表示する」をクリックする。
+  2. `start.bat` をダブルクリックする。
 - **`deploy.sh` による自動起動**
 
-  `deploy.sh` は、プログラムの転送後にWindows側のChromeで直接 `index.html` を開きます。すでに Pybricks BLE Monitor を開いているタブがある場合は、新しく開かずにそのタブを前面に表示します。
+  `deploy.sh` は、プログラムの転送後にWindows側のChromeでPybricks BLE Monitorを開きます。すでに Pybricks BLE Monitor を開いているタブがある場合は、新しく開かずにそのタブを前面に表示します。
+
+> [!NOTE]
+> `index.html` を`file://`として直接ダブルクリックで開くと、ログの自動保存機能（`log`フォルダへの自動保存）が正しく動作しないことがあります。これは`file://`のURL形式によってはブラウザが一部の権限を許可しないためで、`start.bat`または`deploy.sh`を使うと、ローカルサーバー経由の`http://localhost`として開かれるため問題を回避できます。
 
 #### PCと走行体を接続する
 
