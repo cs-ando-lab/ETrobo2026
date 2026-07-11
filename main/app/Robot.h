@@ -30,6 +30,14 @@ public:
     // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
     void turn(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
 
+    // STRAIGHT: 直進, BACKWARD: 後退, WAVING: 蛇行走行
+    enum class DriveMode { STRAIGHT,
+                           BACKWARD,
+                           WAVING };
+    // 指定された色を認識するまでDriveModeで指定された方法で進む。
+    // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
+    void runUntilColor(int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, DriveMode mode = DriveMode::STRAIGHT, ColorJudge::Color color = ColorJudge::Color::BLACK);
+
     // 左右のモーターパワーを直接指定する（Tracerが使う）
     void setMotorPower(int left, int right);
 
@@ -84,6 +92,10 @@ private:
     Speaker speaker;
     Display display;
     Button button;
+
+    // runUntilColor()から呼び出される関数
+    void runStraightUntilColor(bool forward, int speedDegPerSec, ColorJudge::Color color);
+    void runWavingUntilColor(float swingDeg, int speedDegPerSec, ColorJudge::Color color);
 };
 
 #endif  // !ROBOT_H_
