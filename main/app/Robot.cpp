@@ -46,78 +46,6 @@ void Robot::driveStraight(int distanceMm, int speedDegPerSec) {
     stop();
 }
 
-/**
- * 右旋回、左旋回を交互に繰り返して蛇行運転を行う。
- * カラーセンサの値がcolorの時停止する。
- */
-void Robot::driveWaving(float swingDeg, int speedDegPerSec, ColorJudge::Color color) {
-    // 0° < swingDeg <= 90°
-    if(swingDeg <= 0)
-        return;
-    if(swingDeg > 90)
-        swingDeg = 90;
-
-    // 一回の旋回あたりの角度 → 必要なホイール回転量[°]
-    float targetWheelDeg = swingDeg * (Config::TREAD_MM / Config::WHEEL_RADIUS_MM);
-    // 旋回回数のカウント
-    int swingCnt = 0;
-
-    while(swingCnt < Config::WAVE_MAX_SWING_COUNT) {
-        // 一回の旋回あたりのループカウンタ
-        int loopCount = 0;
-        float wheelDeg = 0.0f;
-
-        if(swingCnt == 0) {  // 最初の旋回は半分の旋回角度で左旋回
-            float firstTargetWheelDeg = targetWheelDeg / 2.0;
-
-            resetMotorCounts();
-            leftMotor.stop();
-            rightMotor.setSpeed(speedDegPerSec);
-            while(wheelDeg < firstTargetWheelDeg && loopCount < Config::SWING_TIMEOUT_LOOP_COUNT) {
-                if(isCenterButtonPressed() || (getColor() == color)) {  // センターボタンもしくは停止条件で停止。
-                    stop();
-                    return;
-                }
-                dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
-                wheelDeg = std::abs(getRightMotorCount());
-                loopCount++;
-            }
-        } else if(swingCnt % 2 == 1) {  // 右旋回
-            resetMotorCounts();
-            leftMotor.setSpeed(speedDegPerSec);
-            rightMotor.stop();
-            while(wheelDeg < targetWheelDeg && loopCount < Config::SWING_TIMEOUT_LOOP_COUNT) {
-                if(isCenterButtonPressed() || (getColor() == color)) {  // センターボタンもしくは停止条件で停止。
-                    stop();
-                    return;
-                }
-                dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
-                wheelDeg = std::abs(getLeftMotorCount());
-                loopCount++;
-            }
-        } else {  // 左旋回
-            resetMotorCounts();
-            leftMotor.stop();
-            rightMotor.setSpeed(speedDegPerSec);
-            while(wheelDeg < targetWheelDeg && loopCount < Config::SWING_TIMEOUT_LOOP_COUNT) {
-                if(isCenterButtonPressed() || (getColor() == color)) {  // センターボタンもしくは停止条件で停止。
-                    stop();
-                    return;
-                }
-                dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
-                wheelDeg = std::abs(getRightMotorCount());
-                loopCount++;
-            }
-        }
-        if(loopCount >= Config::SWING_TIMEOUT_LOOP_COUNT) {
-            syslog(LOG_NOTICE, "SWING,TIMEOUT(%d)", swingCnt);
-        }
-        swingCnt++;
-    }
-
-    stop();
-}
-
 void Robot::turn(float degrees, int speedDegPerSec) {
     // + = 右旋回（左を正転、右を逆転）、- = 左旋回（その逆）
     int direction = (degrees >= 0) ? 1 : -1;
@@ -141,6 +69,31 @@ void Robot::turn(float degrees, int speedDegPerSec) {
     }
     if(loopCount >= Config::TURN_TIMEOUT_LOOP_COUNT) {
         syslog(LOG_NOTICE, "TURN,TIMEOUT");
+    }
+
+    stop();
+}
+
+/**
+ * カラーセンサがcolorの値を取得するまで走行する。
+ */
+void Robot::runUntilColorDetected(int speedDegPerSec, DriveMode mode, ColorJudge::Color color) {
+    switch(mode) {
+        case DriveMode::STRAIGHT:
+            // 直進
+            runStraightUntilColor(true, speedDegPerSec, color);
+            break;
+        case DriveMode::BACKWARD:
+            // 後退
+            runStraightUntilColor(false, speedDegPerSec, color);
+            break;
+        case DriveMode::WAVING:
+            // 蛇行走行
+            runWavingUntilColor(40.0f, speedDegPerSec, color);  // TODO: 後で定数としてコンフィグに書く
+            break;
+        default:
+            syslog(LOG_NOTICE, "STOP[runUntilColorDetected]: Unknown Type");
+            return;
     }
 
     stop();
@@ -215,4 +168,97 @@ int Robot::getLeftMotorCount() const {
 
 int Robot::getRightMotorCount() const {
     return rightMotor.getCount();
+}
+
+// colorが検出されるまで直進する。
+void Robot::runStraightUntilColor(bool forward, int speedDegPerSec, ColorJudge::Color color) {
+    int direction;
+    if(forward) {
+        direction = 1;
+    } else {
+        direction = -1;
+    }
+
+    leftMotor.setSpeed(speedDegPerSec * direction);
+    rightMotor.setSpeed(speedDegPerSec * direction);
+
+    int loopCount = 0;
+    while(loopCount < Config::DRIVE_TIMEOUT_LOOP_COUNT) {
+        if(isCenterButtonPressed() || (getColor() == color)) {  // センターボタンで安全停止
+            break;
+        }
+        dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
+        loopCount++;
+    }
+    if(loopCount >= Config::DRIVE_TIMEOUT_LOOP_COUNT) {
+        syslog(LOG_NOTICE, "STOP[runStraightUntilColor]: DRIVE,TIMEOUT");
+    }
+}
+
+// colorが検出されるまで蛇行走行する。
+void Robot::runWavingUntilColor(float swingDeg, int speedDegPerSec, ColorJudge::Color color) {
+    // 0° < swingDeg <= 90°
+    if(swingDeg <= 0) {
+        return;
+    }
+    if(swingDeg > 90) {
+        swingDeg = 90;
+    }
+    // 一回の旋回あたりの角度 → 必要なホイール回転量[°]
+    float targetWheelDeg = swingDeg * (Config::TREAD_MM / Config::WHEEL_RADIUS_MM);
+    // 旋回回数のカウント
+    int swingCnt = 0;
+
+    while(swingCnt < Config::WAVE_MAX_SWING_COUNT) {
+        // 一回の旋回あたりのループカウンタ
+        int loopCount = 0;
+        float wheelDeg = 0.0f;
+
+        if(swingCnt == 0) {  // 最初の旋回は半分の旋回角度で左旋回
+            float firstTargetWheelDeg = targetWheelDeg / 2.0;
+
+            resetMotorCounts();
+            leftMotor.stop();
+            rightMotor.setSpeed(speedDegPerSec);
+            while(wheelDeg < firstTargetWheelDeg && loopCount < Config::SWING_TIMEOUT_LOOP_COUNT) {
+                if(isCenterButtonPressed() || (getColor() == color)) {  // センターボタンもしくは停止条件で停止。
+                    stop();
+                    return;
+                }
+                dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
+                wheelDeg = std::abs(getRightMotorCount());
+                loopCount++;
+            }
+        } else if(swingCnt % 2 == 1) {  // 右旋回
+            resetMotorCounts();
+            leftMotor.setSpeed(speedDegPerSec);
+            rightMotor.stop();
+            while(wheelDeg < targetWheelDeg && loopCount < Config::SWING_TIMEOUT_LOOP_COUNT) {
+                if(isCenterButtonPressed() || (getColor() == color)) {  // センターボタンもしくは停止条件で停止。
+                    stop();
+                    return;
+                }
+                dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
+                wheelDeg = std::abs(getLeftMotorCount());
+                loopCount++;
+            }
+        } else {  // 左旋回
+            resetMotorCounts();
+            leftMotor.stop();
+            rightMotor.setSpeed(speedDegPerSec);
+            while(wheelDeg < targetWheelDeg && loopCount < Config::SWING_TIMEOUT_LOOP_COUNT) {
+                if(isCenterButtonPressed() || (getColor() == color)) {  // センターボタンもしくは停止条件で停止。
+                    stop();
+                    return;
+                }
+                dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
+                wheelDeg = std::abs(getRightMotorCount());
+                loopCount++;
+            }
+        }
+        if(loopCount >= Config::SWING_TIMEOUT_LOOP_COUNT) {
+            syslog(LOG_NOTICE, "STOP[runSwingUntilColor]: SWING,TIMEOUT");
+        }
+        swingCnt++;
+    }
 }
