@@ -36,7 +36,8 @@ public:
                            WAVING };
     // 指定された色を認識するまでDriveModeで指定された方法で進む。
     // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
-    void runUntilColor(int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, DriveMode mode = DriveMode::STRAIGHT, ColorJudge::Color color = ColorJudge::Color::BLACK);
+    void runUntilColor(ColorJudge::Color color = ColorJudge::Color::BLACK, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, DriveMode mode = DriveMode::STRAIGHT);
+    void runUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec, DriveMode mode);
 
     // 左右のモーターパワーを直接指定する（Tracerが使う）
     void setMotorPower(int left, int right);
@@ -93,9 +94,10 @@ private:
     Display display;
     Button button;
 
-    // runUntilColor()から呼び出される関数
-    void runStraightUntilColor(bool forward, int speedDegPerSec, ColorJudge::Color color);
-    void runWavingUntilColor(float swingDeg, int speedDegPerSec, ColorJudge::Color color);
+    // runUntilColor関連
+    bool isAnyColorDetected(const ColorJudge::Color* colors, int colorCount);
+    void runStraightUntilColor(bool forward, const ColorJudge::Color* colors, int colorCount, int speedDegPerSec);
+    void runWavingUntilColor(float swingDeg, const ColorJudge::Color* colors, int colorCount, int speedDegPerSec);
 };
 
 #endif  // !ROBOT_H_
