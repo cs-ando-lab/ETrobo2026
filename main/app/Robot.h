@@ -37,7 +37,7 @@ public:
     // 指定された色を認識するまでDriveModeで指定された方法で進む。
     // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
     void runUntilColor(ColorJudge::Color color = ColorJudge::Color::BLACK, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, DriveMode mode = DriveMode::STRAIGHT);
-    void runUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec, DriveMode mode);
+    void runUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, DriveMode mode = DriveMode::STRAIGHT);
 
     // 左右のモーターパワーを直接指定する（Tracerが使う）
     void setMotorPower(int left, int right);
