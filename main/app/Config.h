@@ -65,6 +65,10 @@ public:
     static constexpr int LINE_TRACE_POLL_INTERVAL_US = 100 * 1000;  // ライントレースの制御周期[us]
     static constexpr int LABEL_CHANGE_CYCLES = 3;                   // 表示文字を切り替える周期(制御周期の何回分か)
 
+    // ── DeliveryTask（ボトルデリバリー）───────────────────────
+    static constexpr int8_t DELIVERY_TRACER_PWM = 30;           // ボトル接近時のライントレース速度
+    static constexpr int DELIVERY_TARGET_DISTANCE_MM = 150;      // ボトル手前で停止する目標距離[mm]
+
 private:
     Config() = delete;  // インスタンス化しない、定数の名前空間として使う
 };
