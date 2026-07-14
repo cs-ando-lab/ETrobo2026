@@ -50,7 +50,8 @@ public:
     static constexpr uint16_t COLOR_YELLOW_HUE = 60;
     static constexpr uint16_t COLOR_GREEN_HUE = 120;
     static constexpr uint16_t COLOR_BLUE_HUE = 240;
-    static constexpr int COLOR_HUE_TOLERANCE = 40;  // 各色のHueからの許容誤差[度]
+    static constexpr int COLOR_HUE_TOLERANCE = 40;         // 各色のHueからの許容誤差[度]
+    static constexpr int COLOR_DETECTED_STABLE_COUNT = 3;  // 信頼するカラーセンサーの連続判定回数
 
     // ── Pid（PID制御共通）─────────────────────────────────
     static constexpr float PID_INTEGRAL_LIMIT = 100.0f;         // 積分項の暴走を防ぐ上下限
