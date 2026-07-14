@@ -15,7 +15,6 @@ public:
     Tracer(Robot& robot);
     void run();
     void terminate();
-    bool isOnBlue();  // 青色ライン上にいるかを判定。
 
     // Pidのパラメータを保持する構造体
     struct PidConfig {
@@ -46,7 +45,6 @@ private:
     Edge edge;
 
     void updateConfig(const PidConfig& newConfig);  // PidクラスのsetGain, setTargetを呼び出し、パラメータを更新。
-    int8_t blueCount = 0;                           // カラーセンサが青色と判定した回数
 };
 
 #endif  // !TRACER_H_
