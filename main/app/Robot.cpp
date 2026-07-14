@@ -103,6 +103,37 @@ void Robot::runUntilColors(const ColorJudge::Color* colors, int colorCount, int 
     }
 }
 
+bool Robot::isOnColor(ColorJudge::Color color, int& matchedCount, int stableCount) const {
+    return isOnColors(&color, 1, matchedCount, stableCount);
+}
+
+bool Robot::isOnColors(const ColorJudge::Color* colors, int colorCount, int& matchedCount, int stableCount) const {
+    if(colors == nullptr || colorCount < 1) {
+        syslog(LOG_ERROR, "invalid colors or colorCount");
+        return false;
+    }
+    if(stableCount < 1) {
+        stableCount = 1;
+    }
+
+    ColorJudge::Color detectedColor = getColor();
+    bool matched = false;
+    for(int i = 0; i < colorCount; i++) {
+        if(detectedColor == colors[i]) {
+            matched = true;
+            break;
+        }
+    }
+
+    if(matched) {
+        matchedCount++;
+    } else {
+        matchedCount = 0;
+    }
+
+    return (matchedCount >= stableCount);
+}
+
 void Robot::setMotorPower(int left, int right) {
     leftMotor.setPower(left);
     rightMotor.setPower(right);

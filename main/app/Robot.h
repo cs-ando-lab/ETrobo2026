@@ -39,6 +39,11 @@ public:
     void runUntilColor(ColorJudge::Color color = ColorJudge::Color::BLACK, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, DriveMode mode = DriveMode::STRAIGHT);
     void runUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec, DriveMode mode);
 
+    // 指定された色とカラーセンサーの値が複数回一致するか調べる。
+    // matchedCountは呼び出し元で管理する。
+    bool isOnColor(const ColorJudge::Color color, int& matchedCount, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT) const;
+    bool isOnColors(const ColorJudge::Color* colors, int colorCount, int& matchedCount, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT) const;
+
     // 左右のモーターパワーを直接指定する（Tracerが使う）
     void setMotorPower(int left, int right);
 
