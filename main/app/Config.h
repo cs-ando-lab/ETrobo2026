@@ -34,12 +34,11 @@ public:
     static constexpr int BEEP_DEFAULT_MS = 100;  // ビープ音のデフォルト再生時間[ms]
 
     // ── Tracer（ライントレース）───────────────────────────
-    static constexpr float TRACER_KP = 0.33f;                 // 反射率PID制御の比例ゲイン
-    static constexpr float TRACER_KI = 0.01f;                 // 反射率PID制御の積分ゲイン
-    static constexpr float TRACER_KD = 0.03f;                 // 反射率PID制御の微分ゲイン
-    static constexpr int32_t TRACER_TARGET_REFLECTION = 60;   // 黒白の中間反射率
-    static constexpr int8_t TRACER_PWM = 50;                  // 基準パワー
-    static constexpr int8_t TRACER_BLUE_DETECTION_COUNT = 3;  // 青判定に必要な連続検出回数
+    static constexpr float TRACER_KP = 0.33f;                // 反射率PID制御の比例ゲイン
+    static constexpr float TRACER_KI = 0.01f;                // 反射率PID制御の積分ゲイン
+    static constexpr float TRACER_KD = 0.03f;                // 反射率PID制御の微分ゲイン
+    static constexpr int32_t TRACER_TARGET_REFLECTION = 60;  // 黒白の中間反射率
+    static constexpr int8_t TRACER_PWM = 50;                 // 基準パワー
 
     // ── ColorJudge（色判定）───────────────────────────────
     // 彩度がこれ未満なら無彩色(黒/白)とみなす（実測でS=22〜27前後のノイズが乗るため、それより高い値にする）
@@ -51,7 +50,7 @@ public:
     static constexpr uint16_t COLOR_GREEN_HUE = 120;
     static constexpr uint16_t COLOR_BLUE_HUE = 240;
     static constexpr int COLOR_HUE_TOLERANCE = 40;         // 各色のHueからの許容誤差[度]
-    static constexpr int COLOR_DETECTED_STABLE_COUNT = 3;  // 信頼するカラーセンサーの連続判定回数
+    static constexpr int COLOR_DETECTED_STABLE_COUNT = 3;  // 色判定を行う際、信頼するカラーセンサーの連続判定回数
 
     // ── Pid（PID制御共通）─────────────────────────────────
     static constexpr float PID_INTEGRAL_LIMIT = 100.0f;         // 積分項の暴走を防ぐ上下限
