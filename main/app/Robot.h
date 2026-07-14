@@ -30,14 +30,21 @@ public:
     // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
     void turn(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
 
-    // STRAIGHT: 直進, BACKWARD: 後退, WAVING: 蛇行走行
-    enum class DriveMode { STRAIGHT,
-                           BACKWARD,
-                           WAVING };
-    // 指定された色を認識するまでDriveModeで指定された方法で進む。
-    // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
-    void runUntilColor(ColorJudge::Color color = ColorJudge::Color::BLACK, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, DriveMode mode = DriveMode::STRAIGHT);
-    void runUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, DriveMode mode = DriveMode::STRAIGHT);
+    // 指定された色（単色/複数色）を認識するまで直進する。
+    // colors: Color配列 / colorCount: 配列数 / speedDegPerSec: 回転速度 [°/秒] / stableCount: 色を検知して止まるための連続検出回数 / forward: trueなら直進、falseなら後退
+    void runStraightUntilColor(ColorJudge::Color color, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT, bool forward = true);
+    void runStraightUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT, bool forward = true);
+
+    // 指定された色（単色/複数色）を認識するまで蛇行走行する。
+    // colors: Color配列 / colorCount: 配列数 / speedDegPerSec: 回転速度 [°/秒] / stableCount: 色を検知して止まるための連続検出回数 / swingDeg: 蛇行運転の1旋回あたりの角度
+    void runWavingUntilColor(ColorJudge::Color color, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT, float swingDeg = Config::RUC_SWING_DEFAULT_DEG);
+    void runWavingUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT, float swingDeg = Config::RUC_SWING_DEFAULT_DEG);
+
+    // 指定された色（単色/複数色）とカラーセンサーの値が複数回一致するか調べる。
+    // colors: Color配列 / colorCount: 配列数 / matchedCount: 指定された色とカラーセンサーの値が一致した回数を保持する変数
+    // ※matchedCountは呼び出し元で管理する。
+    bool isOnColor(const ColorJudge::Color color, int& matchedCount, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT) const;
+    bool isOnColors(const ColorJudge::Color* colors, int colorCount, int& matchedCount, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT) const;
 
     // 左右のモーターパワーを直接指定する（Tracerが使う）
     void setMotorPower(int left, int right);
@@ -93,11 +100,6 @@ private:
     Speaker speaker;
     Display display;
     Button button;
-
-    // runUntilColor関連
-    bool isAnyColorDetected(const ColorJudge::Color* colors, int colorCount);
-    void runStraightUntilColor(bool forward, const ColorJudge::Color* colors, int colorCount, int speedDegPerSec);
-    void runWavingUntilColor(float swingDeg, const ColorJudge::Color* colors, int colorCount, int speedDegPerSec);
 };
 
 #endif  // !ROBOT_H_
