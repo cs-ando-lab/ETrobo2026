@@ -5,6 +5,7 @@
 #include "ColorSensor.h"
 #include "UltrasonicSensor.h"
 #include "ForceSensor.h"
+#include <IMU.h>
 #include "Speaker.h"
 #include "Display.h"
 #include "Button.h"
@@ -29,6 +30,9 @@ public:
     // 指定した角度だけ超信地旋回する（+ = 右旋回、- = 左旋回）
     // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
     void turn(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
+
+    // IMUの方位角を使って指定角度だけ超信地旋回する（+ = 右旋回、- = 左旋回）
+    void turnByImu(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
 
     // 指定された色（単色/複数色）を認識するまで直進する。
     // colors: Color配列 / colorCount: 配列数 / speedDegPerSec: 回転速度 [°/秒] / stableCount: 色を検知して止まるための連続検出回数 / forward: trueなら直進、falseなら後退
@@ -97,6 +101,7 @@ private:
     ColorSensor colorSensor;            // PORT_E
     UltrasonicSensor ultrasonicSensor;  // PORT_F
     ForceSensor forceSensor;            // PORT_D
+    IMU imu;
     Speaker speaker;
     Display display;
     Button button;
