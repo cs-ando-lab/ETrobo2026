@@ -9,6 +9,7 @@ Robot::Robot()
       colorSensor(EPort::PORT_E),
       ultrasonicSensor(EPort::PORT_F),
       forceSensor(EPort::PORT_D),
+      imu(),
       speaker(),
       display(),
       button() {
@@ -69,6 +70,61 @@ void Robot::turn(float degrees, int speedDegPerSec) {
     }
     if(loopCount >= Config::TURN_TIMEOUT_LOOP_COUNT) {
         syslog(LOG_NOTICE, "TURN,TIMEOUT");
+    }
+
+    stop();
+}
+
+void Robot::turnByImu(float degrees, int speedDegPerSec) {
+    int loopCount = 0;
+    // imuが使える状態かチェック
+    while(!imu.isReady() && loopCount < Config::TURN_TIMEOUT_LOOP_COUNT) {
+        if(isCenterButtonPressed()) {
+            return;
+        }
+        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+        loopCount++;
+    }
+    if(loopCount >= Config::TURN_TIMEOUT_LOOP_COUNT) {
+        syslog(LOG_ERROR, "TURN_IMU,READY_TIMEOUT");
+        return;
+    }
+
+    imu.resetHeading();
+
+    // 簡易的なP制御で回転速度を制御
+    const float targetDeg = degrees;
+    const int maxSpeed = std::abs(speedDegPerSec);
+
+    loopCount = 0;
+    while(loopCount < Config::TURN_TIMEOUT_LOOP_COUNT) {
+        if(isCenterButtonPressed()) {
+            break;
+        }
+
+        float errorDeg = targetDeg - imu.getHeading();
+        float absErrorDeg = std::abs(errorDeg);
+        if(absErrorDeg <= Config::TURN_IMU_STOP_TOLERANCE_DEG) {
+            break;
+        }
+
+        int direction = (errorDeg >= 0.0f) ? 1 : -1;
+        int turnSpeed = static_cast<int>(absErrorDeg * Config::TURN_IMU_KP);
+        if(turnSpeed < Config::TURN_IMU_MIN_SPEED_DEG_PER_SEC) {
+            turnSpeed = Config::TURN_IMU_MIN_SPEED_DEG_PER_SEC;
+        }
+        if(turnSpeed > maxSpeed) {
+            turnSpeed = maxSpeed;
+        }
+
+        leftMotor.setSpeed(turnSpeed * direction);
+        rightMotor.setSpeed(-turnSpeed * direction);
+
+        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+        loopCount++;
+    }
+    if(loopCount >= Config::TURN_TIMEOUT_LOOP_COUNT) {
+        syslog(LOG_ERROR, "TURN_IMU,TIMEOUT");
     }
 
     stop();
