@@ -93,12 +93,8 @@ void Robot::turnByImu(float degrees, int speedDegPerSec) {
     imu.resetHeading();
 
     // 簡易的なP制御で回転速度を制御
-    // TODO: 定数としてCONFIGに登録
     const float targetDeg = degrees;
-    const float stopToleranceDeg = 0.5f;
-    const float kp = 4.0f;
     const int maxSpeed = std::abs(speedDegPerSec);
-    const int minSpeed = 80;
 
     loopCount = 0;
     while(loopCount < Config::TURN_TIMEOUT_LOOP_COUNT) {
@@ -108,14 +104,14 @@ void Robot::turnByImu(float degrees, int speedDegPerSec) {
 
         float errorDeg = targetDeg - imu.getHeading();
         float absErrorDeg = std::abs(errorDeg);
-        if(absErrorDeg <= stopToleranceDeg) {
+        if(absErrorDeg <= Config::TURN_IMU_STOP_TOLERANCE_DEG) {
             break;
         }
 
         int direction = (errorDeg >= 0.0f) ? 1 : -1;
-        int turnSpeed = static_cast<int>(absErrorDeg * kp);
-        if(turnSpeed < minSpeed) {
-            turnSpeed = minSpeed;
+        int turnSpeed = static_cast<int>(absErrorDeg * Config::TURN_IMU_KP);
+        if(turnSpeed < Config::TURN_IMU_MIN_SPEED_DEG_PER_SEC) {
+            turnSpeed = Config::TURN_IMU_MIN_SPEED_DEG_PER_SEC;
         }
         if(turnSpeed > maxSpeed) {
             turnSpeed = maxSpeed;
