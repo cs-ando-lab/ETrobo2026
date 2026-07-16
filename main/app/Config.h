@@ -18,7 +18,7 @@ public:
     // ── Robot: 走行機能 ────────────────────────────────
     // driveStraight
     static constexpr int DRIVE_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 直進の既定速度[°/秒]
-    static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 500;         // 直進のタイムアウト(周期の回数)
+    static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 2000;        // 直進のタイムアウト(周期の回数)
     // turn
     static constexpr int TURN_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 旋回の既定速度[°/秒]
     static constexpr int TURN_TIMEOUT_LOOP_COUNT = 500;         // 旋回のタイムアウト(周期の回数)
