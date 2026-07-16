@@ -53,6 +53,7 @@ bool GameRunner::lineTraceUntilLap() {
     const char* const TRACER_LABEL = "Tracer";
     const int TRACER_LABEL_LEN = 6; /* strlen(TRACER_LABEL) */
     int prevLabelIndex = -1;
+    int blueCount = 0;  // 青ラインを検知した回数
 
     while(1) {
         /* センターボタンで安全停止 */
@@ -61,7 +62,8 @@ bool GameRunner::lineTraceUntilLap() {
             return false;
         }
 
-        if(tracer.isOnBlue()) {
+        /* BLUEを一定回数検知したら停止 */
+        if(robot.isOnColor(ColorJudge::Color::BLUE, blueCount)) {
             break;
         }
 

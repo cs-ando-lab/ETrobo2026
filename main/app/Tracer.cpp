@@ -53,12 +53,3 @@ void Tracer::updateConfig(const PidConfig& newConfig) {
     pid.setGain(pidConfig.kp, pidConfig.ki, pidConfig.kd);
     pid.setTarget(pidConfig.targetReflection);
 }
-
-bool Tracer::isOnBlue() {
-    if(robot.getColor() == ColorJudge::Color::BLUE) {
-        blueCount++;
-    } else {
-        blueCount = 0;
-    }
-    return (blueCount >= Config::TRACER_BLUE_DETECTION_COUNT);  // カラーセンサの取得値が一定期回数青色か判定
-}
