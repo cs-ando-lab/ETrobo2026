@@ -50,7 +50,7 @@ bool GameRunner::lineTraceUntilLap() {
     const char* const TRACER_LABEL = "Tracer";
     const int TRACER_LABEL_LEN = 6; /* strlen(TRACER_LABEL) */
     int prevLabelIndex = -1;
-    int blueCount = 0;      // 青ラインを検知した回数
+    int blueCount = 0;          // 青ラインを検知した回数
     int displayCycleCount = 0;  // "Tracer"の文字循環表示の周期カウント
 
     while(1) {

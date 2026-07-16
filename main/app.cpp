@@ -13,7 +13,7 @@ GameRunner runner(robot);
 
 /* BLE Monitorへのセンサー値送信用（DEBUG_LOG_TASKが周期的に参照する） */
 static const debug_sensors_t debugSensors{ &robot.getColorSensor(), &robot.getLeftMotor(), &robot.getRightMotor(),
-                                            &robot.getUltrasonicSensor(), &robot.getForceSensor() };
+                                           &robot.getUltrasonicSensor(), &robot.getForceSensor() };
 
 /* センサー値をBLE Monitorへ送信する周期タスク。DEBUG_LOG_PERIODごとに起動される。
  * main_taskが何をしていようと（キャリブレーション中・ライントレース中・各課題の実行中）
