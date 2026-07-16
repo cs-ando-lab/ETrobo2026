@@ -3,6 +3,12 @@
 #include "kernel.h" /* dly_tskのため */
 #include "t_syslog.h"
 
+const RallyTask::Gate RallyTask::gatesSequence[3] = {
+    { GateColor::RED, { 5, 2 }, { 5, 3 } },
+    { GateColor::BLUE, { 3, 5 }, { 4, 5 } },
+    { GateColor::YELLOW, { 2, 1 }, { 2, 2 } }
+};
+
 RallyTask::RallyTask(Robot& robot)
     : robot(robot) {
 }
