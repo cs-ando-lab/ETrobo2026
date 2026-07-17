@@ -25,6 +25,7 @@ const resetButton = document.querySelector("#reset-button");
 let config;
 let savedValues;
 let selectedGate = "red";
+let selectedCategoryIndex = 0;
 
 function valuesFromConfig() {
   return Object.fromEntries(config.settings.map(setting => [setting.name, setting.value]));
@@ -46,26 +47,48 @@ function groupByCategory(settings) {
   }, {});
 }
 
+function displayMetadata(description) {
+  const unitMatch = description.match(/\[([^\]]+)\]/);
+  return {
+    unit: unitMatch ? unitMatch[1] : "",
+    description: unitMatch ? description.replace(unitMatch[0], "").trim() : description,
+  };
+}
+
 function renderSettings() {
   const groups = groupByCategory(config.settings);
   categoryNav.innerHTML = Object.keys(groups)
-    .map((category, index) => `<a href="#category-${index}">${category}</a>`)
+    .map((category, index) => `
+      <button
+        type="button"
+        data-category-index="${index}"
+        aria-pressed="${index === selectedCategoryIndex}">
+        ${category}<span>${groups[category].length}</span>
+      </button>`)
     .join("");
   settingsRoot.innerHTML = Object.entries(groups).map(([category, settings], index) => `
-    <section class="settings-section" id="category-${index}" data-category="${category.toLowerCase()}">
+    <section
+      class="settings-section"
+      id="category-${index}"
+      data-category="${category.toLowerCase()}"
+      data-category-index="${index}"
+      ${index === selectedCategoryIndex ? "" : "hidden"}>
       <div class="section-heading">
         <h2>${category}</h2>
         <span>${settings.length}項目</span>
       </div>
       <div class="setting-list">
-        ${settings.map(setting => `
+        ${settings.map(setting => {
+          const metadata = displayMetadata(setting.description);
+          return `
           <label class="setting-row"
             data-search="${`${setting.name} ${setting.description} ${category}`.toLowerCase()}">
             <span class="setting-copy">
               <strong>${setting.name}</strong>
-              <small>${setting.description || "説明なし"}</small>
+              <small>${metadata.description || "説明なし"}</small>
             </span>
             <span class="value-field">
+              <code class="type-label">${setting.type}</code>
               <input
                 type="number"
                 data-name="${setting.name}"
@@ -73,10 +96,12 @@ function renderSettings() {
                 value="${setting.value}"
                 step="${setting.type === "float" ? "any" : "1"}"
                 required>
-              <code>${setting.type}</code>
+              <span class="unit-label">${metadata.unit}</span>
             </span>
-          </label>`).join("")}
+          </label>`;
+        }).join("")}
       </div>
+      <p class="empty-results" hidden>このカテゴリに一致する設定はありません。</p>
     </section>`).join("");
 }
 
@@ -236,8 +261,22 @@ function filterSettings() {
     row.hidden = Boolean(query) && !row.dataset.search.includes(query);
   });
   settingsRoot.querySelectorAll(".settings-section").forEach(section => {
-    section.hidden = ![...section.querySelectorAll(".setting-row")].some(row => !row.hidden);
+    const hasMatch = [...section.querySelectorAll(".setting-row")].some(row => !row.hidden);
+    const index = Number(section.dataset.categoryIndex);
+    section.hidden = index !== selectedCategoryIndex;
+    section.querySelector(".empty-results").hidden = hasMatch;
+    const tab = categoryNav.querySelector(`[data-category-index="${index}"]`);
+    tab.classList.toggle("no-match", Boolean(query) && !hasMatch);
   });
+}
+
+function selectCategory(index) {
+  selectedCategoryIndex = index;
+  categoryNav.querySelectorAll("[data-category-index]").forEach(tag => {
+    const selected = Number(tag.dataset.categoryIndex) === selectedCategoryIndex;
+    tag.setAttribute("aria-pressed", String(selected));
+  });
+  filterSettings();
 }
 
 async function loadConfig() {
@@ -266,6 +305,10 @@ resetButton.addEventListener("click", () => {
 });
 
 search.addEventListener("input", filterSettings);
+categoryNav.addEventListener("click", event => {
+  const tab = event.target.closest("[data-category-index]");
+  if (tab) selectCategory(Number(tab.dataset.categoryIndex));
+});
 grid.addEventListener("click", event => {
   const cell = event.target.closest(".field-cell");
   if (cell) placeGate(Number(cell.dataset.row), Number(cell.dataset.col));

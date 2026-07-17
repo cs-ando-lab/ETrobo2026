@@ -8,6 +8,8 @@ import ast
 import json
 import math
 import re
+import shutil
+import subprocess
 import tempfile
 import webbrowser
 from http import HTTPStatus
@@ -22,6 +24,7 @@ CONFIG_JSON = EDITOR_DIR / "config.json"
 CONFIG_HEADER = REPOSITORY_DIR / "main" / "app" / "Config.h"
 HOST = "127.0.0.1"
 PORT = 8080
+WINDOWS_CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 
 DECLARATION_PATTERN = re.compile(
     r"^\s*static\s+constexpr\s+"
@@ -293,6 +296,56 @@ def save_values(values: object) -> dict:
     return config
 
 
+def is_wsl() -> bool:
+    try:
+        return "microsoft" in Path("/proc/sys/kernel/osrelease").read_text().lower()
+    except OSError:
+        return False
+
+
+def open_browser(url: str) -> bool:
+    """実行環境に合う方法で既定のブラウザを開く。"""
+    commands: list[list[str]] = []
+    if is_wsl():
+        if shutil.which("wslview"):
+            commands.append(["wslview", url])
+        if shutil.which("powershell.exe"):
+            powershell_script = (
+                f"$chrome = '{WINDOWS_CHROME_PATH}'; "
+                f"if (Test-Path $chrome) {{ "
+                f"Start-Process -FilePath $chrome -ArgumentList '{url}' "
+                f"}} else {{ Start-Process '{url}' }}"
+            )
+            commands.append(
+                [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    powershell_script,
+                ]
+            )
+        if shutil.which("cmd.exe"):
+            commands.append(["cmd.exe", "/c", "start", "", url])
+
+    for command in commands:
+        try:
+            subprocess.Popen(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            return True
+        except OSError:
+            continue
+
+    try:
+        return webbrowser.open(url)
+    except webbrowser.Error:
+        return False
+
+
 class RequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
@@ -341,6 +394,9 @@ def main() -> None:
     parser.add_argument(
         "--sync-only", action="store_true", help="JSONとConfig.hを同期して終了する"
     )
+    parser.add_argument(
+        "--no-browser", action="store_true", help="ブラウザを自動的に開かない"
+    )
     args = parser.parse_args()
     config = initialize_config()
     print(f"{len(config['settings'])}件の設定を同期しました")
@@ -348,10 +404,11 @@ def main() -> None:
         return
 
     server = ThreadingHTTPServer((HOST, PORT), RequestHandler)
-    url = f"http://{HOST}:{PORT}"
+    url = f"http://localhost:{PORT}"
     print(f"Config Editor: {url}")
     print("終了するには Ctrl+C を押してください")
-    webbrowser.open(url)
+    if not args.no_browser and not open_browser(url):
+        print(f"ブラウザを開けませんでした。手動で {url} を開いてください")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

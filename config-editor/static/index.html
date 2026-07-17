@@ -45,8 +45,17 @@
                 <div id="field-grid" class="field-grid" aria-label="ゲート配置ゾーン"></div>
             </section>
 
-            <nav id="category-nav" class="category-nav" aria-label="設定カテゴリ"></nav>
-            <div id="settings"></div>
+      <section class="category-filter" aria-labelledby="category-filter-title">
+        <div class="category-filter-heading">
+          <div>
+            <p class="section-label">CATEGORY</p>
+            <h2 id="category-filter-title">表示するカテゴリ</h2>
+          </div>
+          <p>タグを選ぶと、そのカテゴリの設定だけを表示します。</p>
+        </div>
+        <nav id="category-nav" class="category-nav" aria-label="設定カテゴリ"></nav>
+      </section>
+      <div id="settings"></div>
 
             <footer class="actions">
                 <span id="status" aria-live="polite">設定を読み込んでいます…</span>
