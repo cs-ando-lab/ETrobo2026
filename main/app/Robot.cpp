@@ -18,7 +18,7 @@ Robot::Robot()
     speaker.setVolume(Config::SPEAKER_VOLUME);
 }
 
-void Robot::driveStraight(int distanceMm, int speedDegPerSec) {
+int Robot::driveStraight(int distanceMm, int speedDegPerSec) {
     // distanceMmが負の場合は後退する
     int direction = (distanceMm >= 0) ? 1 : -1;
     int targetDistanceMm = std::abs(distanceMm);
@@ -46,6 +46,8 @@ void Robot::driveStraight(int distanceMm, int speedDegPerSec) {
     }
 
     stop();
+
+    return static_cast<int>(traveledMm) * direction;
 }
 
 void Robot::turn(float degrees, int speedDegPerSec) {
@@ -76,19 +78,25 @@ void Robot::turn(float degrees, int speedDegPerSec) {
     stop();
 }
 
-void Robot::turnByImu(float degrees, int speedDegPerSec) {
+bool Robot::waitForImuReady() {
     int loopCount = 0;
-    // imuが使える状態かチェック
     while(!imu.isReady() && loopCount < Config::TURN_TIMEOUT_LOOP_COUNT) {
         if(isCenterButtonPressed()) {
-            return;
+            return false;
         }
         dly_tsk(Config::MOTION_POLL_INTERVAL_US);
         loopCount++;
     }
     if(loopCount >= Config::TURN_TIMEOUT_LOOP_COUNT) {
         syslog(LOG_ERROR, "TURN_IMU,READY_TIMEOUT");
-        return;
+        return false;
+    }
+    return true;
+}
+
+float Robot::turnByImu(float degrees, int speedDegPerSec) {
+    if(!waitForImuReady()) {
+        return 0.0f;
     }
 
     imu.resetHeading();
@@ -97,7 +105,7 @@ void Robot::turnByImu(float degrees, int speedDegPerSec) {
     const float targetDeg = degrees;
     const int maxSpeed = std::abs(speedDegPerSec);
 
-    loopCount = 0;
+    int loopCount = 0;
     while(loopCount < Config::TURN_TIMEOUT_LOOP_COUNT) {
         if(isCenterButtonPressed()) {
             break;
@@ -129,6 +137,75 @@ void Robot::turnByImu(float degrees, int speedDegPerSec) {
     }
 
     stop();
+
+    return imu.getHeading();
+}
+
+Robot::SearchResult Robot::turnByImuUntilUltrasonic(float degrees, int detectDistanceMm, int speedDegPerSec) {
+    if(!waitForImuReady()) {
+        return { false, 0.0f, 0.0f, getUltrasonicDistance() };
+    }
+
+    imu.resetHeading();
+
+    const float targetDeg = degrees;
+    const int maxSpeed = std::abs(speedDegPerSec);
+    bool everDetected = false;
+    float bestHeadingDeg = 0.0f;
+    // detectDistanceMmを初期値(=未検知状態)にする。センサーが範囲外/読み取り失敗で負値を返すことがあるため、
+    // 生の読み取り値をそのまま初期値にすると以降の正常な検知が「distance < bestDistanceMm」を満たせなくなる。
+    int bestDistanceMm = detectDistanceMm;
+
+    int loopCount = 0;
+    while(loopCount < Config::TURN_ULTRASONIC_TIMEOUT_LOOP_COUNT) {
+        if(isCenterButtonPressed()) {
+            break;
+        }
+
+        int distance = getUltrasonicDistance();
+        float currentHeading = imu.getHeading();
+
+        if(distance > 0 && distance < detectDistanceMm) {
+            everDetected = true;
+            if(distance < bestDistanceMm) {
+                bestDistanceMm = distance;
+                bestHeadingDeg = currentHeading;
+            }
+        } else if(everDetected) {
+            break;
+        }
+        if(loopCount % Config::TURN_ULTRASONIC_LOG_INTERVAL_LOOPS == 0) {  // 走行中の距離・角度の推移を診断ログに残す
+            syslog(LOG_NOTICE, "TURN_ULTRASONIC,STEP,heading=%d,dist=%d", (int)currentHeading, distance);
+        }
+
+        float errorDeg = targetDeg - currentHeading;
+        float absErrorDeg = std::abs(errorDeg);
+        if(absErrorDeg <= Config::TURN_IMU_STOP_TOLERANCE_DEG) {
+            break;
+        }
+
+        int direction = (errorDeg >= 0.0f) ? 1 : -1;
+        int turnSpeed = static_cast<int>(absErrorDeg * Config::TURN_IMU_KP);
+        if(turnSpeed < Config::TURN_IMU_MIN_SPEED_DEG_PER_SEC) {
+            turnSpeed = Config::TURN_IMU_MIN_SPEED_DEG_PER_SEC;
+        }
+        if(turnSpeed > maxSpeed) {
+            turnSpeed = maxSpeed;
+        }
+
+        leftMotor.setSpeed(turnSpeed * direction);
+        rightMotor.setSpeed(-turnSpeed * direction);
+
+        dly_tsk(Config::TURN_ULTRASONIC_POLL_INTERVAL_US);
+        loopCount++;
+    }
+    if(loopCount >= Config::TURN_ULTRASONIC_TIMEOUT_LOOP_COUNT) {
+        syslog(LOG_NOTICE, "TURN_ULTRASONIC,TIMEOUT");
+    }
+
+    stop();
+
+    return { everDetected, imu.getHeading(), bestHeadingDeg, bestDistanceMm };
 }
 
 void Robot::runStraightUntilColor(ColorJudge::Color color, int speedDegPerSec, int stableCount, bool forward) {
