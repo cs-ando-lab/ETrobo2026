@@ -114,6 +114,27 @@
       "description": "直進・旋回・蛇行中のエンコーダー確認周期[us]"
     },
     {
+      "name": "TURN_ULTRASONIC_POLL_INTERVAL_US",
+      "type": "int",
+      "value": 1000,
+      "category": "Robot: 走行機能",
+      "description": "超音波センサの確認周期[us]"
+    },
+    {
+      "name": "TURN_ULTRASONIC_TIMEOUT_LOOP_COUNT",
+      "type": "int",
+      "value": 15000,
+      "category": "Robot: 走行機能",
+      "description": "走行のタイムアウト(周期の回数。上記周期で約30秒分)"
+    },
+    {
+      "name": "TURN_ULTRASONIC_LOG_INTERVAL_LOOPS",
+      "type": "int",
+      "value": 50,
+      "category": "Robot: 走行機能",
+      "description": "走行中、距離とIMU角度をsyslog出力する周期(ループ回数。上記周期で約50ms間隔)"
+    },
+    {
       "name": "SPEAKER_VOLUME",
       "type": "int",
       "value": 50,
@@ -476,6 +497,90 @@
       "value": 2,
       "category": "ET-Rally（課題）",
       "description": ""
+    },
+    {
+      "name": "SUMO_TURN_TO_RING_DEG",
+      "type": "float",
+      "value": 152.5,
+      "category": "ET-Sumo（課題）",
+      "description": "[°] LAPゲートから土俵の方向を向くための旋回角度（Rコース基準。Lコースはsign()で反転）"
+    },
+    {
+      "name": "SUMO_DRIVE_TO_RING_MM",
+      "type": "int",
+      "value": 723,
+      "category": "ET-Sumo（課題）",
+      "description": "[mm] 旋回後、土俵の縁に到達するまでの直進距離"
+    },
+    {
+      "name": "SUMO_RING_DIAMETER_MM",
+      "type": "int",
+      "value": 500,
+      "category": "ET-Sumo（課題）",
+      "description": "[mm] 土俵の直径。ボトルを押し出す距離として使う"
+    },
+    {
+      "name": "SUMO_APPROACH_TURN_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 300,
+      "category": "ET-Sumo（課題）",
+      "description": "土俵方向へ旋回する速度[°/秒]"
+    },
+    {
+      "name": "SUMO_APPROACH_DRIVE_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 400,
+      "category": "ET-Sumo（課題）",
+      "description": "土俵の縁まで直進する速度[°/秒]"
+    },
+    {
+      "name": "SUMO_RETURN_TURN_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 300,
+      "category": "ET-Sumo（課題）",
+      "description": "復路の旋回速度[°/秒]（原点方向への旋回・最初の向きへの復帰の両方に使う）"
+    },
+    {
+      "name": "SUMO_RETURN_DRIVE_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 400,
+      "category": "ET-Sumo（課題）",
+      "description": "復路の直進速度[°/秒]"
+    },
+    {
+      "name": "SUMO_SEARCH_MAX_ANGLE_DEG",
+      "type": "float",
+      "value": 100.0,
+      "category": "ET-Sumo（課題）",
+      "description": "[°] 土俵の正面を0°として、探索する走行範囲(±この角度)"
+    },
+    {
+      "name": "SUMO_SEARCH_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 80,
+      "category": "ET-Sumo（課題）",
+      "description": "探索時の旋回速度の上限[°/秒]"
+    },
+    {
+      "name": "SUMO_BOTTLE_DETECT_DISTANCE_MM",
+      "type": "int",
+      "value": 600,
+      "category": "ET-Sumo（課題）",
+      "description": "[mm] 超音波センサの距離がこれ未満ならボトルを検知したとみなす（要実測。壁などで誤検知しない値でなければ要確認）"
+    },
+    {
+      "name": "SUMO_PUSH_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 200,
+      "category": "ET-Sumo（課題）",
+      "description": "ボトルを押し出す際の直進速度[°/秒]"
+    },
+    {
+      "name": "SUMO_MOVE_SETTLE_US",
+      "type": "int",
+      "value": 200000,
+      "category": "ET-Sumo（課題）",
+      "description": "[us] 各moveの後の整定待ち時間"
     }
   ]
 }

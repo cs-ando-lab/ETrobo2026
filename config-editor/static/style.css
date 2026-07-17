@@ -343,6 +343,44 @@ button:disabled { opacity: .35; cursor: not-allowed; }
 .message { margin-bottom: 16px; padding: 12px 15px; border-radius: 10px; }
 .error { border: 1px solid #753c45; color: #ffc1c7; background: #2a171d; }
 
+.history-panel {
+  margin: 20px 0 16px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(20, 27, 38, .92);
+}
+.history-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+.history-heading h2 { margin-top: 4px; }
+.history-heading > p { max-width: 26rem; margin: 0; color: var(--muted); font-size: .78rem; }
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #101722;
+}
+.history-copy strong { display: block; font-size: .84rem; }
+.history-copy small { display: block; margin-top: 2px; color: var(--muted); font-size: .74rem; }
+.history-restore { padding: 8px 14px; font-size: .8rem; }
+.history-empty { margin: 0; padding: 10px 2px; color: var(--muted); font-size: .82rem; }
+
 .diff-dialog {
   width: min(560px, 92vw);
   max-height: 80vh;
@@ -413,4 +451,8 @@ button:disabled { opacity: .35; cursor: not-allowed; }
   .actions button { flex: 1; }
   .diff-row { flex-direction: column; align-items: flex-start; gap: 6px; }
   .diff-actions button { flex: 1; }
+  .history-heading { display: block; }
+  .history-heading > p { margin-top: 8px; }
+  .history-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .history-restore { width: 100%; }
 }

@@ -8,3 +8,7 @@
 models/*.asta~
 models/*.asta.bak
 models/.~lock.*
+
+# config-editorのローカル変更履歴（gitコミット不要のスナップショット）
+config-editor/history.json
+config-editor/__pycache__/
