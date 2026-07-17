@@ -135,6 +135,25 @@ public:
     static constexpr int ETRALLY_YELLOW_GATE_RIGHT_ROW = 2;
     static constexpr int ETRALLY_YELLOW_GATE_RIGHT_COL = 2;
 
+    // ── ET-Sumo（課題）────────────────────────────────────
+    // コースの寸法（実測して調整する、今の値は画像から計算した値）
+    static constexpr float SUMO_TURN_TO_RING_DEG = 152.5f;  // [°] LAPゲートから土俵の方向を向くための旋回角度（Rコース基準。Lコースはsign()で反転）
+    static constexpr int SUMO_DRIVE_TO_RING_MM = 723;       // [mm] 旋回後、土俵の縁に到達するまでの直進距離
+    static constexpr int SUMO_RING_DIAMETER_MM = 500;       // [mm] 土俵の直径。ボトルを押し出す距離として使う
+    // 往路（LAPゲート→土俵）・復路（土俵→LAPゲート）の速度
+    static constexpr int SUMO_APPROACH_TURN_SPEED_DEG_PER_SEC = 300;   // 土俵方向へ旋回する速度[°/秒]
+    static constexpr int SUMO_APPROACH_DRIVE_SPEED_DEG_PER_SEC = 400;  // 土俵の縁まで直進する速度[°/秒]
+    static constexpr int SUMO_RETURN_TURN_SPEED_DEG_PER_SEC = 300;     // 復路の旋回速度[°/秒]（原点方向への旋回・最初の向きへの復帰の両方に使う）
+    static constexpr int SUMO_RETURN_DRIVE_SPEED_DEG_PER_SEC = 400;    // 復路の直進速度[°/秒]
+    // ボトル探索
+    static constexpr float SUMO_SEARCH_MAX_ANGLE_DEG = 100.0f;  // [°] 土俵の正面を0°として、探索する走行範囲(±この角度)
+    static constexpr int SUMO_SEARCH_SPEED_DEG_PER_SEC = 80;    // 探索時の旋回速度の上限[°/秒]
+    static constexpr int SUMO_BOTTLE_DETECT_DISTANCE_MM = 600;  // [mm] 超音波センサの距離がこれ未満ならボトルを検知したとみなす（要実測。壁などで誤検知しない値でなければ要確認）
+    // 押し出し
+    static constexpr int SUMO_PUSH_SPEED_DEG_PER_SEC = 200;  // ボトルを押し出す際の直進速度[°/秒]
+    // 移動間の整定待ち（旋回・直進の直後は慣性が残るため、次の指令・センサー読み取りの前に少し待つ）
+    static constexpr int SUMO_MOVE_SETTLE_US = 200 * 1000;  // [us] 各moveの後の整定待ち時間
+
 private:
     Config() = delete;  // インスタンス化しない、定数の名前空間として使う
 };
