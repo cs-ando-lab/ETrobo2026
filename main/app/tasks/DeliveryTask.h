@@ -2,7 +2,7 @@
 #define DELIVERYTASK_H_
 
 #include "Robot.h"
-#include "Motor.h" // ▼ アームのモーターを引数で渡すために追加！
+#include "Motor.h"  // ▼ アームのモーターを引数で渡すために追加！
 
 using namespace spikeapi;
 
