@@ -343,6 +343,63 @@ button:disabled { opacity: .35; cursor: not-allowed; }
 .message { margin-bottom: 16px; padding: 12px 15px; border-radius: 10px; }
 .error { border: 1px solid #753c45; color: #ffc1c7; background: #2a171d; }
 
+.diff-dialog {
+  width: min(560px, 92vw);
+  max-height: 80vh;
+  padding: 0;
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+}
+.diff-dialog::backdrop { background: rgba(5, 8, 14, .72); backdrop-filter: blur(2px); }
+.diff-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.diff-header h2 { margin-top: 4px; }
+.diff-count { margin: 0; color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.diff-list { max-height: 50vh; padding: 4px 22px; overflow-y: auto; }
+.diff-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(41, 52, 70, .5);
+}
+.diff-row:last-child { border-bottom: 0; }
+.diff-copy strong {
+  display: block;
+  color: #e8edf5;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .84rem;
+}
+.diff-copy small { display: block; margin-top: 3px; color: var(--muted); font-size: .74rem; }
+.diff-values {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .84rem;
+  white-space: nowrap;
+}
+.diff-old { color: #ff8f93; text-decoration: line-through; opacity: .8; }
+.diff-arrow { color: var(--muted); }
+.diff-new { color: var(--accent); font-weight: 700; }
+.diff-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px;
+  border-top: 1px solid var(--border);
+}
+
 @media (max-width: 760px) {
   .container { padding-top: 32px; }
   .page-header { display: block; }
@@ -354,4 +411,6 @@ button:disabled { opacity: .35; cursor: not-allowed; }
   .actions { align-items: flex-start; flex-direction: column; }
   .actions > div { display: flex; width: 100%; }
   .actions button { flex: 1; }
+  .diff-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .diff-actions button { flex: 1; }
 }

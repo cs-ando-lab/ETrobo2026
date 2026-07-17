@@ -65,6 +65,21 @@
                 </div>
             </footer>
         </form>
+
+        <dialog id="diff-dialog" class="diff-dialog">
+            <div class="diff-header">
+                <div>
+                    <p class="section-label">CONFIRM CHANGES</p>
+                    <h2>変更内容の確認</h2>
+                </div>
+                <p id="diff-count" class="diff-count"></p>
+            </div>
+            <div id="diff-list" class="diff-list"></div>
+            <div class="diff-actions">
+                <button id="diff-cancel" class="secondary" type="button">キャンセル</button>
+                <button id="diff-confirm" type="button">この内容で保存する</button>
+            </div>
+        </dialog>
     </main>
     <script src="app.js"></script>
 </body>
