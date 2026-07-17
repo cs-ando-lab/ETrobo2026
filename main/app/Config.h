@@ -80,19 +80,52 @@ public:
     static constexpr int ARM_LOWER_PWM = 100;   // アームを下げる速度
     // ── ET-Rally（課題）───────────────────────────────────
     // 走行速度
-    static constexpr int ETRALLY_FAST_SPEED = 500;
     static constexpr int ETRALLY_DEFAULT_SPEED = 200;
+    static constexpr int ETRALLY_FAST_SPEED = 500;
     static constexpr int ETRALLY_SLOW_SPEED = 100;
     static constexpr int ETRALLY_WAVING_SPEED = 150;
     static constexpr int ETRALLY_LINE_TRACE_DEFAULT_POWER = 34;
+    static constexpr int ETRALLY_LINE_TRACE_FAST_POWER = 40;
     // コースの寸法
-    static constexpr int COLOR_CIRCLE_RADIUS = 35;  // [mm] ラリーフィールド横のライン上にある色付きの円の半径（概数）
-    static constexpr int BLUE_LINE_DISTANCE = 100;  // [mm] 青いラインの長さ（概数）
-    // 調整値
-    static constexpr float ETRALLY_NARROW_SWING_DEG = 20.0f;             // [°]
-    static constexpr int ETRALLY_THROUGH_GATE_ADJUSTMENT_DISTANCE = 30;  // [mm] ラリーフィールド横のラインからQRコードまでの距離と単位距離の差
+    static constexpr int COLOR_CIRCLE_RADIUS = 35;                       // [mm] ラリーフィールド横のライン上にある色付きの円の半径（概数）
+    static constexpr int BLUE_LINE_DISTANCE = 100;                       // [mm] 青いラインの長さ（概数）
     static constexpr int ETRALLY_UNIT_DISTANCE = 240;                    // [mm] ETラリーフィールドのQRからQRまでの距離を単位距離としている。（概数）
-    static constexpr int ETRALLY_DELAY = 50 * 1000;
+    static constexpr int ETRALLY_THROUGH_GATE_ADJUSTMENT_DISTANCE = 25;  // [mm] ラリーフィールド横のラインからQRコードまでの距離と単位距離の差
+    // 調整値
+    static constexpr float ETRALLY_NARROW_SWING_DEG = 20.0f;  // [°]
+    static constexpr int ETRALLY_DELAY = 100 * 1000;
+    /*
+     * ETラリーフィールド上のゲート配置例
+     *
+     *          col
+     *        1 2 3 4 5
+     * row 1  . . . . .
+     *     2  Y Y . . .
+     *     3  . . . . B
+     *     4  . . . . B
+     *     5  . R R . .
+     *
+     * R: 赤ゲート
+     * B: 青ゲート
+     * Y: 黄ゲート
+     */
+    // 赤ゲート
+    static constexpr int ETRALLY_RED_GATE_LEFT_ROW = 5;
+    static constexpr int ETRALLY_RED_GATE_LEFT_COL = 2;
+    static constexpr int ETRALLY_RED_GATE_RIGHT_ROW = 5;
+    static constexpr int ETRALLY_RED_GATE_RIGHT_COL = 3;
+
+    // 青ゲート
+    static constexpr int ETRALLY_BLUE_GATE_LEFT_ROW = 3;
+    static constexpr int ETRALLY_BLUE_GATE_LEFT_COL = 5;
+    static constexpr int ETRALLY_BLUE_GATE_RIGHT_ROW = 4;
+    static constexpr int ETRALLY_BLUE_GATE_RIGHT_COL = 5;
+
+    // 黄ゲート
+    static constexpr int ETRALLY_YELLOW_GATE_LEFT_ROW = 2;
+    static constexpr int ETRALLY_YELLOW_GATE_LEFT_COL = 1;
+    static constexpr int ETRALLY_YELLOW_GATE_RIGHT_ROW = 2;
+    static constexpr int ETRALLY_YELLOW_GATE_RIGHT_COL = 2;
 
 private:
     Config() = delete;  // インスタンス化しない、定数の名前空間として使う
