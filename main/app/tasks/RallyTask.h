@@ -23,7 +23,7 @@ public:
         YELLOW
     };
 
-    // // ゲートの足がどのグリッド上にあるかを保持する構造体
+    // ゲートの足がどのグリッド上にあるかを保持する構造体
     struct GridPoint {
         int row;  // 1〜5
         int col;  // 1〜5
@@ -47,7 +47,7 @@ private:
     ColorJudge::Color getTargetRowColor(Gate gate);      // ゲートに対応するグリッドの行の色を返す。
     int toXmm(Gate gate);                                // ガイドラインからゲートのある列までの距離を返す。
     int toYmm(Gate gate);                                // ゲート上部からラリーフィールドの端（下）までの距離を返す。
-    void turn(Robot robot, float degree, int adjustmentDistance = 0, int delayTime = 0);
+    void turn(float degree, int adjustmentDistance = 0, int delayTime = 0);
 };
 
 #endif  // !RALLYTASK_H_

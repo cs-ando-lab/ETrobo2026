@@ -22,61 +22,18 @@ RallyTask::RallyTask(Robot& robot)
 
 // testはテスト用runが本番用
 void RallyTask::test() {
-    Tracer tracer(robot);
-    // ガレージ直前のy字路から青ラインまでライントレース
-    tracer.setPwm(Config::ETRALLY_LINE_TRACE_DEFAULT_POWER);
-    while(1) {
-        static int blueCount = 0;
-        if(robot.isOnColor(ColorJudge::Color::BLUE, blueCount))
-            break;
-
-        tracer.run();
-        dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
-    }
-    tracer.terminate();
-
-    // ETラリー開始
-    for(const Gate& currentGate : gatesSequence) {
-        static bool isFirstSequence = true;  // ラリーの最初だけ、方向が違うため最初だけ動きを変える。
-        if(isFirstSequence) {
-            // 青ライン到達後90°左折(Lコース)
-            turn(robot, 90.0f * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
-            isFirstSequence = false;
-        } else {
-            // 青ライン到達後90°右折(Lコース)
-            turn(robot, -90.0f * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
-        }
-
-        // 蛇行走行で黒ラインの捜索
-        robot.runWavingUntilColor(ColorJudge::Color::BLACK, Config::ETRALLY_WAVING_SPEED);
-
-        // ゲートのある行に対応する色まで行って、90°右回転
-        goToGateRow(currentGate, tracer);
-
-        // ゲートを通過する
-        runThroughGate(currentGate);
-
-        // ゲートを通過したあと、スタート位置に戻る。
-        returnToRallyStart(currentGate, tracer);
-    }
-
-    // フォースボタン押すと次のゲートに進む
-    while(robot.isForceSensorPressed()) {
-        ;
-    }
-    while(!robot.isForceSensorPressed()) {
-        ;
-    }
+    return;
 }
 
 void RallyTask::run() {
     // TODO: 担当者が実装する（赤ゲート → 青ゲート → 黄ゲートの順に通過 → ラインに戻る）
     Tracer tracer(robot);
+    int blueCount = 0;
+    bool isFirstSequence = true;  // ラリーの最初だけ、方向が違うため最初だけ動きを変える。
 
     // ガレージ直前のy字路から青ラインまでライントレース
     tracer.setPwm(Config::ETRALLY_LINE_TRACE_DEFAULT_POWER);
     while(1) {
-        static int blueCount = 0;
         if(robot.isOnColor(ColorJudge::Color::BLUE, blueCount))
             break;
 
@@ -87,14 +44,13 @@ void RallyTask::run() {
 
     // ETラリー開始
     for(const Gate& currentGate : gatesSequence) {
-        static bool isFirstSequence = true;  // ラリーの最初だけ、方向が違うため最初だけ動きを変える。
         if(isFirstSequence) {
             // 青ライン到達後90°左折(Lコース)
-            turn(robot, 90.0f * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
+            turn(90.0f * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
             isFirstSequence = false;
         } else {
             // 青ライン到達後90°右折(Lコース)
-            turn(robot, -90.0f * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
+            turn(-90.0f * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
         }
 
         // 蛇行走行で黒ラインの捜索
@@ -146,7 +102,7 @@ void RallyTask::goToGateRow(Gate gate, Tracer& tracer) {
     }
     // 目的の色であれば停止して90°右に回転(Lコース)
     tracer.terminate();
-    turn(robot, -90.0f * CourseConfig::sign(), Config::COLOR_CIRCLE_RADIUS + Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
+    turn(-90.0f * CourseConfig::sign(), Config::COLOR_CIRCLE_RADIUS + Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
     dly_tsk(Config::ETRALLY_DELAY);  // すぐに動き出すとずれが生じる可能性が高くなるので、少しディレイを入れている。
 }
 
@@ -156,14 +112,14 @@ void RallyTask::runThroughGate(Gate gate) {
         syslog(LOG_NOTICE, "RED or YELLOW - Xmm: [%d]", toXmm(gate));  // TODO: debug終われば消す
         robot.driveStraight(toXmm(gate) + Config::ETRALLY_THROUGH_GATE_ADJUSTMENT_DISTANCE, Config::ETRALLY_DEFAULT_SPEED);
         // [2] ゲートの列に到着したら90°右に回転
-        turn(robot, -90 * CourseConfig::sign(), 0, Config::ETRALLY_DELAY);
+        turn(-90 * CourseConfig::sign(), 0, Config::ETRALLY_DELAY);
         // [3] ETラリーフィールドの端まで下に直進（距離指定（変化））
         syslog(LOG_NOTICE, "RED or YELLOW - Ymm: [%d]", toYmm(gate));  // TODO: debug終われば消す
         robot.driveStraight(toYmm(gate), Config::ETRALLY_DEFAULT_SPEED);
         // [4] 黒を探知するまで直進
         robot.runStraightUntilColor(ColorJudge::Color::BLACK);
         // [5] 探知したら右に90°曲がってライントレース
-        turn(robot, -90 * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
+        turn(-90 * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
         // 終了
     } else if(gate.color == GateColor::BLUE) {                                        // 青ゲートの場合
                                                                                       // [1] ETラリーフィールドの端まで直進（距離指定（固定））
@@ -175,7 +131,7 @@ void RallyTask::runThroughGate(Gate gate) {
         ColorJudge::Color colors[colorCount] = { ColorJudge::Color::BLACK, ColorJudge::Color::BLUE };
         robot.runStraightUntilColors(colors, colorCount);
         // [3] 探知したら右に90°曲がってライントレース
-        turn(robot, -90 * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
+        turn(-90 * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
         // 終了
     } else {
         // 受け取ったゲートの情報が不正
@@ -284,7 +240,7 @@ int RallyTask::toYmm(Gate gate) {  // ゲートの上側からラリーフィー
     return ((6 - gate.leftLeg.row) * Config::ETRALLY_UNIT_DISTANCE);
 }
 
-void RallyTask::turn(Robot robot, float degree, int adjustmentDistance, int delayTime) {
+void RallyTask::turn(float degree, int adjustmentDistance, int delayTime) {
     dly_tsk(delayTime);                                                          // 直前のモータの動きによって正確性に影響が出ないようにdelayを挟む
     robot.driveStraight((int)(adjustmentDistance), Config::ETRALLY_SLOW_SPEED);  // 回転軸の位置を調整
     robot.turnByImu(degree);
