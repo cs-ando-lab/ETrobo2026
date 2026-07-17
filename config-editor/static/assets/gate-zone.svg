@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 552 552">
+  <defs>
+    <g id="course-marker" fill="#74787b">
+      <path d="M0 0h9v3H3v6H0zm15 0h9v9h-3V3h-6zM0 15h3v6h6v3H0zm21 0h3v9h-9v-3h6z"/>
+      <path d="M6 6h3v3H6zm6-3h3v6h-3zm-6 9h6v3H9v3H6zm9 0h6v3h-3v3h-6v-3h3zm-3 6h3v6h-3z"/>
+    </g>
+  </defs>
+  <rect width="552" height="552" fill="#fff"/>
+
+  <g fill="#dedfe0">
+    <circle cx="40" cy="40" r="10.5"/><circle cx="158" cy="40" r="10.5"/>
+    <circle cx="276" cy="40" r="10.5"/><circle cx="394" cy="40" r="10.5"/>
+    <circle cx="512" cy="40" r="10.5"/>
+    <circle cx="40" cy="158" r="10.5"/><circle cx="158" cy="158" r="10.5"/>
+    <circle cx="276" cy="158" r="10.5"/><circle cx="394" cy="158" r="10.5"/>
+    <circle cx="512" cy="158" r="10.5"/>
+    <circle cx="40" cy="276" r="10.5"/><circle cx="158" cy="276" r="10.5"/>
+    <circle cx="276" cy="276" r="10.5"/><circle cx="394" cy="276" r="10.5"/>
+    <circle cx="512" cy="276" r="10.5"/>
+    <circle cx="40" cy="394" r="10.5"/><circle cx="158" cy="394" r="10.5"/>
+    <circle cx="276" cy="394" r="10.5"/><circle cx="394" cy="394" r="10.5"/>
+    <circle cx="512" cy="394" r="10.5"/>
+    <circle cx="40" cy="512" r="10.5"/><circle cx="158" cy="512" r="10.5"/>
+    <circle cx="276" cy="512" r="10.5"/><circle cx="394" cy="512" r="10.5"/>
+    <circle cx="512" cy="512" r="10.5"/>
+  </g>
+
+  <g>
+    <use href="#course-marker" x="87" y="87"/><use href="#course-marker" x="205" y="87"/>
+    <use href="#course-marker" x="323" y="87"/><use href="#course-marker" x="441" y="87"/>
+    <use href="#course-marker" x="87" y="205"/><use href="#course-marker" x="205" y="205"/>
+    <use href="#course-marker" x="323" y="205"/><use href="#course-marker" x="441" y="205"/>
+    <use href="#course-marker" x="87" y="323"/><use href="#course-marker" x="205" y="323"/>
+    <use href="#course-marker" x="323" y="323"/><use href="#course-marker" x="441" y="323"/>
+    <use href="#course-marker" x="87" y="441"/><use href="#course-marker" x="205" y="441"/>
+    <use href="#course-marker" x="323" y="441"/><use href="#course-marker" x="441" y="441"/>
+  </g>
+</svg>

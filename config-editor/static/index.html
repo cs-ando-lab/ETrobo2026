@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ETROBO Config Editor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <main class="container">
+        <header class="page-header">
+            <div>
+                <p class="eyebrow">ETROBO 2026 · LOCAL TOOL</p>
+                <h1>Config Editor</h1>
+                <p class="description">ビルド前に走行体の設定値をまとめて編集します。</p>
+            </div>
+            <label class="search">
+                <span>設定を検索</span>
+                <input id="search" type="search" placeholder="PID、速度、ETRALLY…">
+            </label>
+        </header>
+
+        <div id="error" class="message error" role="alert" hidden></div>
+        <form id="config-form">
+            <section class="preview-panel">
+                <div class="preview-copy">
+                    <p class="section-label">ET-RALLY FIELD</p>
+                    <h2>ゲート配置（Lコース）</h2>
+                    <p>ゲートを選び、配置したいマスをクリックしてください。赤・黄は横向き、青は縦向きです。</p>
+                    <div class="gate-picker" aria-label="配置するゲート">
+                        <button class="gate-choice red active" type="button" data-gate="red">
+                            <span></span>赤
+                        </button>
+                        <button class="gate-choice blue" type="button" data-gate="blue">
+                            <span></span>青
+                        </button>
+                        <button class="gate-choice yellow" type="button" data-gate="yellow">
+                            <span></span>黄
+                        </button>
+                    </div>
+                    <p id="placement-hint" class="placement-hint">赤ゲートを横向きに配置します</p>
+                </div>
+                <div id="field-grid" class="field-grid" aria-label="ゲート配置ゾーン"></div>
+            </section>
+
+            <nav id="category-nav" class="category-nav" aria-label="設定カテゴリ"></nav>
+            <div id="settings"></div>
+
+            <footer class="actions">
+                <span id="status" aria-live="polite">設定を読み込んでいます…</span>
+                <div>
+                    <button id="reset-button" class="secondary" type="button" disabled>変更を取り消す</button>
+                    <button id="save-button" type="submit" disabled>すべて保存</button>
+                </div>
+            </footer>
+        </form>
+    </main>
+    <script src="app.js"></script>
+</body>
+
+</html>

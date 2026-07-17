@@ -1,0 +1,481 @@
+{
+  "version": 1,
+  "settings": [
+    {
+      "name": "WHEEL_RADIUS_MM",
+      "type": "float",
+      "value": 28.0,
+      "category": "機体の寸法",
+      "description": "ホイール半径[mm]"
+    },
+    {
+      "name": "TREAD_MM",
+      "type": "float",
+      "value": 112.0,
+      "category": "機体の寸法",
+      "description": "左右ホイール間の距離[mm]"
+    },
+    {
+      "name": "PI",
+      "type": "float",
+      "value": 3.14159,
+      "category": "機体の寸法",
+      "description": ""
+    },
+    {
+      "name": "DISTANCE_FROM_COLORCENSOR_TO_WHEEL",
+      "type": "float",
+      "value": 40.0,
+      "category": "機体の寸法",
+      "description": "[mm] カラーセンサーからホイール軸までの距離（概数）"
+    },
+    {
+      "name": "DRIVE_DEFAULT_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 300,
+      "category": "Robot: 走行機能",
+      "description": "直進の既定速度[°/秒]"
+    },
+    {
+      "name": "DRIVE_TIMEOUT_LOOP_COUNT",
+      "type": "int",
+      "value": 2000,
+      "category": "Robot: 走行機能",
+      "description": "直進のタイムアウト(周期の回数)"
+    },
+    {
+      "name": "TURN_DEFAULT_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 300,
+      "category": "Robot: 走行機能",
+      "description": "旋回の既定速度[°/秒]"
+    },
+    {
+      "name": "TURN_TIMEOUT_LOOP_COUNT",
+      "type": "int",
+      "value": 500,
+      "category": "Robot: 走行機能",
+      "description": "旋回のタイムアウト(周期の回数)"
+    },
+    {
+      "name": "TURN_IMU_STOP_TOLERANCE_DEG",
+      "type": "float",
+      "value": 0.5,
+      "category": "Robot: 走行機能",
+      "description": "IMU旋回の停止許容誤差[°]"
+    },
+    {
+      "name": "TURN_IMU_KP",
+      "type": "float",
+      "value": 4.0,
+      "category": "Robot: 走行機能",
+      "description": "IMU旋回の比例ゲイン"
+    },
+    {
+      "name": "TURN_IMU_MIN_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 80,
+      "category": "Robot: 走行機能",
+      "description": "IMU旋回の最低速度[°/秒]"
+    },
+    {
+      "name": "RUC_DEFAULT_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 300,
+      "category": "Robot: 走行機能",
+      "description": "既定速度[°/秒]"
+    },
+    {
+      "name": "RUC_SWING_MAX_COUNT",
+      "type": "int",
+      "value": 50,
+      "category": "Robot: 走行機能",
+      "description": "蛇行/最大旋回回数"
+    },
+    {
+      "name": "RUC_SWING_DEFAULT_DEG",
+      "type": "float",
+      "value": 50.0,
+      "category": "Robot: 走行機能",
+      "description": "蛇行/1旋回における旋回角度[°]"
+    },
+    {
+      "name": "RUC_SWING_TIMEOUT_LOOP_COUNT",
+      "type": "int",
+      "value": 500,
+      "category": "Robot: 走行機能",
+      "description": "蛇行/1旋回におけるタイムアウト(周期の回数)"
+    },
+    {
+      "name": "MOTION_POLL_INTERVAL_US",
+      "type": "int",
+      "value": 10000,
+      "category": "Robot: 走行機能",
+      "description": "直進・旋回・蛇行中のエンコーダー確認周期[us]"
+    },
+    {
+      "name": "SPEAKER_VOLUME",
+      "type": "int",
+      "value": 50,
+      "category": "Robot: 起動時の設定 / HMI",
+      "description": "スピーカー音量[0-100]"
+    },
+    {
+      "name": "BEEP_DEFAULT_MS",
+      "type": "int",
+      "value": 100,
+      "category": "Robot: 起動時の設定 / HMI",
+      "description": "ビープ音のデフォルト再生時間[ms]"
+    },
+    {
+      "name": "TRACER_KP",
+      "type": "float",
+      "value": 0.33,
+      "category": "Tracer（ライントレース）",
+      "description": "反射率PID制御の比例ゲイン"
+    },
+    {
+      "name": "TRACER_KI",
+      "type": "float",
+      "value": 0.01,
+      "category": "Tracer（ライントレース）",
+      "description": "反射率PID制御の積分ゲイン"
+    },
+    {
+      "name": "TRACER_KD",
+      "type": "float",
+      "value": 0.03,
+      "category": "Tracer（ライントレース）",
+      "description": "反射率PID制御の微分ゲイン"
+    },
+    {
+      "name": "TRACER_TARGET_REFLECTION",
+      "type": "int32_t",
+      "value": 60,
+      "category": "Tracer（ライントレース）",
+      "description": "黒白の中間反射率"
+    },
+    {
+      "name": "TRACER_PWM",
+      "type": "int8_t",
+      "value": 50,
+      "category": "Tracer（ライントレース）",
+      "description": "基準パワー"
+    },
+    {
+      "name": "COLOR_CHROMATIC_MIN_SATURATION",
+      "type": "uint8_t",
+      "value": 30,
+      "category": "ColorJudge（色判定）",
+      "description": ""
+    },
+    {
+      "name": "COLOR_ACHROMATIC_REFLECTION_THRESHOLD",
+      "type": "int",
+      "value": 60,
+      "category": "ColorJudge（色判定）",
+      "description": ""
+    },
+    {
+      "name": "COLOR_RED_HUE",
+      "type": "uint16_t",
+      "value": 0,
+      "category": "ColorJudge（色判定）",
+      "description": ""
+    },
+    {
+      "name": "COLOR_YELLOW_HUE",
+      "type": "uint16_t",
+      "value": 60,
+      "category": "ColorJudge（色判定）",
+      "description": ""
+    },
+    {
+      "name": "COLOR_GREEN_HUE",
+      "type": "uint16_t",
+      "value": 120,
+      "category": "ColorJudge（色判定）",
+      "description": ""
+    },
+    {
+      "name": "COLOR_BLUE_HUE",
+      "type": "uint16_t",
+      "value": 240,
+      "category": "ColorJudge（色判定）",
+      "description": ""
+    },
+    {
+      "name": "COLOR_HUE_TOLERANCE",
+      "type": "int",
+      "value": 40,
+      "category": "ColorJudge（色判定）",
+      "description": "各色のHueからの許容誤差[度]"
+    },
+    {
+      "name": "COLOR_DETECTED_STABLE_COUNT",
+      "type": "int",
+      "value": 3,
+      "category": "ColorJudge（色判定）",
+      "description": "色判定を行う際、信頼するカラーセンサーの連続判定回数"
+    },
+    {
+      "name": "PID_INTEGRAL_LIMIT",
+      "type": "float",
+      "value": 100.0,
+      "category": "Pid（PID制御共通）",
+      "description": "積分項の暴走を防ぐ上下限"
+    },
+    {
+      "name": "PID_DERIVATIVE_FILTER_ALPHA",
+      "type": "float",
+      "value": 0.8,
+      "category": "Pid（PID制御共通）",
+      "description": "微分項のローパスフィルタ係数"
+    },
+    {
+      "name": "CALIBRATOR_BLE_WAIT_US",
+      "type": "int",
+      "value": 3000000,
+      "category": "Calibrator（起動準備）",
+      "description": "BLE接続待ち時間[us]"
+    },
+    {
+      "name": "CALIBRATOR_POLL_INTERVAL_US",
+      "type": "int",
+      "value": 50000,
+      "category": "Calibrator（起動準備）",
+      "description": "ボタン確認周期[us]"
+    },
+    {
+      "name": "CALIBRATOR_BEEP_MS",
+      "type": "int",
+      "value": 300,
+      "category": "Calibrator（起動準備）",
+      "description": "起動ビープの再生時間[ms]"
+    },
+    {
+      "name": "LINE_TRACE_POLL_INTERVAL_US",
+      "type": "int",
+      "value": 100000,
+      "category": "GameRunner（全体フロー）",
+      "description": "ライントレースの制御周期[us]"
+    },
+    {
+      "name": "LABEL_CHANGE_CYCLES",
+      "type": "int",
+      "value": 3,
+      "category": "GameRunner（全体フロー）",
+      "description": "表示文字を切り替える周期(制御周期の何回分か)"
+    },
+    {
+      "name": "DELIVERY_TRACER_PWM",
+      "type": "int8_t",
+      "value": 30,
+      "category": "DeliveryTask（ボトルデリバリー）",
+      "description": "ボトル接近時のライントレース速度"
+    },
+    {
+      "name": "DELIVERY_TARGET_DISTANCE_MM",
+      "type": "int",
+      "value": 95,
+      "category": "DeliveryTask（ボトルデリバリー）",
+      "description": "ボトル手前で停止する目標距離[mm]"
+    },
+    {
+      "name": "ARM_RAISE_DEG",
+      "type": "int",
+      "value": 155,
+      "category": "Arm (アーム制御)",
+      "description": "アームを上げる角度"
+    },
+    {
+      "name": "ARM_LOWER_DEG",
+      "type": "int",
+      "value": 160,
+      "category": "Arm (アーム制御)",
+      "description": "アームを下げる角度"
+    },
+    {
+      "name": "ARM_RAISE_PWM",
+      "type": "int",
+      "value": -100,
+      "category": "Arm (アーム制御)",
+      "description": "アームを上げる速度"
+    },
+    {
+      "name": "ARM_LOWER_PWM",
+      "type": "int",
+      "value": 100,
+      "category": "Arm (アーム制御)",
+      "description": "アームを下げる速度"
+    },
+    {
+      "name": "ETRALLY_DEFAULT_SPEED",
+      "type": "int",
+      "value": 200,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_FAST_SPEED",
+      "type": "int",
+      "value": 500,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_SLOW_SPEED",
+      "type": "int",
+      "value": 100,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_WAVING_SPEED",
+      "type": "int",
+      "value": 150,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_LINE_TRACE_DEFAULT_POWER",
+      "type": "int",
+      "value": 34,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_LINE_TRACE_FAST_POWER",
+      "type": "int",
+      "value": 40,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "COLOR_CIRCLE_RADIUS",
+      "type": "int",
+      "value": 35,
+      "category": "ET-Rally（課題）",
+      "description": "[mm] ラリーフィールド横のライン上にある色付きの円の半径（概数）"
+    },
+    {
+      "name": "BLUE_LINE_DISTANCE",
+      "type": "int",
+      "value": 100,
+      "category": "ET-Rally（課題）",
+      "description": "[mm] 青いラインの長さ（概数）"
+    },
+    {
+      "name": "ETRALLY_UNIT_DISTANCE",
+      "type": "int",
+      "value": 240,
+      "category": "ET-Rally（課題）",
+      "description": "[mm] ETラリーフィールドのQRからQRまでの距離を単位距離としている。（概数）"
+    },
+    {
+      "name": "ETRALLY_THROUGH_GATE_ADJUSTMENT_DISTANCE",
+      "type": "int",
+      "value": 25,
+      "category": "ET-Rally（課題）",
+      "description": "[mm] ラリーフィールド横のラインからQRコードまでの距離と単位距離の差"
+    },
+    {
+      "name": "ETRALLY_NARROW_SWING_DEG",
+      "type": "float",
+      "value": 20.0,
+      "category": "ET-Rally（課題）",
+      "description": "[°]"
+    },
+    {
+      "name": "ETRALLY_DELAY",
+      "type": "int",
+      "value": 100000,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_RED_GATE_LEFT_ROW",
+      "type": "int",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_RED_GATE_LEFT_COL",
+      "type": "int",
+      "value": 2,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_RED_GATE_RIGHT_ROW",
+      "type": "int",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_RED_GATE_RIGHT_COL",
+      "type": "int",
+      "value": 3,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_BLUE_GATE_LEFT_ROW",
+      "type": "int",
+      "value": 3,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_BLUE_GATE_LEFT_COL",
+      "type": "int",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_BLUE_GATE_RIGHT_ROW",
+      "type": "int",
+      "value": 4,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_BLUE_GATE_RIGHT_COL",
+      "type": "int",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_YELLOW_GATE_LEFT_ROW",
+      "type": "int",
+      "value": 2,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_YELLOW_GATE_LEFT_COL",
+      "type": "int",
+      "value": 1,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_YELLOW_GATE_RIGHT_ROW",
+      "type": "int",
+      "value": 2,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_YELLOW_GATE_RIGHT_COL",
+      "type": "int",
+      "value": 2,
+      "category": "ET-Rally（課題）",
+      "description": ""
+    }
+  ]
+}
