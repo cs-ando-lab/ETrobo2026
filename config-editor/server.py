@@ -11,7 +11,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+import uuid
 import webbrowser
+from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -22,6 +24,8 @@ REPOSITORY_DIR = EDITOR_DIR.parent
 STATIC_DIR = EDITOR_DIR / "static"
 CONFIG_JSON = EDITOR_DIR / "config.json"
 CONFIG_HEADER = REPOSITORY_DIR / "main" / "app" / "Config.h"
+HISTORY_JSON = EDITOR_DIR / "history.json"
+HISTORY_MAX_ENTRIES = 20
 HOST = "127.0.0.1"
 PORT = 8080
 WINDOWS_CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
@@ -129,6 +133,45 @@ def write_json(config: dict) -> None:
         file.write("\n")
         temporary_path = Path(file.name)
     temporary_path.replace(CONFIG_JSON)
+
+
+def read_history() -> list[dict]:
+    if not HISTORY_JSON.exists():
+        return []
+    try:
+        with HISTORY_JSON.open(encoding="utf-8") as file:
+            data = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return []
+    snapshots = data.get("snapshots") if isinstance(data, dict) else None
+    return snapshots if isinstance(snapshots, list) else []
+
+
+def write_history(snapshots: list[dict]) -> None:
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=HISTORY_JSON.parent, delete=False
+    ) as file:
+        json.dump({"snapshots": snapshots}, file, ensure_ascii=False, indent=2)
+        file.write("\n")
+        temporary_path = Path(file.name)
+    temporary_path.replace(HISTORY_JSON)
+
+
+def append_history(settings: list[dict]) -> None:
+    """保存のたびにスナップショットを直近HISTORY_MAX_ENTRIES件だけローカルに残す。"""
+    snapshots = read_history()
+    if snapshots and snapshots[0]["settings"] == settings:
+        return
+    snapshots.insert(
+        0,
+        {
+            "id": uuid.uuid4().hex[:8],
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "settings": settings,
+        },
+    )
+    del snapshots[HISTORY_MAX_ENTRIES:]
+    write_history(snapshots)
 
 
 def legacy_gate_values(config: dict) -> dict[str, int]:
@@ -293,6 +336,7 @@ def save_values(values: object) -> dict:
     config = validate_values(values)
     update_header(config["settings"])
     write_json(config)
+    append_history(config["settings"])
     return config
 
 
@@ -364,6 +408,9 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 self.send_json(read_json())
             except (OSError, json.JSONDecodeError) as error:
                 self.send_json({"error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        if self.path == "/api/history":
+            self.send_json({"snapshots": read_history()})
             return
         super().do_GET()
 

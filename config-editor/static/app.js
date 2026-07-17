@@ -27,8 +27,10 @@ const diffList = document.querySelector("#diff-list");
 const diffCount = document.querySelector("#diff-count");
 const diffCancelButton = document.querySelector("#diff-cancel");
 const diffConfirmButton = document.querySelector("#diff-confirm");
+const historyList = document.querySelector("#history-list");
 let config;
 let savedValues;
+let historySnapshots = [];
 let selectedGate = "red";
 let selectedCategoryIndex = 0;
 
@@ -269,9 +271,13 @@ function formatDiffValue(setting, value) {
   return metadata.unit ? `${value} ${metadata.unit}` : `${value}`;
 }
 
+function changedNamesAgainstSaved(values) {
+  return Object.keys(values).filter(name => values[name] !== savedValues[name]);
+}
+
 // 変更された項目だけを一覧化し、ダイアログに描画する。戻り値は変更件数。
 function renderDiff(values) {
-  const changedNames = Object.keys(values).filter(name => values[name] !== savedValues[name]);
+  const changedNames = changedNamesAgainstSaved(values);
   diffCount.textContent = `${changedNames.length}件の変更`;
   diffList.innerHTML = changedNames.map(name => {
     const setting = settingByName(name);
@@ -291,6 +297,16 @@ function renderDiff(values) {
   return changedNames.length;
 }
 
+// 差分プレビューを表示し、確定されたらactionにvaluesを渡して実行する。変更がなければ何もしない。
+function requestConfirmation(values, action) {
+  if (renderDiff(values) === 0) return;
+  diffDialog.showModal();
+  diffConfirmButton.onclick = () => {
+    diffDialog.close();
+    action(values);
+  };
+}
+
 async function commitSave(values) {
   saveButton.disabled = true;
   status.textContent = "保存しています…";
@@ -307,6 +323,7 @@ async function commitSave(values) {
     updateState();
     status.textContent = data.message;
     errorBox.hidden = true;
+    loadHistory();
   } catch (error) {
     errorBox.hidden = false;
     errorBox.textContent = error.message;
@@ -314,6 +331,64 @@ async function commitSave(values) {
     saveButton.disabled = false;
   }
 }
+
+function formatTimestamp(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString("ja-JP", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+}
+
+function valuesFromSnapshot(snapshot) {
+  return Object.fromEntries(snapshot.settings.map(setting => [setting.name, setting.value]));
+}
+
+function renderHistory() {
+  if (!historySnapshots.length) {
+    historyList.innerHTML = `<p class="history-empty">まだ変更履歴がありません。保存すると自動的に記録されます。</p>`;
+    return;
+  }
+  historyList.innerHTML = historySnapshots.map(snapshot => {
+    const values = valuesFromSnapshot(snapshot);
+    const changeCount = changedNamesAgainstSaved(values).length;
+    return `
+      <div class="history-row">
+        <span class="history-copy">
+          <strong>${formatTimestamp(snapshot.timestamp)}</strong>
+          <small>${changeCount > 0 ? `現在の内容と${changeCount}件差分` : "現在の内容と同じ"}</small>
+        </span>
+        <button
+          type="button"
+          class="secondary history-restore"
+          data-id="${snapshot.id}"
+          ${changeCount === 0 ? "disabled" : ""}>
+          この内容に戻す
+        </button>
+      </div>`;
+  }).join("");
+}
+
+async function loadHistory() {
+  try {
+    const response = await fetch("/api/history");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "変更履歴を読み込めませんでした");
+    historySnapshots = data.snapshots;
+    renderHistory();
+  } catch (error) {
+    historyList.innerHTML = `<p class="history-empty">変更履歴を読み込めませんでした。</p>`;
+  }
+}
+
+historyList.addEventListener("click", event => {
+  const button = event.target.closest(".history-restore");
+  if (!button || button.disabled) return;
+  const snapshot = historySnapshots.find(item => item.id === button.dataset.id);
+  if (!snapshot) return;
+  requestConfirmation(valuesFromSnapshot(snapshot), commitSave);
+});
 
 function filterSettings() {
   const query = search.value.trim().toLowerCase();
@@ -350,6 +425,7 @@ async function loadConfig() {
     renderGrid(savedValues);
     status.textContent = `${config.settings.length}件を読み込みました`;
     settingsRoot.addEventListener("input", updateState);
+    loadHistory();
   } catch (error) {
     errorBox.hidden = false;
     errorBox.textContent = error.message;
@@ -393,13 +469,7 @@ form.addEventListener("submit", event => {
   event.preventDefault();
   updateState();
   if (saveButton.disabled) return;
-  const values = readValues();
-  if (renderDiff(values) === 0) return;
-  diffDialog.showModal();
-  diffConfirmButton.onclick = () => {
-    diffDialog.close();
-    commitSave(values);
-  };
+  requestConfirmation(readValues(), commitSave);
 });
 
 diffCancelButton.addEventListener("click", () => diffDialog.close());

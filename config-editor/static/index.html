@@ -23,6 +23,20 @@
         </header>
 
         <div id="error" class="message error" role="alert" hidden></div>
+
+        <section class="history-panel" aria-labelledby="history-title">
+            <div class="history-heading">
+                <div>
+                    <p class="section-label">LOCAL HISTORY</p>
+                    <h2 id="history-title">変更履歴</h2>
+                </div>
+                <p>直近20件のスナップショットをローカルに保存します。</p>
+            </div>
+            <div id="history-list" class="history-list">
+                <p class="history-empty">読み込んでいます…</p>
+            </div>
+        </section>
+
         <form id="config-form">
             <section class="preview-panel">
                 <div class="preview-copy">
