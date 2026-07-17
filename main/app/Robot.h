@@ -22,17 +22,32 @@ class Robot {
 public:
     Robot();
 
+    // 超音波を使った探索の結果（turnByImuUntilUltrasonicの戻り値）
+    struct SearchResult {
+        bool found;              // 一度でも距離を検知できればtrue
+        float actualTurnedDeg;   // この呼び出しで実際に旋回できた角度（IMU実測）
+        float bestHeadingDeg;    // 走行中、距離が最小だった時点のIMU角度（ターゲットに最も正対していたと推定される向き）
+        int bestDistanceMm;      // 上記の時点での超音波距離
+    };
+
     // ── 移動 ──────────────────────────────────────────
     // 指定した距離（mm）だけ直進する。distanceMmが負なら後退する
     // speedDegPerSec: 目標回転速度 [°/秒]（setPowerではなくsetSpeedによる速度制御を使う）
-    void driveStraight(int distanceMm, int speedDegPerSec = Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
+    // 戻り値: 実際に進んだ距離[mm]（後退なら負値。タイムアウトやセンターボタン中断は要求値より小さくなる）
+    int driveStraight(int distanceMm, int speedDegPerSec = Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
 
     // 指定した角度だけ超信地旋回する（+ = 右旋回、- = 左旋回）
     // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
     void turn(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
 
     // IMUの方位角を使って指定角度だけ超信地旋回する（+ = 右旋回、- = 左旋回）
-    void turnByImu(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
+    // 戻り値: 実際に旋回できた角度[°]（IMU実測。タイムアウトやセンターボタン中断は要求値と異なる）
+    float turnByImu(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
+
+    // 超信地旋回しながら、指定角度に達するか超音波センサが指定距離未満を検知するまで走行する（+ = 右旋回、- = 左旋回）。
+    // ビームの広がりで検知端がずれるため、走行中に距離が最小だった角度をbestHeadingDegとして返す。
+    // 呼び出し側はそこまで旋回し直すことで対象物に最も正対した向きに戻せる。
+    SearchResult turnByImuUntilUltrasonic(float degrees, int detectDistanceMm, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
 
     // 指定された色（単色/複数色）を認識するまで直進する。
     // colors: Color配列 / colorCount: 配列数 / speedDegPerSec: 回転速度 [°/秒] / stableCount: 色を検知して止まるための連続検出回数 / forward: trueなら直進、falseなら後退
@@ -100,6 +115,10 @@ public:
     const ForceSensor& getForceSensor() const { return forceSensor; }
 
 private:
+    // IMUが使える状態になるまで待つ（turnByImu/turnByImuUntilUltrasonicの共通処理）
+    // 戻り値: 使える状態になればtrue。タイムアウトまたはセンターボタン中断ならfalse
+    bool waitForImuReady();
+
     Motor leftMotor;                    // PORT_B, COUNTERCLOCKWISE
     Motor rightMotor;                   // PORT_A, CLOCKWISE
     Motor armMotor;                     // PORT_C, CLOCKWISE

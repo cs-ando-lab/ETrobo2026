@@ -33,6 +33,14 @@ public:
     // 共通
     static constexpr int MOTION_POLL_INTERVAL_US = 10 * 1000;  // 直進・旋回・蛇行中のエンコーダー確認周期[us]
 
+    // turnByImuUntilUltrasonic
+    // 超音波センサのポーリング周期は他の移動系（turn/driveStraight等）と共通のMOTION_POLL_INTERVAL_USではなく、
+    // 検知精度を上げたいため専用に短い周期を使う。周期が短くなる分、同じタイムアウトのループ回数上限を確保
+    // しないと実時間でのタイムアウトが短くなりすぎる（低速走行だと完了前に打ち切られる）。
+    static constexpr int TURN_ULTRASONIC_POLL_INTERVAL_US = 1 * 1000;  // 超音波センサの確認周期[us]
+    static constexpr int TURN_ULTRASONIC_TIMEOUT_LOOP_COUNT = 15000;   // 走行のタイムアウト(周期の回数。上記周期で約30秒分)
+    static constexpr int TURN_ULTRASONIC_LOG_INTERVAL_LOOPS = 50;      // 走行中、距離とIMU角度をsyslog出力する周期(ループ回数。上記周期で約50ms間隔)
+
     // ── Robot: 起動時の設定 / HMI ────────────────────────
     static constexpr int SPEAKER_VOLUME = 50;    // スピーカー音量[0-100]
     static constexpr int BEEP_DEFAULT_MS = 100;  // ビープ音のデフォルト再生時間[ms]
