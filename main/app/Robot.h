@@ -53,6 +53,10 @@ public:
     // 左右のモーターパワーを直接指定する（Tracerが使う）
     void setMotorPower(int left, int right);
 
+    // アームの上げ下げ
+    void raiseArm();
+    void lowerArm();
+
     // モーターを停止する
     void stop();
 
@@ -98,6 +102,7 @@ public:
 private:
     Motor leftMotor;                    // PORT_B, COUNTERCLOCKWISE
     Motor rightMotor;                   // PORT_A, CLOCKWISE
+    Motor armMotor;                     // PORT_C, CLOCKWISE
     ColorSensor colorSensor;            // PORT_E
     UltrasonicSensor ultrasonicSensor;  // PORT_F
     ForceSensor forceSensor;            // PORT_D
