@@ -4,6 +4,7 @@ APPL_CXXOBJS +=\
     debug_log.o \
     Tracer.o \
     Robot.o \
+    Odometry.o \
     CourseConfig.o \
     Calibrator.o \
     ColorJudge.o \
