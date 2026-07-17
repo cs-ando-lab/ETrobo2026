@@ -15,27 +15,75 @@ void GameRunner::run() {
     // 1. キャリブレーション（L/R選択、スタート待ち）
     Calibrator calib(robot);
     calib.run();
+    while(true) {
+        if(!robot.isForceSensorPressed())
+            break;
+    }
+
+    // モード管理用の配列と変数
+    const char modeChars[] = { 'S', 'D', 'R' };
+    const int MODE_MAX = 2;
+    int startMode = 0;  // 0:相撲(S), 1:デリバリー(D), 2:ラリー(R)
+
+    // 試走会用のモード切替関数、汚いので今後捨てます
+    robot.showChar(modeChars[startMode]);
+    while(true) {
+        // 右ボタン：+1して次のモードへ
+        if(robot.isRightButtonPressed()) {
+            startMode++;
+            if(startMode > MODE_MAX) {
+                startMode = 0;
+            }
+            robot.showChar(modeChars[startMode]);
+            robot.beep(100);
+            dly_tsk(300 * 1000);
+        }
+
+        else if(robot.isLeftButtonPressed()) {
+            startMode--;
+            if(startMode < 0) {
+                startMode = MODE_MAX;
+            }
+            robot.showChar(modeChars[startMode]);
+            robot.beep(100);
+            dly_tsk(300 * 1000);
+        }
+
+        else if(robot.isForceSensorPressed()) {
+            robot.beep(500);
+            robot.off();
+            break;
+        }
+
+        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+    }
 
     // 2. LAPゲートまでライントレース → ET相撲
-    if(!lineTraceUntilLap()) {
-        return;
+    if(startMode <= 0) {
+        if(!lineTraceUntilLap()) {
+            return;
+        }
+        SumoTask sumo(robot);
+        sumo.run();
     }
-    SumoTask sumo(robot);
-    sumo.run();
 
     // 3. LAPゲートまでライントレース → ボトルデリバリー
-    if(!lineTraceUntilLap()) {
-        return;
+    if(startMode <= 1) {
+        if(!lineTraceUntilLap()) {
+            return;
+        }
+        DeliveryTask delivery(robot);
+        delivery.run();
     }
-    DeliveryTask delivery(robot);
-    delivery.run();
 
     // 4. LAPゲートまでライントレース → ETラリー
-    if(!lineTraceUntilLap()) {
-        return;
+    if(startMode <= 2) {
+        if(!lineTraceUntilLap()) {
+            return;
+        }
+        RallyTask rally(robot);
+        rally.run();
     }
-    RallyTask rally(robot);
-    rally.run();
 
     // 5. ゴール
     if(!lineTraceUntilLap()) {

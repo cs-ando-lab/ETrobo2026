@@ -69,6 +69,15 @@ public:
     static constexpr int LINE_TRACE_POLL_INTERVAL_US = 100 * 1000;  // ライントレースの制御周期[us]
     static constexpr int LABEL_CHANGE_CYCLES = 3;                   // 表示文字を切り替える周期(制御周期の何回分か)
 
+    // ── DeliveryTask（ボトルデリバリー）───────────────────────
+    static constexpr int8_t DELIVERY_TRACER_PWM = 30;       // ボトル接近時のライントレース速度
+    static constexpr int DELIVERY_TARGET_DISTANCE_MM = 95;  // ボトル手前で停止する目標距離[mm]
+
+    // ── Arm (アーム制御) ───────────────────────────────────
+    static constexpr int ARM_RAISE_DEG = 155;   // アームを上げる角度
+    static constexpr int ARM_LOWER_DEG = 160;   // アームを下げる角度
+    static constexpr int ARM_RAISE_PWM = -100;  // アームを上げる速度
+    static constexpr int ARM_LOWER_PWM = 100;   // アームを下げる速度
     // ── ET-Rally（課題）───────────────────────────────────
     // 走行速度
     static constexpr int ETRALLY_DEFAULT_SPEED = 200;
