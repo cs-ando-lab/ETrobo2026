@@ -6,6 +6,7 @@
 Robot::Robot()
     : leftMotor(EPort::PORT_B, Motor::EDirection::COUNTERCLOCKWISE, true),
       rightMotor(EPort::PORT_A, Motor::EDirection::CLOCKWISE, true),
+      armMotor(EPort::PORT_C, Motor::EDirection::CLOCKWISE, true),
       colorSensor(EPort::PORT_E),
       ultrasonicSensor(EPort::PORT_F),
       forceSensor(EPort::PORT_D),
@@ -244,6 +245,30 @@ void Robot::runWavingUntilColors(const ColorJudge::Color* colors, int colorCount
     }
 
     stop();
+}
+
+void Robot::raiseArm() {
+    armMotor.resetCount();
+    armMotor.setSpeed(Config::ARM_RAISE_PWM);
+
+    while(std::abs(armMotor.getCount()) < Config::ARM_RAISE_DEG) {
+        if(isCenterButtonPressed())
+            break;
+        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+    }
+    armMotor.stop();
+}
+
+void Robot::lowerArm() {
+    armMotor.resetCount();
+    armMotor.setSpeed(Config::ARM_LOWER_PWM);
+
+    while(std::abs(armMotor.getCount()) < Config::ARM_LOWER_DEG) {
+        if(isCenterButtonPressed())
+            break;
+        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+    }
+    armMotor.stop();
 }
 
 bool Robot::isOnColor(ColorJudge::Color color, int& matchedCount, int stableCount) const {

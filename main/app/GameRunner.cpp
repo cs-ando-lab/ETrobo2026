@@ -20,27 +20,27 @@ void GameRunner::run() {
     if(!lineTraceUntilLap()) {
         return;
     }
-    SumoTask sumo(robot);
-    sumo.run();
+    // SumoTask sumo(robot);
+    // sumo.run();
 
     // 3. LAPゲートまでライントレース → ボトルデリバリー
-    if(!lineTraceUntilLap()) {
-        return;
-    }
+    // if(!lineTraceUntilLap()) {
+    //  return;
+    //}
     DeliveryTask delivery(robot);
     delivery.run();
 
     // 4. LAPゲートまでライントレース → ETラリー
-    if(!lineTraceUntilLap()) {
-        return;
-    }
-    RallyTask rally(robot);
-    rally.run();
+    // if(!lineTraceUntilLap()) {
+    //  return;
+    //}
+    // RallyTask rally(robot);
+    // rally.run();
 
     // 5. ゴール
-    if(!lineTraceUntilLap()) {
-        return;
-    }
+    // if(!lineTraceUntilLap()) {
+    //     return;
+    // }
     robot.stop();
 }
 
