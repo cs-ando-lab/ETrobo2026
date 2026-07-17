@@ -13,11 +13,12 @@ public:
     static constexpr float WHEEL_RADIUS_MM = 28.0f;  // ホイール半径[mm]
     static constexpr float TREAD_MM = 112.0f;        // 左右ホイール間の距離[mm]
     static constexpr float PI = 3.14159f;
+    static constexpr float DISTANCE_FROM_COLORCENSOR_TO_WHEEL = 40.0f;  // [mm] カラーセンサーからホイール軸までの距離（概数）
 
     // ── Robot: 走行機能 ────────────────────────────────
     // driveStraight
     static constexpr int DRIVE_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 直進の既定速度[°/秒]
-    static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 500;         // 直進のタイムアウト(周期の回数)
+    static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 2000;        // 直進のタイムアウト(周期の回数)
     // turn
     static constexpr int TURN_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 旋回の既定速度[°/秒]
     static constexpr int TURN_TIMEOUT_LOOP_COUNT = 500;         // 旋回のタイムアウト(周期の回数)
@@ -27,7 +28,7 @@ public:
     // runUntilColor
     static constexpr int RUC_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 既定速度[°/秒]
     static constexpr int RUC_SWING_MAX_COUNT = 50;             // 蛇行/最大旋回回数
-    static constexpr float RUC_SWING_DEFAULT_DEG = 40.0f;      // 蛇行/1旋回における旋回角度[°]
+    static constexpr float RUC_SWING_DEFAULT_DEG = 50.0f;      // 蛇行/1旋回における旋回角度[°]
     static constexpr int RUC_SWING_TIMEOUT_LOOP_COUNT = 500;   // 蛇行/1旋回におけるタイムアウト(周期の回数)
     // 共通
     static constexpr int MOTION_POLL_INTERVAL_US = 10 * 1000;  // 直進・旋回・蛇行中のエンコーダー確認周期[us]
@@ -77,6 +78,21 @@ public:
     static constexpr int ARM_LOWER_DEG = 160;   // アームを下げる角度
     static constexpr int ARM_RAISE_PWM = -100;  // アームを上げる速度
     static constexpr int ARM_LOWER_PWM = 100;   // アームを下げる速度
+    // ── ET-Rally（課題）───────────────────────────────────
+    // 走行速度
+    static constexpr int ETRALLY_FAST_SPEED = 500;
+    static constexpr int ETRALLY_DEFAULT_SPEED = 200;
+    static constexpr int ETRALLY_SLOW_SPEED = 100;
+    static constexpr int ETRALLY_WAVING_SPEED = 150;
+    static constexpr int ETRALLY_LINE_TRACE_DEFAULT_POWER = 34;
+    // コースの寸法
+    static constexpr int COLOR_CIRCLE_RADIUS = 35;  // [mm] ラリーフィールド横のライン上にある色付きの円の半径（概数）
+    static constexpr int BLUE_LINE_DISTANCE = 100;  // [mm] 青いラインの長さ（概数）
+    // 調整値
+    static constexpr float ETRALLY_NARROW_SWING_DEG = 20.0f;             // [°]
+    static constexpr int ETRALLY_THROUGH_GATE_ADJUSTMENT_DISTANCE = 30;  // [mm] ラリーフィールド横のラインからQRコードまでの距離と単位距離の差
+    static constexpr int ETRALLY_UNIT_DISTANCE = 240;                    // [mm] ETラリーフィールドのQRからQRまでの距離を単位距離としている。（概数）
+    static constexpr int ETRALLY_DELAY = 50 * 1000;
 
 private:
     Config() = delete;  // インスタンス化しない、定数の名前空間として使う

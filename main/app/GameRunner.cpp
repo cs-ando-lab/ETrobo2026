@@ -8,16 +8,13 @@
 #include "kernel.h"
 
 GameRunner::GameRunner(Robot& robot)
-    : robot(robot),
-      sensors{ &robot.getColorSensor(), &robot.getLeftMotor(), &robot.getRightMotor(), &robot.getUltrasonicSensor(),
-               &robot.getForceSensor() } {
+    : robot(robot) {
 }
 
 void GameRunner::run() {
     // 1. キャリブレーション（L/R選択、スタート待ち）
     Calibrator calib(robot);
     calib.run();
-    debug_log_init(&sensors);
 
     // 2. LAPゲートまでライントレース → ET相撲
     if(!lineTraceUntilLap()) {
@@ -53,7 +50,8 @@ bool GameRunner::lineTraceUntilLap() {
     const char* const TRACER_LABEL = "Tracer";
     const int TRACER_LABEL_LEN = 6; /* strlen(TRACER_LABEL) */
     int prevLabelIndex = -1;
-    int blueCount = 0;  // 青ラインを検知した回数
+    int blueCount = 0;          // 青ラインを検知した回数
+    int displayCycleCount = 0;  // "Tracer"の文字循環表示の周期カウント
 
     while(1) {
         /* センターボタンで安全停止 */
@@ -71,15 +69,13 @@ bool GameRunner::lineTraceUntilLap() {
         tracer.run();
 
         /* ライントレース中は"Tracer"の文字を1文字ずつ循環表示 */
-        int labelIndex = (debugLogCount / Config::LABEL_CHANGE_CYCLES) % TRACER_LABEL_LEN;
+        int labelIndex = (displayCycleCount / Config::LABEL_CHANGE_CYCLES) % TRACER_LABEL_LEN;
         if(labelIndex != prevLabelIndex) {
             robot.showChar(TRACER_LABEL[labelIndex]);
             prevLabelIndex = labelIndex;
         }
 
-        debug_log_all(&sensors, debugLogCount);
-
-        debugLogCount++;
+        displayCycleCount++;
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
     }
 
