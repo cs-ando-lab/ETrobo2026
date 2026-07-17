@@ -4,6 +4,7 @@
 #include "Robot.h"
 #include "Tracer.h"
 #include "Config.h"
+#include "CourseConfig.h"
 
 /**
  * ETラリーの処理を行うクラス。
@@ -15,18 +16,21 @@ public:
     void run();
     void test();
 
-    enum struct GateColor {  // ゲートの色
+    // ゲートの色
+    enum struct GateColor {
         RED,
         BLUE,
         YELLOW
     };
 
-    // ゲートの座標を保持する構造体
-    struct GridPoint {  // ゲートの足がどのグリッド上にあるか
-        int row;        // 1〜5
-        int col;        // 1〜5
+    // // ゲートの足がどのグリッド上にあるかを保持する構造体
+    struct GridPoint {
+        int row;  // 1〜5
+        int col;  // 1〜5
     };
-    struct Gate {  // ゲートの両足の座標
+
+    // ゲートの両足の座標
+    struct Gate {
         GateColor color;
         GridPoint leftLeg;
         GridPoint rightLeg;
@@ -43,7 +47,7 @@ private:
     ColorJudge::Color getTargetRowColor(Gate gate);      // ゲートに対応するグリッドの行の色を返す。
     int toXmm(Gate gate);                                // ガイドラインからゲートのある列までの距離を返す。
     int toYmm(Gate gate);                                // ゲート上部からラリーフィールドの端（下）までの距離を返す。
-    void turn(Robot robot, float degree, int adjustmentDistance = 0);
+    void turn(Robot robot, float degree, int adjustmentDistance = 0, int delayTime = 0);
 };
 
 #endif  // !RALLYTASK_H_
