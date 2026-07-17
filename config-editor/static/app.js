@@ -22,6 +22,11 @@ const status = document.querySelector("#status");
 const errorBox = document.querySelector("#error");
 const saveButton = document.querySelector("#save-button");
 const resetButton = document.querySelector("#reset-button");
+const diffDialog = document.querySelector("#diff-dialog");
+const diffList = document.querySelector("#diff-list");
+const diffCount = document.querySelector("#diff-count");
+const diffCancelButton = document.querySelector("#diff-cancel");
+const diffConfirmButton = document.querySelector("#diff-confirm");
 let config;
 let savedValues;
 let selectedGate = "red";
@@ -255,6 +260,61 @@ function updateState() {
   });
 }
 
+function settingByName(name) {
+  return config.settings.find(setting => setting.name === name);
+}
+
+function formatDiffValue(setting, value) {
+  const metadata = displayMetadata(setting.description);
+  return metadata.unit ? `${value} ${metadata.unit}` : `${value}`;
+}
+
+// 変更された項目だけを一覧化し、ダイアログに描画する。戻り値は変更件数。
+function renderDiff(values) {
+  const changedNames = Object.keys(values).filter(name => values[name] !== savedValues[name]);
+  diffCount.textContent = `${changedNames.length}件の変更`;
+  diffList.innerHTML = changedNames.map(name => {
+    const setting = settingByName(name);
+    return `
+      <div class="diff-row">
+        <span class="diff-copy">
+          <strong>${setting.name}</strong>
+          <small>${setting.category}</small>
+        </span>
+        <span class="diff-values">
+          <span class="diff-old">${formatDiffValue(setting, savedValues[name])}</span>
+          <span class="diff-arrow" aria-hidden="true">→</span>
+          <span class="diff-new">${formatDiffValue(setting, values[name])}</span>
+        </span>
+      </div>`;
+  }).join("");
+  return changedNames.length;
+}
+
+async function commitSave(values) {
+  saveButton.disabled = true;
+  status.textContent = "保存しています…";
+  try {
+    const response = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "保存できませんでした");
+    config = { version: data.version, settings: data.settings };
+    savedValues = valuesFromConfig();
+    updateState();
+    status.textContent = data.message;
+    errorBox.hidden = true;
+  } catch (error) {
+    errorBox.hidden = false;
+    errorBox.textContent = error.message;
+    status.textContent = "保存エラー";
+    saveButton.disabled = false;
+  }
+}
+
 function filterSettings() {
   const query = search.value.trim().toLowerCase();
   settingsRoot.querySelectorAll(".setting-row").forEach(row => {
@@ -329,31 +389,19 @@ document.querySelectorAll(".gate-choice").forEach(button => {
   button.addEventListener("click", () => selectGate(button.dataset.gate));
 });
 
-form.addEventListener("submit", async event => {
+form.addEventListener("submit", event => {
   event.preventDefault();
   updateState();
   if (saveButton.disabled) return;
-  saveButton.disabled = true;
-  status.textContent = "保存しています…";
-  try {
-    const response = await fetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ values: readValues() }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "保存できませんでした");
-    config = { version: data.version, settings: data.settings };
-    savedValues = valuesFromConfig();
-    updateState();
-    status.textContent = data.message;
-    errorBox.hidden = true;
-  } catch (error) {
-    errorBox.hidden = false;
-    errorBox.textContent = error.message;
-    status.textContent = "保存エラー";
-    saveButton.disabled = false;
-  }
+  const values = readValues();
+  if (renderDiff(values) === 0) return;
+  diffDialog.showModal();
+  diffConfirmButton.onclick = () => {
+    diffDialog.close();
+    commitSave(values);
+  };
 });
+
+diffCancelButton.addEventListener("click", () => diffDialog.close());
 
 loadConfig();
