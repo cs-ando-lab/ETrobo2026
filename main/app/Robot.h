@@ -24,10 +24,10 @@ public:
 
     // 超音波を使った探索の結果（turnByImuUntilUltrasonicの戻り値）
     struct SearchResult {
-        bool found;              // 一度でも距離を検知できればtrue
-        float actualTurnedDeg;   // この呼び出しで実際に旋回できた角度（IMU実測）
-        float bestHeadingDeg;    // 走行中、距離が最小だった時点のIMU角度（ターゲットに最も正対していたと推定される向き）
-        int bestDistanceMm;      // 上記の時点での超音波距離
+        bool found;             // 一度でも距離を検知できればtrue
+        float actualTurnedDeg;  // この呼び出しで実際に旋回できた角度（IMU実測）
+        float bestHeadingDeg;   // 走行中、距離が最小だった時点のIMU角度（ターゲットに最も正対していたと推定される向き）
+        int bestDistanceMm;     // 上記の時点での超音波距離
     };
 
     // ── 移動 ──────────────────────────────────────────
