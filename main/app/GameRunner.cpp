@@ -78,11 +78,9 @@ void GameRunner::run() {
 
     // 4. LAPゲートまでライントレース → ETラリー
     if(startMode <= 2) {
-        if(!lineTraceUntilLap()) {
-            return;
-        }
         RallyTask rally(robot);
-        rally.run();
+        rally.test();
+        return;
     }
 
     // 5. ゴール
