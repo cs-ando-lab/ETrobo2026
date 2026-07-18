@@ -49,7 +49,7 @@ void DeliveryTask::run() {
         case ColorJudge::Color::YELLOW:
             syslog(LOG_NOTICE, "Bottle Color: YELLOW");
             robot.beep(100);
-            targetBlueLineCount = 1;
+            targetBlueLineCount = 3;
             break;
 
         case ColorJudge::Color::BLUE:
@@ -57,7 +57,7 @@ void DeliveryTask::run() {
             robot.beep(100);
             dly_tsk(100 * 1000);
             robot.beep(100);
-            targetBlueLineCount = 2;
+            targetBlueLineCount = 4;
             break;
 
         case ColorJudge::Color::RED:
@@ -67,7 +67,7 @@ void DeliveryTask::run() {
             robot.beep(100);
             dly_tsk(100 * 1000);
             robot.beep(100);
-            targetBlueLineCount = 3;
+            targetBlueLineCount = 5;
             break;
 
         default:
@@ -103,7 +103,7 @@ void DeliveryTask::run() {
 
     // 8. 1秒経過したら、通常速度に戻してライントレースを継続
     syslog(LOG_NOTICE, "1 second passed. Switching to TRACER_PWM.");
-    tracer.setPwm(Config::TRACER_PWM);
+    tracer.setPwm(40);
 
     // 9. 指定回数青ラインを検知するまでライントレース
     syslog(LOG_NOTICE, "Tracing until blue line count: %d", targetBlueLineCount);
@@ -131,7 +131,16 @@ void DeliveryTask::run() {
                 detectedBlueCount++;
                 robot.beep(100);
                 syslog(LOG_NOTICE, "Entered blue line. Count: %d / %d", detectedBlueCount, targetBlueLineCount);
-
+                if(detectedBlueCount == 1) {
+                    robot.setMotorPower(40, 30);
+                    dly_tsk(500 * 1000);
+                    robot.stop();
+                    tracer.setEdge(Tracer::Edge::RIGHT);
+                    tracer.setPwm(50);
+                }
+                if(detectedBlueCount == 2) {
+                    tracer.setEdge(Tracer::Edge::LEFT);
+                }
                 // 指定回数に達したら、その場ですぐに終了する
                 if(detectedBlueCount >= targetBlueLineCount) {
                     syslog(LOG_NOTICE, "Target count reached! Stopping immediately.");
@@ -168,13 +177,13 @@ void DeliveryTask::run() {
 
     // 10. エリアへの配置（右に90度回転 → 200mm前進 → 150mm後退 → 右に90度回転）
     syslog(LOG_NOTICE, "Turning right 90 degrees");
-    robot.turnByImu(90.0f, 200);
+    robot.turnByImu(87.0f, 200);
 
     syslog(LOG_NOTICE, "Driving forward 200mm");
-    robot.driveStraight(200, Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
+    robot.driveStraight(180, Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
 
     syslog(LOG_NOTICE, "Driving backward 150mm");
-    robot.driveStraight(-150, Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
+    robot.driveStraight(-130, Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
 
     syslog(LOG_NOTICE, "Turning right 90 degrees");
     robot.turnByImu(90.0f, Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
