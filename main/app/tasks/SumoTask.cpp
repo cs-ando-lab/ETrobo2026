@@ -25,9 +25,10 @@ void SumoTask::run() {
 
     // TODO: 土俵外に確実に押し出せたか判定する処理を追加
 
-    // TODO: 押し出し後に returnToStart() によって回転する際に、ボトルを倒してしまう可能性があるため、後退する処理を追加
+    // 4. 前方のボトルを倒さないよう、旋回前に後退する
+    retreatAfterPush();
 
-    // 4. Odometryの計算結果をもとにLAPゲートへ戻り、最後に黒ラインへ物理的に合流アンカーする
+    // 5. Odometryの計算結果をもとにLAPゲートへ戻り、最後に黒ラインへ物理的に合流アンカーする
     returnToStart();
 
     syslog(LOG_NOTICE, "SUMO,RUN,END");
@@ -50,36 +51,56 @@ void SumoTask::faceRingAndApproach() {
 }
 
 bool SumoTask::searchBottle() {
-    syslog(LOG_NOTICE, "SUMO,SEARCH,START,maxAngle=%d,detectMm=%d", (int)Config::SUMO_SEARCH_MAX_ANGLE_DEG, Config::SUMO_BOTTLE_DETECT_DISTANCE_MM);
+    syslog(LOG_NOTICE, "SUMO,SEARCH,START,maxAngle=%d,detectMm=%d,maxAttempts=%d", (int)Config::SUMO_SEARCH_MAX_ANGLE_DEG, Config::SUMO_BOTTLE_DETECT_DISTANCE_MM, Config::SUMO_SEARCH_MAX_ATTEMPTS);
 
-    // 走査範囲の左端(-x°)まで一度で旋回する（ここではまだ超音波センサーで確認する必要がないため、
-    // 探索用のゆっくりした速度(SUMO_SEARCH_SPEED_DEG_PER_SEC)ではなく通常の旋回速度で素早く移動する）
-    float turnedToStart = robot.turnByImu(-Config::SUMO_SEARCH_MAX_ANGLE_DEG);
-    odometry.applyTurn(turnedToStart);
-    dly_tsk(Config::SUMO_MOVE_SETTLE_US);
-    syslog(LOG_NOTICE, "SUMO,SEARCH,TO_START,actualDeg=%d", (int)turnedToStart);
+    // 走査の基準向き（土俵の正面）。1回で見つからない場合はこの向きに戻してから前進し、再走査する
+    const float baseHeadingDeg = odometry.getHeadingDeg();
+    Robot::SearchResult result{};
 
-    // 左端から右端(+x°)まで、超音波センサで確認しながら旋回する
-    Robot::SearchResult result = robot.turnByImuUntilUltrasonic(
-        2.0f * Config::SUMO_SEARCH_MAX_ANGLE_DEG,
-        Config::SUMO_BOTTLE_DETECT_DISTANCE_MM,
-        Config::SUMO_SEARCH_SPEED_DEG_PER_SEC);
-    odometry.applyTurn(result.actualTurnedDeg);
-    dly_tsk(Config::SUMO_MOVE_SETTLE_US);
-    syslog(LOG_NOTICE, "SUMO,SEARCH,SWEEP,actualDeg=%d,found=%d,bestHeading=%d,bestDist=%d",
-           (int)result.actualTurnedDeg, result.found ? 1 : 0, (int)result.bestHeadingDeg, result.bestDistanceMm);
+    for(int attempt = 0; attempt < Config::SUMO_SEARCH_MAX_ATTEMPTS; ++attempt) {
+        if(attempt > 0) {
+            // 前回の走査でボトルを検知できなかったため、前進してから再走査する
+            int drivenMm = robot.driveStraight(Config::SUMO_SEARCH_ADVANCE_MM, Config::SUMO_SEARCH_ADVANCE_SPEED_DEG_PER_SEC);
+            odometry.applyDrive(static_cast<float>(drivenMm));
+            dly_tsk(Config::SUMO_MOVE_SETTLE_US);
+            syslog(LOG_NOTICE, "SUMO,SEARCH,ADVANCE,attempt=%d,reqMm=%d,actualMm=%d", attempt, Config::SUMO_SEARCH_ADVANCE_MM, drivenMm);
+        }
 
-    if(result.found) {
-        // 対象物に最も正対していたと推定される向きまで旋回し直す
-        float correctionDeg = result.bestHeadingDeg - result.actualTurnedDeg;
-        float turnedBack = robot.turnByImu(correctionDeg);
-        odometry.applyTurn(turnedBack);
+        // 走査範囲の左端(-x°)まで一度で旋回する（ここではまだ超音波センサーで確認する必要がないため、
+        // 探索用のゆっくりした速度(SUMO_SEARCH_SPEED_DEG_PER_SEC)ではなく通常の旋回速度で素早く移動する）
+        float turnedToStart = robot.turnByImu(-Config::SUMO_SEARCH_MAX_ANGLE_DEG);
+        odometry.applyTurn(turnedToStart);
         dly_tsk(Config::SUMO_MOVE_SETTLE_US);
-        syslog(LOG_NOTICE, "SUMO,SEARCH,CENTER,correctionDeg=%d,actualDeg=%d", (int)correctionDeg, (int)turnedBack);
+        syslog(LOG_NOTICE, "SUMO,SEARCH,TO_START,attempt=%d,actualDeg=%d", attempt, (int)turnedToStart);
+
+        // 左端から右端(+x°)まで、超音波センサで確認しながら旋回する
+        result = robot.turnByImuUntilUltrasonic(
+            2.0f * Config::SUMO_SEARCH_MAX_ANGLE_DEG,
+            Config::SUMO_BOTTLE_DETECT_DISTANCE_MM,
+            Config::SUMO_SEARCH_SPEED_DEG_PER_SEC);
+        odometry.applyTurn(result.actualTurnedDeg);
+        dly_tsk(Config::SUMO_MOVE_SETTLE_US);
+        syslog(LOG_NOTICE, "SUMO,SEARCH,SWEEP,attempt=%d,actualDeg=%d,found=%d,bestHeading=%d,bestDist=%d",
+               attempt, (int)result.actualTurnedDeg, result.found ? 1 : 0, (int)result.bestHeadingDeg, result.bestDistanceMm);
+
+        if(result.found) {
+            // 対象物に最も正対していたと推定される向きまで旋回し直す
+            float correctionDeg = result.bestHeadingDeg - result.actualTurnedDeg;
+            float turnedBack = robot.turnByImu(correctionDeg);
+            odometry.applyTurn(turnedBack);
+            dly_tsk(Config::SUMO_MOVE_SETTLE_US);
+            syslog(LOG_NOTICE, "SUMO,SEARCH,CENTER,correctionDeg=%d,actualDeg=%d", (int)correctionDeg, (int)turnedBack);
+            break;
+        }
+
+        // 見つからなかったので、次の走査に向けて基準向きへ旋回し直す
+        float turnedToBase = robot.turnByImu(baseHeadingDeg - odometry.getHeadingDeg());
+        odometry.applyTurn(turnedToBase);
+        dly_tsk(Config::SUMO_MOVE_SETTLE_US);
     }
 
     if(!result.found) {
-        // 走査範囲内でボトルを検知できなかった場合、土俵中央付近にいる想定でそのまま押し出しを試みる
+        // 規定回数走査してもボトルを検知できなかった場合、土俵中央付近にいる想定でそのまま押し出しを試みる
         syslog(LOG_NOTICE, "SUMO,BOTTLE_NOT_FOUND,heading=%d", (int)odometry.getHeadingDeg());
     } else {
         syslog(LOG_NOTICE, "SUMO,BOTTLE_FOUND,heading=%d", (int)odometry.getHeadingDeg());
@@ -92,6 +113,13 @@ void SumoTask::pushBottle() {
     odometry.applyDrive(static_cast<float>(drivenMm));
     dly_tsk(Config::SUMO_MOVE_SETTLE_US);
     syslog(LOG_NOTICE, "SUMO,PUSH,reqMm=%d,actualMm=%d", Config::SUMO_RING_DIAMETER_MM, drivenMm);
+}
+
+void SumoTask::retreatAfterPush() {
+    int drivenMm = robot.driveStraight(-Config::SUMO_RETREAT_AFTER_PUSH_MM, Config::SUMO_RETREAT_AFTER_PUSH_SPEED_DEG_PER_SEC);
+    odometry.applyDrive(static_cast<float>(drivenMm));
+    dly_tsk(Config::SUMO_MOVE_SETTLE_US);
+    syslog(LOG_NOTICE, "SUMO,RETREAT,reqMm=%d,actualMm=%d", -Config::SUMO_RETREAT_AFTER_PUSH_MM, drivenMm);
 }
 
 void SumoTask::returnToStart() {

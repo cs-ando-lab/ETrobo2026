@@ -22,8 +22,9 @@ private:
     Odometry odometry;
 
     void faceRingAndApproach();  // 土俵の方向へ旋回し、縁まで直進する
-    bool searchBottle();         // 連続旋回しながら超音波センサでボトルを探索する
+    bool searchBottle();         // 旋回走査でボトルを探索し、見つからなければ前進して再走査する（見つかるか規定回数に達するまで繰り返す）
     void pushBottle();           // 土俵の直径分前進し、土俵外へ押し出す
+    void retreatAfterPush();     // 押し出し後、前方のボトルを倒さないよう旋回前に後退する
     void returnToStart();        // Odometryの計算結果をもとにLAPゲートへ戻り、最後に黒ラインへ物理的に合流アンカーする
 };
 
