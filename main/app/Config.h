@@ -146,11 +146,18 @@ public:
     static constexpr int SUMO_RETURN_TURN_SPEED_DEG_PER_SEC = 300;     // 復路の旋回速度[°/秒]（原点方向への旋回・最初の向きへの復帰の両方に使う）
     static constexpr int SUMO_RETURN_DRIVE_SPEED_DEG_PER_SEC = 400;    // 復路の直進速度[°/秒]
     // ボトル探索
-    static constexpr float SUMO_SEARCH_MAX_ANGLE_DEG = 100.0f;  // [°] 土俵の正面を0°として、探索する走行範囲(±この角度)
+    static constexpr float SUMO_SEARCH_MAX_ANGLE_DEG = 90.0f;   // [°] 土俵の正面を0°として、探索する走行範囲(±この角度)
     static constexpr int SUMO_SEARCH_SPEED_DEG_PER_SEC = 80;    // 探索時の旋回速度の上限[°/秒]
     static constexpr int SUMO_BOTTLE_DETECT_DISTANCE_MM = 600;  // [mm] 超音波センサの距離がこれ未満ならボトルを検知したとみなす（要実測。壁などで誤検知しない値でなければ要確認）
+    // 1回の走査で見つからない場合、前進してから再走査する（見つかるかSUMO_SEARCH_MAX_ATTEMPTS回に達するまで繰り返す）
+    static constexpr int SUMO_SEARCH_MAX_ATTEMPTS = 4;                 // 探索（走査+前進）の最大試行回数
+    static constexpr int SUMO_SEARCH_ADVANCE_MM = 100;                 // [mm] 1回見つからなかった場合に前進する距離
+    static constexpr int SUMO_SEARCH_ADVANCE_SPEED_DEG_PER_SEC = 300;  // 探索中に前進する速度[°/秒]
     // 押し出し
     static constexpr int SUMO_PUSH_SPEED_DEG_PER_SEC = 200;  // ボトルを押し出す際の直進速度[°/秒]
+    // 押し出し後、前方のボトルを倒さないよう旋回前に後退する
+    static constexpr int SUMO_RETREAT_AFTER_PUSH_MM = 100;                 // [mm] 押し出し後に後退する距離
+    static constexpr int SUMO_RETREAT_AFTER_PUSH_SPEED_DEG_PER_SEC = 300;  // 後退速度[°/秒]
     // 移動間の整定待ち（旋回・直進の直後は慣性が残るため、次の指令・センサー読み取りの前に少し待つ）
     static constexpr int SUMO_MOVE_SETTLE_US = 200 * 1000;  // [us] 各moveの後の整定待ち時間
 
