@@ -42,6 +42,10 @@ const TAB_CONFIGS = {
     'BUTTON': {
         headers: ['count', '左', '中央', '右', 'Bluetooth'],
         thresholds: [{ col: 1, op: 'eq', val: 1 }, { col: 2, op: 'eq', val: 1 }, { col: 3, op: 'eq', val: 1 }, { col: 4, op: 'eq', val: 1 }]
+    },
+    'BATTERY': {
+        headers: ['count', '電圧(mV)', '電流(mA)'],
+        thresholds: [{ col: 1, op: 'lt', val: 6000 }]  // 6.0V未満 = バッテリー低下警告
     }
 };
 
