@@ -94,11 +94,16 @@ public:
     static constexpr int ETRALLY_WAVING_SPEED = 150;
     static constexpr int ETRALLY_LINE_TRACE_DEFAULT_POWER = 34;
     static constexpr int ETRALLY_LINE_TRACE_FAST_POWER = 40;
-    // コースの寸法
+    // コースの寸法(旧)
     static constexpr int COLOR_CIRCLE_RADIUS = 35;                       // [mm] ラリーフィールド横のライン上にある色付きの円の半径（概数）
     static constexpr int BLUE_LINE_DISTANCE = 100;                       // [mm] 青いラインの長さ（概数）
     static constexpr int ETRALLY_UNIT_DISTANCE = 240;                    // [mm] ETラリーフィールドのQRからQRまでの距離を単位距離としている。（概数）
     static constexpr int ETRALLY_THROUGH_GATE_ADJUSTMENT_DISTANCE = 25;  // [mm] ラリーフィールド横のラインからQRコードまでの距離と単位距離の差
+    // コースの寸法（青ラインの長さを基準とし、その比率で算出）
+    static constexpr float BLUE_LINE_LENGTH_MM = 100.0f;                                         // [mm] 青ラインの長さ ... 基準
+    static constexpr float RALLY_UNIT_DISTANCE_MM = 2.5f * BLUE_LINE_LENGTH_MM;                  // [mm] ラリーエリアのグリッドの方眼1マスの一辺の長さ
+    static constexpr float START_GRID_POINT_TO_START_LINE_MM = 1.097863f * BLUE_LINE_LENGTH_MM;  // [mm] 開始格子点の中心点から直下の青ラインの近い側のエッジまでの距離
+    static constexpr float GRAY_CIRCLE_RADIUS_MM = 0.225f * BLUE_LINE_LENGTH_MM;                 // [mm] ゲート脚設置用の灰色円の半径
     // 調整値
     static constexpr float ETRALLY_NARROW_SWING_DEG = 20.0f;  // [°]
     static constexpr int ETRALLY_DELAY = 100 * 1000;
