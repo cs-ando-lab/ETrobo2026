@@ -33,7 +33,7 @@ public:
     // Pidのパラメータを更新
     void setConfig(float newKp, float newKi, float newKd, int32_t newTarget, int newPwm);
     void setTarget(int32_t newTarget);
-    void setPwm(int newPwm);
+    void setPwm(int newPwm);  // newPwmは0～100の大きさのみ
 
     //
     void setEdge(Edge newEdge);
