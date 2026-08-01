@@ -77,7 +77,7 @@ public:
     static constexpr int LINE_TRACE_POLL_INTERVAL_US = 100 * 1000;  // ライントレースの制御周期[us]
     static constexpr int LABEL_CHANGE_CYCLES = 3;                   // 表示文字を切り替える周期(制御周期の何回分か)
 
-    // ── DeliveryTask（ボトルデリバリー）───────────────────────
+    // ── DeliveryTask（課題）───────────────────────
     static constexpr int8_t DELIVERY_TRACER_PWM = 30;       // ボトル接近時のライントレース速度
     static constexpr int DELIVERY_TARGET_DISTANCE_MM = 95;  // ボトル手前で停止する目標距離[mm]
 
@@ -86,54 +86,24 @@ public:
     static constexpr int ARM_LOWER_DEG = 160;   // アームを下げる角度
     static constexpr int ARM_RAISE_PWM = -100;  // アームを上げる速度
     static constexpr int ARM_LOWER_PWM = 100;   // アームを下げる速度
+
     // ── ET-Rally（課題）───────────────────────────────────
-    // 走行速度
-    static constexpr int ETRALLY_DEFAULT_SPEED = 200;
-    static constexpr int ETRALLY_FAST_SPEED = 500;
-    static constexpr int ETRALLY_SLOW_SPEED = 100;
-    static constexpr int ETRALLY_WAVING_SPEED = 150;
-    static constexpr int ETRALLY_LINE_TRACE_DEFAULT_POWER = 34;
-    static constexpr int ETRALLY_LINE_TRACE_FAST_POWER = 40;
-    // コースの寸法(旧)
-    static constexpr int COLOR_CIRCLE_RADIUS = 35;                       // [mm] ラリーフィールド横のライン上にある色付きの円の半径（概数）
-    static constexpr int BLUE_LINE_DISTANCE = 100;                       // [mm] 青いラインの長さ（概数）
-    static constexpr int ETRALLY_UNIT_DISTANCE = 240;                    // [mm] ETラリーフィールドのQRからQRまでの距離を単位距離としている。（概数）
-    static constexpr int ETRALLY_THROUGH_GATE_ADJUSTMENT_DISTANCE = 25;  // [mm] ラリーフィールド横のラインからQRコードまでの距離と単位距離の差
     // コースの寸法（青ラインの長さを基準とし、その比率で算出）
     static constexpr float BLUE_LINE_LENGTH_MM = 100.0f;                                         // [mm] 青ラインの長さ ... 基準
     static constexpr float RALLY_UNIT_DISTANCE_MM = 2.5f * BLUE_LINE_LENGTH_MM;                  // [mm] ラリーエリアのグリッドの方眼1マスの一辺の長さ
     static constexpr float START_GRID_POINT_TO_START_LINE_MM = 1.097863f * BLUE_LINE_LENGTH_MM;  // [mm] 開始格子点の中心点から直下の青ラインの近い側のエッジまでの距離
     static constexpr float GRAY_CIRCLE_RADIUS_MM = 0.225f * BLUE_LINE_LENGTH_MM;                 // [mm] ゲート脚設置用の灰色円の半径
-    // 調整値
-    static constexpr float ETRALLY_NARROW_SWING_DEG = 20.0f;  // [°]
-    static constexpr int ETRALLY_DELAY = 100 * 1000;
-    /*
-     * ETラリーフィールド上のゲート配置例
-     *
-     *          col
-     *        1 2 3 4 5
-     * row 1  . . . . .
-     *     2  Y Y . . .
-     *     3  . . . . B
-     *     4  . . . . B
-     *     5  . R R . .
-     *
-     * R: 赤ゲート
-     * B: 青ゲート
-     * Y: 黄ゲート
-     */
+
     // 赤ゲート
     static constexpr int ETRALLY_RED_GATE_LEFT_ROW = 5;
     static constexpr int ETRALLY_RED_GATE_LEFT_COL = 2;
     static constexpr int ETRALLY_RED_GATE_RIGHT_ROW = 5;
     static constexpr int ETRALLY_RED_GATE_RIGHT_COL = 3;
-
     // 青ゲート
     static constexpr int ETRALLY_BLUE_GATE_LEFT_ROW = 3;
     static constexpr int ETRALLY_BLUE_GATE_LEFT_COL = 5;
     static constexpr int ETRALLY_BLUE_GATE_RIGHT_ROW = 4;
     static constexpr int ETRALLY_BLUE_GATE_RIGHT_COL = 5;
-
     // 黄ゲート
     static constexpr int ETRALLY_YELLOW_GATE_LEFT_ROW = 2;
     static constexpr int ETRALLY_YELLOW_GATE_LEFT_COL = 1;
