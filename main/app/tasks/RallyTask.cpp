@@ -27,7 +27,7 @@ void RallyTask::test() {
 
 void RallyTask::run() {
     /* 一定距離後ろ向きにライントレースした後、停止。 */
-    int BACK_LINE_TRACE_DISTANCE_MM = 100;
+    int BACK_LINE_TRACE_DISTANCE_MM = 100;  // 後ろ向きにライントレースする基本距離
     return;
 }
 
