@@ -58,8 +58,8 @@ public:
     static constexpr float TRACER_CURVE_TURN_FILTER_ALPHA = 0.035f;
 
     // ── ColorJudge（色判定）───────────────────────────────
-    // 彩度がこれ未満なら無彩色(黒/白)とみなす（実測でS=22〜27前後のノイズが乗るため、それより高い値にする）
-    static constexpr uint8_t COLOR_CHROMATIC_MIN_SATURATION = 30;
+    // 彩度がこれ未満なら無彩色(黒/白)とみなす（黒ラインが実測でS=22〜27前後のノイズが乗るため、それより高い値にする）
+    static constexpr uint8_t COLOR_CHROMATIC_MIN_SATURATION = 36;
     // 無彩色のとき、反射率がこれ未満なら黒、以上なら白（TRACER_TARGET_REFLECTIONと同じ考え方）
     static constexpr int COLOR_ACHROMATIC_REFLECTION_THRESHOLD = 60;
     static constexpr uint16_t COLOR_RED_HUE = 0;
