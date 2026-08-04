@@ -43,6 +43,7 @@ private:
     Pid pid;  // 反射率がConfig::TRACER_TARGET_REFLECTIONに近づくよう左右パワー差を計算する
     PidConfig pidConfig;
     Edge edge;
+    float filteredTurnMag = 0.0f;  // カーブ減速量算出用、|turn|にEMAをかけた値
 
     void updateConfig(const PidConfig& newConfig);  // PidクラスのsetGain, setTargetを呼び出し、パラメータを更新。
 };

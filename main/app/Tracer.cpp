@@ -1,5 +1,5 @@
 #include "Tracer.h"
-#include <t_syslog.h>
+#include <cmath>
 
 Tracer::Tracer(Robot& robot)
     : robot(robot),
@@ -17,9 +17,22 @@ void Tracer::run() {
     // Pidは偏差を「目標値 - 現在値」で計算するため、符号を反転して使う
     // 実際の呼び出し周期(LINE_TRACE_POLL_INTERVAL_US)をdeltaSecとして渡す
     constexpr float DELTA_SEC = Config::LINE_TRACE_POLL_INTERVAL_US / 1000000.0f;
-    float turn = -pid.calculate(robot.getReflection(), DELTA_SEC);                      // 比例制御の調整値を求める
-    int pwm_l = static_cast<int>(pidConfig.basePwm - (static_cast<int>(edge) * turn));  // 基準値と調整値を使って操作量を求める
-    int pwm_r = static_cast<int>(pidConfig.basePwm + (static_cast<int>(edge) * turn));
+    float turn = -pid.calculate(robot.getReflection(), DELTA_SEC);  // 比例制御の調整値を求める
+
+    // |turn|が大きい（＝急に曲がろうとしている）ほど基準パワーから減速する。
+    // 操舵の遅延を避けるため、turn自体は生値のまま使い、減速量の算出にのみ平滑化した値を使う。
+    float turnMag = std::fabs(turn);
+    filteredTurnMag = Config::TRACER_CURVE_TURN_FILTER_ALPHA * turnMag
+                      + (1.0f - Config::TRACER_CURVE_TURN_FILTER_ALPHA) * filteredTurnMag;
+    float minPwm = pidConfig.basePwm * Config::TRACER_CURVE_MIN_PWM_RATIO;
+    float curvePwm = pidConfig.basePwm - Config::TRACER_CURVE_DECEL_GAIN * filteredTurnMag;
+    if(curvePwm < minPwm)
+        curvePwm = minPwm;
+    else if(curvePwm > pidConfig.basePwm)
+        curvePwm = pidConfig.basePwm;
+
+    int pwm_l = static_cast<int>(curvePwm - (static_cast<int>(edge) * turn));  // 基準値と調整値を使って操作量を求める
+    int pwm_r = static_cast<int>(curvePwm + (static_cast<int>(edge) * turn));
     robot.setMotorPower(pwm_l, pwm_r);
 }
 
@@ -67,8 +80,10 @@ void Tracer::updateConfig(const PidConfig& newConfig) {
                           || pidConfig.ki != newConfig.ki
                           || pidConfig.kd != newConfig.kd
                           || pidConfig.targetReflection != newConfig.targetReflection;
-    if(shouldResetPid)
+    if(shouldResetPid) {
         pid.reset();
+        filteredTurnMag = 0.0f;
+    }
     pidConfig = newConfig;
     pid.setGain(pidConfig.kp, pidConfig.ki, pidConfig.kd);
     pid.setTarget(pidConfig.targetReflection);
