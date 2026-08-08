@@ -5,7 +5,7 @@
 #include "ColorSensor.h"
 #include "UltrasonicSensor.h"
 #include "ForceSensor.h"
-#include <IMU.h>
+#include "IMU.h"
 #include "Speaker.h"
 #include "Display.h"
 #include "Button.h"
@@ -90,6 +90,11 @@ public:
 
     // フォースセンサーが押されているかどうかを返す
     bool isForceSensorPressed() const;
+
+    // IMU関連
+    float getAngularVelocityZ();  // IMUのz軸における角速度(符号反転)を取得する
+    float getHeading() const;     // IMUの方位角を取得する
+    void resetHeading();          // IMUの方位角をリセットする
 
     // ── ボタン ────────────────────────────────────────
     // Button::isXxxPressed() がconstメソッドではないため、このメソッドもconstにできない

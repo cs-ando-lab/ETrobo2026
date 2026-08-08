@@ -414,6 +414,20 @@ bool Robot::isForceSensorPressed() const {
     return forceSensor.isTouched();
 }
 
+float Robot::getAngularVelocityZ() {
+    IMU::AngularVelocity angv;
+    imu.getAngularVelocity(angv);
+    return -angv.z;
+}
+
+float Robot::getHeading() const {
+    return imu.getHeading();
+}
+
+void Robot::resetHeading() {
+    imu.resetHeading();
+}
+
 bool Robot::isLeftButtonPressed() {
     return button.isLeftPressed();
 }
