@@ -5,6 +5,7 @@
 #include <t_syslog.h>
 #include "IMU.h"
 #include "Button.h"
+#include "Battery.h"
 
 using namespace spikeapi;
 
@@ -23,7 +24,7 @@ void debug_log_init(const debug_sensors_t* sensors) {
 
 void debug_log_all(const debug_sensors_t* sensors, int count) {
     /* 値が変化した時だけ送信（デルタ送信） */
-    switch(count % 9) {
+    switch(count % 10) {
         case 0: {
             if(!sensors->color)
                 break;
@@ -161,6 +162,18 @@ void debug_log_all(const debug_sensors_t* sensors, int count) {
                 pc2 = center;
                 pr2 = right;
                 pbt = bt;
+            }
+            break;
+        }
+        case 9: {
+            static Battery battery;
+            int32_t voltage = battery.getVoltage();
+            int32_t current = battery.getCurrent();
+            static int32_t pv = -9999, pc = -9999;
+            if(voltage != pv || current != pc) {
+                syslog(LOG_NOTICE, "BATTERY,%d,%d,%d", count, voltage, current);
+                pv = voltage;
+                pc = current;
             }
             break;
         }

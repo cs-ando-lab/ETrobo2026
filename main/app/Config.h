@@ -46,15 +46,20 @@ public:
     static constexpr int BEEP_DEFAULT_MS = 100;  // ビープ音のデフォルト再生時間[ms]
 
     // ── Tracer（ライントレース）───────────────────────────
-    static constexpr float TRACER_KP = 0.33f;                // 反射率PID制御の比例ゲイン
+    static constexpr float TRACER_KP = 0.35f;                // 反射率PID制御の比例ゲイン
     static constexpr float TRACER_KI = 0.01f;                // 反射率PID制御の積分ゲイン
     static constexpr float TRACER_KD = 0.03f;                // 反射率PID制御の微分ゲイン
     static constexpr int32_t TRACER_TARGET_REFLECTION = 60;  // 黒白の中間反射率
-    static constexpr int8_t TRACER_PWM = 50;                 // 基準パワー
+    static constexpr int8_t TRACER_PWM = 80;                 // 基準パワー（直線区間での上限速度。カーブではここから動的に減速する）
+    // カーブ減速（|turn|が大きいほど基準パワーから減速する）
+    static constexpr float TRACER_CURVE_DECEL_GAIN = 2.0f;     // |turn|1あたりの減速量[PWM]。turnとbasePwmは同スケール
+    static constexpr float TRACER_CURVE_MIN_PWM_RATIO = 0.2f;  // basePwmに対する減速下限の割合(0〜1)。
+    // 減速量算出用|turn|のEMA平滑化係数(0〜1、小さいほど滑らか)。LINE_TRACE_POLL_INTERVAL_USに合わせて調整する
+    static constexpr float TRACER_CURVE_TURN_FILTER_ALPHA = 0.035f;
 
     // ── ColorJudge（色判定）───────────────────────────────
-    // 彩度がこれ未満なら無彩色(黒/白)とみなす（実測でS=22〜27前後のノイズが乗るため、それより高い値にする）
-    static constexpr uint8_t COLOR_CHROMATIC_MIN_SATURATION = 30;
+    // 彩度がこれ未満なら無彩色(黒/白)とみなす（黒ラインが実測でS=22〜27前後のノイズが乗るため、それより高い値にする）
+    static constexpr uint8_t COLOR_CHROMATIC_MIN_SATURATION = 36;
     // 無彩色のとき、反射率がこれ未満なら黒、以上なら白（TRACER_TARGET_REFLECTIONと同じ考え方）
     static constexpr int COLOR_ACHROMATIC_REFLECTION_THRESHOLD = 60;
     static constexpr uint16_t COLOR_RED_HUE = 0;
@@ -65,8 +70,9 @@ public:
     static constexpr int COLOR_DETECTED_STABLE_COUNT = 3;  // 色判定を行う際、信頼するカラーセンサーの連続判定回数
 
     // ── Pid（PID制御共通）─────────────────────────────────
-    static constexpr float PID_INTEGRAL_LIMIT = 100.0f;         // 積分項の暴走を防ぐ上下限
-    static constexpr float PID_DERIVATIVE_FILTER_ALPHA = 0.8f;  // 微分項のローパスフィルタ係数
+    static constexpr float PID_INTEGRAL_LIMIT = 100.0f;  // 積分項の暴走を防ぐ上下限
+    // 微分項のローパスフィルタ係数。LINE_TRACE_POLL_INTERVAL_USに合わせて調整する
+    static constexpr float PID_DERIVATIVE_FILTER_ALPHA = 0.15f;
 
     // ── Calibrator（起動準備）────────────────────────────
     static constexpr int CALIBRATOR_BLE_WAIT_US = 3 * 1000 * 1000;  // BLE接続待ち時間[us]
@@ -74,8 +80,8 @@ public:
     static constexpr int CALIBRATOR_BEEP_MS = 300;                  // 起動ビープの再生時間[ms]
 
     // ── GameRunner（全体フロー）───────────────────────────
-    static constexpr int LINE_TRACE_POLL_INTERVAL_US = 100 * 1000;  // ライントレースの制御周期[us]
-    static constexpr int LABEL_CHANGE_CYCLES = 3;                   // 表示文字を切り替える周期(制御周期の何回分か)
+    static constexpr int LINE_TRACE_POLL_INTERVAL_US = 10 * 1000;  // ライントレースの制御周期[us]
+    static constexpr int LABEL_CHANGE_CYCLES = 30;                 // 表示文字を切り替える周期(制御周期の何回分か。実時間で約300ms間隔を維持する値)
 
     // ── DeliveryTask（ボトルデリバリー）───────────────────────
     static constexpr int8_t DELIVERY_TRACER_PWM = 30;        // ボトル接近時のライントレース速度
@@ -149,8 +155,15 @@ public:
     static constexpr float SUMO_SEARCH_MAX_ANGLE_DEG = 90.0f;   // [°] 土俵の正面を0°として、探索する走行範囲(±この角度)
     static constexpr int SUMO_SEARCH_SPEED_DEG_PER_SEC = 80;    // 探索時の旋回速度の上限[°/秒]
     static constexpr int SUMO_BOTTLE_DETECT_DISTANCE_MM = 600;  // [mm] 超音波センサの距離がこれ未満ならボトルを検知したとみなす（要実測。壁などで誤検知しない値でなければ要確認）
+    // 1回の走査で見つからない場合、前進してから再走査する（見つかるかSUMO_SEARCH_MAX_ATTEMPTS回に達するまで繰り返す）
+    static constexpr int SUMO_SEARCH_MAX_ATTEMPTS = 4;                 // 探索（走査+前進）の最大試行回数
+    static constexpr int SUMO_SEARCH_ADVANCE_MM = 100;                 // [mm] 1回見つからなかった場合に前進する距離
+    static constexpr int SUMO_SEARCH_ADVANCE_SPEED_DEG_PER_SEC = 300;  // 探索中に前進する速度[°/秒]
     // 押し出し
     static constexpr int SUMO_PUSH_SPEED_DEG_PER_SEC = 200;  // ボトルを押し出す際の直進速度[°/秒]
+    // 押し出し後、前方のボトルを倒さないよう旋回前に後退する
+    static constexpr int SUMO_RETREAT_AFTER_PUSH_MM = 100;                 // [mm] 押し出し後に後退する距離
+    static constexpr int SUMO_RETREAT_AFTER_PUSH_SPEED_DEG_PER_SEC = 300;  // 後退速度[°/秒]
     // 移動間の整定待ち（旋回・直進の直後は慣性が残るため、次の指令・センサー読み取りの前に少し待つ）
     static constexpr int SUMO_MOVE_SETTLE_US = 200 * 1000;  // [us] 各moveの後の整定待ち時間
 
