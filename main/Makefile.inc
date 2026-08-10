@@ -12,7 +12,8 @@ APPL_CXXOBJS +=\
     GameRunner.o \
     SumoTask.o \
     DeliveryTask.o \
-    RallyTask.o
+    RallyTask.o \
+    test.o
 
 SRCLANG := c++
 
