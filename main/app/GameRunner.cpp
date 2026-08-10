@@ -4,6 +4,7 @@
 #include "tasks/SumoTask.h"
 #include "tasks/DeliveryTask.h"
 #include "tasks/RallyTask.h"
+#include "tasks/test.h"
 #include "Config.h"
 #include "kernel.h"
 
@@ -21,9 +22,9 @@ void GameRunner::run() {
     }
 
     // モード管理用の配列と変数
-    const char modeChars[] = { 'S', 'D', 'R' };
-    const int MODE_MAX = 2;
-    int startMode = 0;  // 0:相撲(S), 1:デリバリー(D), 2:ラリー(R)
+    const char modeChars[] = { 'S', 'D', 'R', 'T' };
+    const int MODE_MAX = 3;
+    int startMode = 0;  // 0:相撲(S), 1:デリバリー(D), 2:ラリー(R), 3:テスト(T)
 
     // 試走会用のモード切替関数、汚いので今後捨てます
     robot.showChar(modeChars[startMode]);
@@ -83,7 +84,14 @@ void GameRunner::run() {
         return;
     }
 
-    // 5. ゴール
+    // 5. テスト用（関数などを試す）
+    if(startMode <= 3) {
+        Test test(robot);
+        test.run();
+        return;
+    }
+
+    // 6. ゴール
     if(!lineTraceUntilLap()) {
         return;
     }
