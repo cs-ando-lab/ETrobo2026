@@ -410,6 +410,10 @@ ColorJudge::Color Robot::getColor() const {
     return ColorJudge::judge(getColorReading());
 }
 
+float Robot::getImuHeading() const {
+    return imu.getHeading();
+}
+
 bool Robot::isForceSensorPressed() const {
     return forceSensor.isTouched();
 }

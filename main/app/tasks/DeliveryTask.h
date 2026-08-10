@@ -20,6 +20,9 @@ private:
     // ▼ アーム操作用の関数（モーターを受け取るように変更） ▼
     void lowerArm(Motor& armMotor);
     void raiseArm(Motor& armMotor);
+
+    // 左右のパワー差で進みつつ、startHeadingからturnDeg回転したら停止する（斜め移動）
+    void diagonalMoveUntilImuTurn(int leftPwm, int rightPwm, float startHeading, float turnDeg);
 };
 
 #endif  // !DELIVERYTASK_H_

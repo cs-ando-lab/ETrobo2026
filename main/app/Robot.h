@@ -85,6 +85,9 @@ public:
     // カラーセンサーの生の測定値(RGB/HSV/反射率)をまとめて取得する
     ColorJudge::Reading getColorReading() const;
 
+    // IMUの方位角を取得する [°]（+ = 右回り）。resetは行わない生値
+    float getImuHeading() const;
+
     // 現在の色を判定する（黒/白/赤/黄/緑/青）。LAPゲート検出や各課題での色判定に使う
     ColorJudge::Color getColor() const;
 
