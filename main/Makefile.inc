@@ -12,7 +12,8 @@ APPL_CXXOBJS +=\
     GameRunner.o \
     SumoTask.o \
     DeliveryTask.o \
-    RallyTask.o
+    RallyTask.o \
+    RallyRoute.o
 
 SRCLANG := c++
 
@@ -20,7 +21,8 @@ APPL_LIBS += -lm
 
 APPL_DIRS +=\
     $(mkfile_path)app \
-    $(mkfile_path)app/tasks
+    $(mkfile_path)app/tasks \
+    $(mkfile_path)app/tasks/RallyTask
 
 INCLUDES += \
     -I$(mkfile_path)../../../drivers/include/libcpp/spike \
