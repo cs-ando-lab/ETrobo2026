@@ -108,7 +108,8 @@ int Robot::driveStraightByImu(int distanceMm, float directionDeg, int speedDegPe
         return 0;
     }
 
-    resetMotorCounts();
+    int initialLeftCounts = getLeftMotorCount();
+    int initialRightCounts = getRightMotorCount();
 
     float traveledMm = 0.0f;
     int loopCount = 0;
@@ -153,7 +154,7 @@ int Robot::driveStraightByImu(int distanceMm, float directionDeg, int speedDegPe
         rightMotor.setSpeed(signedBaseSpeed - correction);
 
         dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
-        float averageCount = (std::abs(getLeftMotorCount()) + std::abs(getRightMotorCount())) / 2.0f;
+        float averageCount = (std::abs(getLeftMotorCount() - initialLeftCounts) + std::abs(getRightMotorCount() - initialRightCounts)) / 2.0f;
         traveledMm = (averageCount / 360.0f) * 2 * Config::PI * Config::WHEEL_RADIUS_MM;
         loopCount++;
     }
