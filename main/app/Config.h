@@ -105,40 +105,39 @@ public:
     static constexpr float RALLY_UNIT_DISTANCE_MM = 2.5f * BLUE_LINE_LENGTH_MM;                  // [mm] ラリーエリアのグリッドの方眼1マスの一辺の長さ
     static constexpr float START_GRID_POINT_TO_START_LINE_MM = 1.097863f * BLUE_LINE_LENGTH_MM;  // [mm] 開始格子点の中心点から直下の青ラインの近い側のエッジまでの距離
     static constexpr float GRAY_CIRCLE_RADIUS_MM = 0.225f * BLUE_LINE_LENGTH_MM;                 // [mm] ゲート脚設置用の灰色円の半径
+
     // 赤ゲート
     static constexpr int ETRALLY_RED_GATE_LEFT_ROW = 5;
     static constexpr int ETRALLY_RED_GATE_LEFT_COL = 2;
     static constexpr int ETRALLY_RED_GATE_RIGHT_ROW = 5;
     static constexpr int ETRALLY_RED_GATE_RIGHT_COL = 3;
+
     // 青ゲート
     static constexpr int ETRALLY_BLUE_GATE_LEFT_ROW = 3;
     static constexpr int ETRALLY_BLUE_GATE_LEFT_COL = 5;
     static constexpr int ETRALLY_BLUE_GATE_RIGHT_ROW = 4;
     static constexpr int ETRALLY_BLUE_GATE_RIGHT_COL = 5;
+
     // 黄ゲート
     static constexpr int ETRALLY_YELLOW_GATE_LEFT_ROW = 2;
     static constexpr int ETRALLY_YELLOW_GATE_LEFT_COL = 1;
     static constexpr int ETRALLY_YELLOW_GATE_RIGHT_ROW = 2;
     static constexpr int ETRALLY_YELLOW_GATE_RIGHT_COL = 2;
+
     // 基準ジャイロ角調整用ライントレースのパラメータ
     static constexpr float ETRALLY_TRACE_BACK_DISTANCE = 300.0f;  // [mm] 走行体の基準ジャイロ角調整用ライントレースのための距離
-    static constexpr int ETRALLY_ALIGNMENT_PWM = 40;
-    static constexpr float ETRALLY_ALIGNMENT_KP = 0.30f;
-    static constexpr float ETRALLY_ALIGNMENT_KI = 0.0f;
-    static constexpr float ETRALLY_ALIGNMENT_KD = 0.0f;
-    // 基準ジャイロ角調整のためのデータ取得窓、閾値
-    static constexpr int ETRALLY_ALIGNMENT_WINDOW_US = 200 * 1000;                        // 直進走行区間を判定するためのウィンドウ時間
-    static constexpr size_t ETRALLY_ALIGNMENT_BUFFER_SIZE = (ETRALLY_ALIGNMENT_WINDOW_US  // ウィンドウ時間分のセンサー値を格納するためのリングバッファのサイズ(ウィンドウ時間 / 処理インターバル　+ 1)
-                                                             + Config::LINE_TRACE_POLL_INTERVAL_US - 1)
-                                                                / Config::LINE_TRACE_POLL_INTERVAL_US
-                                                            + 1;
-    static constexpr float ETRALLY_REFLECTION_ERROR_MEAN_TOLERANCE = 1.0f;    // 反射光偏差の平均(絶対値)の閾値
-    static constexpr float ETRALLY_REFLECTION_ERROR_STDDEV_THRESHOLD = 1.5f;  // 反射光偏差の標準偏差の閾値
-    static constexpr float ETRALLY_GYRO_RATE_RMS_THRESHOLD = 3.0f;            // ジャイロ角速度のRMSの閾値
-    static constexpr float ETRALLY_PARALLEL_YAW_UPDATE_TOLERANCE = 2.0F;      // よりスコアの優れた安定直進区間が出てきた際、変更するかどうか決めるためのジャイロ角閾値
-    static constexpr int ETRALLY_CALIBRATE_STABLE_COUNT_MAX = (500 * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
-    // 走行用
-    static constexpr int ETRALLY_ALIGNMENT_DRIVE_SPEED = 150;
+    static constexpr int ETRALLY_HEADING_CALIBRATION_PWM = 40;
+    static constexpr float ETRALLY_HEADING_CALIBRATION_KP = 0.30f;
+    static constexpr float ETRALLY_HEADING_CALIBRATION_KI = 0.0f;
+    static constexpr float ETRALLY_HEADING_CALIBRATION_KD = 0.0f;
+
+    // 基準ジャイロ角調整用リングバッファ関連
+    static constexpr size_t ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT = 10;    // 基準角を取得する際のサンプル数
+    static constexpr size_t ETRALLY_HEADING_CALIBRATION_EXCLUSION_COUNT = 5;  // 基準角を取得する際のサンプル除外数
+    static constexpr size_t ETRALLY_HEADING_CALIBRATION_BUFFER_SIZE = ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT + ETRALLY_HEADING_CALIBRATION_EXCLUSION_COUNT;
+
+    // ETラリー自由走行用
+    static constexpr int ETRALLY_SLOW_DRIVE_SPEED = 150;
     static constexpr int ETRALLY_DEFAULT_DRIVE_SPEED = 500;
 
     // ── ET-Sumo（課題）────────────────────────────────────

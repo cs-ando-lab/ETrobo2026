@@ -14,6 +14,7 @@ APPL_CXXOBJS +=\
     DeliveryTask.o \
     RallyTask.o \
     RallyRoute.o \
+    HeadingCalibration.o \
     test.o
 
 SRCLANG := c++
