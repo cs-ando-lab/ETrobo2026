@@ -13,7 +13,8 @@ APPL_CXXOBJS +=\
     SumoTask.o \
     DeliveryTask.o \
     RallyTask.o \
-    RallyRoute.o
+    RallyRoute.o \
+    test.o
 
 SRCLANG := c++
 
