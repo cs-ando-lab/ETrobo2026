@@ -2,6 +2,7 @@
 #define CONFIG_H_
 
 #include <cstdint>
+#include <cstddef>
 
 /**
  * 走行体のチューニング用定数を一元管理するクラス。
@@ -17,12 +18,16 @@ public:
 
     // ── Robot: 走行機能 ────────────────────────────────
     // driveStraight
-    static constexpr int DRIVE_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 直進の既定速度[°/秒]
-    static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 2000;        // 直進のタイムアウト(周期の回数)
+    static constexpr int DRIVE_DEFAULT_SPEED_DEG_PER_SEC = 300;    // 直進の既定速度[°/秒]
+    static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 2000;          // 直進のタイムアウト(周期の回数)
+    static constexpr float DRIVE_IMU_DECEL_DISTANCE_MM = 100.0f;   // 停止前に減速を始める残距離[mm]
+    static constexpr int DRIVE_IMU_MIN_SPEED_DEG_PER_SEC = 150;    // 減速中の最低速度[°/秒]
+    static constexpr float DRIVE_IMU_HEADING_KP = 4.0f;            // heading誤差に対する比例ゲイン[(°/秒)/°]
+    static constexpr float DRIVE_IMU_MAX_CORRECTION_RATIO = 0.5f;  // 基準速度に対する左右速度補正の上限割合
     // turn
     static constexpr int TURN_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 旋回の既定速度[°/秒]
     static constexpr int TURN_TIMEOUT_LOOP_COUNT = 500;         // 旋回のタイムアウト(周期の回数)
-    static constexpr float TURN_IMU_STOP_TOLERANCE_DEG = 0.5f;  // IMU旋回の停止許容誤差[°]
+    static constexpr float TURN_IMU_STOP_TOLERANCE_DEG = 0.3f;  // IMU旋回の停止許容誤差[°]
     static constexpr float TURN_IMU_KP = 4.0f;                  // IMU旋回の比例ゲイン
     static constexpr int TURN_IMU_MIN_SPEED_DEG_PER_SEC = 80;   // IMU旋回の最低速度[°/秒]
     // runUntilColor
@@ -96,10 +101,10 @@ public:
     // ── ET-Rally（課題）───────────────────────────────────
     // コースの寸法（青ラインの長さを基準とし、その比率で算出）
     static constexpr float BLUE_LINE_LENGTH_MM = 100.0f;                                         // [mm] 青ラインの長さ ... 基準
+    static constexpr float BLUE_LINE_WIDTH_MM = 0.2 * BLUE_LINE_LENGTH_MM;                       // [mm] 青ラインの幅
     static constexpr float RALLY_UNIT_DISTANCE_MM = 2.5f * BLUE_LINE_LENGTH_MM;                  // [mm] ラリーエリアのグリッドの方眼1マスの一辺の長さ
     static constexpr float START_GRID_POINT_TO_START_LINE_MM = 1.097863f * BLUE_LINE_LENGTH_MM;  // [mm] 開始格子点の中心点から直下の青ラインの近い側のエッジまでの距離
     static constexpr float GRAY_CIRCLE_RADIUS_MM = 0.225f * BLUE_LINE_LENGTH_MM;                 // [mm] ゲート脚設置用の灰色円の半径
-
     // 赤ゲート
     static constexpr int ETRALLY_RED_GATE_LEFT_ROW = 5;
     static constexpr int ETRALLY_RED_GATE_LEFT_COL = 2;
@@ -115,6 +120,26 @@ public:
     static constexpr int ETRALLY_YELLOW_GATE_LEFT_COL = 1;
     static constexpr int ETRALLY_YELLOW_GATE_RIGHT_ROW = 2;
     static constexpr int ETRALLY_YELLOW_GATE_RIGHT_COL = 2;
+    // 基準ジャイロ角調整用ライントレースのパラメータ
+    static constexpr float ETRALLY_TRACE_BACK_DISTANCE = 300.0f;  // [mm] 走行体の基準ジャイロ角調整用ライントレースのための距離
+    static constexpr int ETRALLY_ALIGNMENT_PWM = 40;
+    static constexpr float ETRALLY_ALIGNMENT_KP = 0.30f;
+    static constexpr float ETRALLY_ALIGNMENT_KI = 0.0f;
+    static constexpr float ETRALLY_ALIGNMENT_KD = 0.0f;
+    // 基準ジャイロ角調整のためのデータ取得窓、閾値
+    static constexpr int ETRALLY_ALIGNMENT_WINDOW_US = 200 * 1000;                        // 直進走行区間を判定するためのウィンドウ時間
+    static constexpr size_t ETRALLY_ALIGNMENT_BUFFER_SIZE = (ETRALLY_ALIGNMENT_WINDOW_US  // ウィンドウ時間分のセンサー値を格納するためのリングバッファのサイズ(ウィンドウ時間 / 処理インターバル　+ 1)
+                                                             + Config::LINE_TRACE_POLL_INTERVAL_US - 1)
+                                                                / Config::LINE_TRACE_POLL_INTERVAL_US
+                                                            + 1;
+    static constexpr float ETRALLY_REFLECTION_ERROR_MEAN_TOLERANCE = 1.0f;    // 反射光偏差の平均(絶対値)の閾値
+    static constexpr float ETRALLY_REFLECTION_ERROR_STDDEV_THRESHOLD = 1.5f;  // 反射光偏差の標準偏差の閾値
+    static constexpr float ETRALLY_GYRO_RATE_RMS_THRESHOLD = 3.0f;            // ジャイロ角速度のRMSの閾値
+    static constexpr float ETRALLY_PARALLEL_YAW_UPDATE_TOLERANCE = 2.0F;      // よりスコアの優れた安定直進区間が出てきた際、変更するかどうか決めるためのジャイロ角閾値
+    static constexpr int ETRALLY_CALIBRATE_STABLE_COUNT_MAX = (500 * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
+    // 走行用
+    static constexpr int ETRALLY_ALIGNMENT_DRIVE_SPEED = 150;
+    static constexpr int ETRALLY_DEFAULT_DRIVE_SPEED = 500;
 
     // ── ET-Sumo（課題）────────────────────────────────────
     // コースの寸法（実測して調整する、今の値は画像から計算した値）
