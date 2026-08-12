@@ -40,7 +40,13 @@ public:
     // speedDegPerSec: 目標回転速度 [°/秒]（setSpeedによる速度制御を使う）
     void turn(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
 
-    // IMUの方位角を使って指定角度だけ超信地旋回する（+ = 右旋回、- = 左旋回）
+    // 指定した距離（mm）だけ、停止前に減速しながらIMUの目標方位を保って直進する。distanceMmが負なら後退する
+    // speedDegPerSec: 目標回転速度 [°/秒]（setPowerではなくsetSpeedによる速度制御を使う）
+    // directionDeg: resetHeading()で定めた0°を基準とする目標heading角[°]
+    // 戻り値: 実際に進んだ距離[mm]（後退なら負値。タイムアウトやセンターボタン中断は要求値より小さくなる）
+    int driveStraightByImu(int distanceMm, float directionDeg, int speedDegPerSec = Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
+
+    // IMUの方位角を使って指定角度を正規化した最短角度分、超信地旋回する（+ = 右旋回、- = 左旋回）
     // 戻り値: 実際に旋回できた角度[°]（IMU実測。タイムアウトやセンターボタン中断は要求値と異なる）
     float turnByImu(float degrees, int speedDegPerSec = Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
 
@@ -74,6 +80,7 @@ public:
 
     // モーターを停止する
     void stop();
+    void brake();
 
     // ── センサー ───────────────────────────────────────
     // 超音波センサーで前方の距離を取得する [mm]
