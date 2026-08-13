@@ -44,6 +44,8 @@ void RallyTask::test() {
 
 void RallyTask::run() {
     Tracer tracer(robot);
+    robot.resetHeading();
+    robot.resetMotorCounts();
 
     // [1] - 基準角設定フェーズ
     /* 180°転回 */
@@ -173,7 +175,8 @@ float RallyTask::getDirectionDegrees(RallyTypes::Direction direction) const {
 void RallyTask::traceLineforDistance(float distance, Tracer tracer) {
     Tracer::Edge edge = CourseConfig::isLeftCourse() ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT;
     tracer.setEdge(edge);
-    robot.resetMotorCounts();
+    int initialLeftCount = robot.getLeftMotorCount();
+    int initialRightCount = robot.getRightMotorCount();
     float traveledMm = 0.0f;
 
     while(1) {
@@ -182,7 +185,9 @@ void RallyTask::traceLineforDistance(float distance, Tracer tracer) {
         tracer.run();
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
 
-        int count = (robot.getLeftMotorCount() + robot.getRightMotorCount()) / 2;
+        int count = (robot.getLeftMotorCount() - initialLeftCount
+                     + robot.getRightMotorCount() - initialRightCount)
+                    / 2;
         traveledMm = (std::abs(count) / 360.0f) * 2 * Config::PI * Config::WHEEL_RADIUS_MM;
     }
 
