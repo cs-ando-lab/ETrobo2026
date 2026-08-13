@@ -3,6 +3,7 @@
 /log.txt
 /main/build
 /log/
+/*/build
 
 # astah* のバックアップ/ロックファイル
 models/*.asta~
