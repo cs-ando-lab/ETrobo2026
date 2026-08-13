@@ -1,6 +1,6 @@
 #include "HeadingCalibration.h"
 
-#include "t_syslog.h"
+#include <t_syslog.h>
 
 void HeadingCalibration::updateSample(float currentGyroYaw) {
     // リングバッファに新しいジャイロ角を登録
@@ -35,7 +35,9 @@ float HeadingCalibration::getReferenceGyroYaw() const {
         gyroYawSum += samples[lastIndex];
     }
 
-    return (gyroYawSum / Config::ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT);
+    float referenceGyroYaw = (gyroYawSum / Config::ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT);
+
+    return referenceGyroYaw;
 }
 
 size_t HeadingCalibration::getNextIndex(size_t currentIndex) const {
