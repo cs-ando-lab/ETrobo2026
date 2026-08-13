@@ -1,17 +1,19 @@
 #include "RallyTask.h"
+#include <cstdlib>
+#include <cmath>
 
 #include "kernel.h" /* dly_tskのため */
 #include "t_syslog.h"
 
 // 各色ゲートの座標
-const RallyTask::Gate RallyTask::gatesSequence[3] = {
-    { GateColor::RED,
+const RallyTypes::Gate RallyTask::gatesSequence[3] = {
+    { RallyTypes::GateColor::RED,
       { Config::ETRALLY_RED_GATE_LEFT_ROW, Config::ETRALLY_RED_GATE_LEFT_COL },
       { Config::ETRALLY_RED_GATE_RIGHT_ROW, Config::ETRALLY_RED_GATE_RIGHT_COL } },
-    { GateColor::BLUE,
+    { RallyTypes::GateColor::BLUE,
       { Config::ETRALLY_BLUE_GATE_LEFT_ROW, Config::ETRALLY_BLUE_GATE_LEFT_COL },
       { Config::ETRALLY_BLUE_GATE_RIGHT_ROW, Config::ETRALLY_BLUE_GATE_RIGHT_COL } },
-    { GateColor::YELLOW,
+    { RallyTypes::GateColor::YELLOW,
       { Config::ETRALLY_YELLOW_GATE_LEFT_ROW, Config::ETRALLY_YELLOW_GATE_LEFT_COL },
       { Config::ETRALLY_YELLOW_GATE_RIGHT_ROW, Config::ETRALLY_YELLOW_GATE_RIGHT_COL } }
 };
@@ -20,229 +22,285 @@ RallyTask::RallyTask(Robot& robot)
     : robot(robot) {
 }
 
-// testはテスト用runが本番用
+// testはテスト用、runが本番用
 void RallyTask::test() {
+    // Tracer tracer(robot);
+    // referenceGyroYaw = robot.getHeading();
+    // syslog(LOG_NOTICE, "referenceGyroYaw : %d [°]", static_cast<int>(referenceGyroYaw));
+
+    // // [3-1] - ルート算出フェーズ
+    // /* 格子上のルートを求める */
+    // std::vector<RallyTypes::Node> path = { { 0, 5 }, { 1, 5 }, { 2, 5 }, { 2, 4 }, { 3, 4 }, { 3, 3 }, { 3, 2 }, { 2, 2 }, { 2, 3 }, { 1, 3 }, { 1, 2 }, { 0, 2 }, { 0, 3 }, { 0, 4 }, { 1, 4 }, { 1, 5 }, { 0, 5 } };
+    // RallyRoute rallyRoute;
+    // std::vector<RallyTypes::Segment> segments = rallyRoute.groupStraightSegments(path);
+    // // [3-2] - ゲート通過フェーズ
+    // /* 格子上を移動し、ゲート通過する */
+    // followNodeSegments(segments);
+
+    run();
+
     return;
 }
 
 void RallyTask::run() {
-    // TODO: 担当者が実装する（赤ゲート → 青ゲート → 黄ゲートの順に通過 → ラインに戻る）
     Tracer tracer(robot);
-    int blueCount = 0;
-    bool isFirstSequence = true;  // ラリーの最初だけ、方向が違うため最初だけ動きを変える。
+    robot.resetHeading();
+    robot.resetMotorCounts();
 
-    // ガレージ直前のy字路から青ラインまでライントレース
-    tracer.setPwm(Config::ETRALLY_LINE_TRACE_DEFAULT_POWER);
-    while(1) {
-        if(robot.isOnColor(ColorJudge::Color::BLUE, blueCount))
+    // [1] - 基準角設定フェーズ
+    /* 180°転回 */
+    turn(180.0f * CourseConfig::sign());
+    /* [a] 一定距離ライントレースを行う */
+    traceLineforDistance(Config::ETRALLY_TRACE_BACK_DISTANCE, tracer);
+    /* 180°転回 */
+    turn(-180.0f * CourseConfig::sign());
+    /** 直線上で正確性の高いライントレースを行う
+     *  青ラインを探知するまで行う
+     *  このライントレース中にIMUの方向をリセット(条件あり)
+     *  IMUの方向をリセットできなかった場合は、距離を増やして[a]からやり直す(検討中)
+     */
+    calibrateHeadingByLineTrace(tracer);
+
+    // [2] - 格子点移動フェーズ
+    /* 青ラインの右端から1/4の地点まで行く : runStraight(青ライン1/4[mm] - (秒速[mm/s] * 2 * 0.01[s])[mm]) */
+    turnToDirection(RallyTypes::Direction::WEST);
+    moveToDirection(Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL + (Config::BLUE_LINE_LENGTH_MM / 4.0f),
+                    RallyTypes::Direction::WEST,
+                    Config::ETRALLY_SLOW_DRIVE_SPEED);
+    /* 開始格子点まで行く : 90°右転回 → 開始格子点までの距離[mm]直進 */
+    turnToDirection(RallyTypes::Direction::NORTH);
+    moveToDirection(Config::BLUE_LINE_WIDTH_MM + Config::START_GRID_POINT_TO_START_LINE_MM,
+                    RallyTypes::Direction::NORTH,
+                    Config::ETRALLY_SLOW_DRIVE_SPEED);
+
+    // [3-1] - ルート算出フェーズ
+    /* 格子上のルートを求める */
+    RallyRoute rallyRoute;
+    // 仮のルート
+    std::vector<RallyTypes::Node> path = { { 0, 5 }, { 1, 5 }, { 2, 5 }, { 2, 4 }, { 3, 4 }, { 3, 3 }, { 3, 2 }, { 2, 2 }, { 2, 3 }, { 1, 3 }, { 1, 2 }, { 0, 2 }, { 0, 3 }, { 0, 4 }, { 1, 4 }, { 1, 5 }, { 0, 5 } };
+    std::vector<RallyTypes::Segment> segments = rallyRoute.groupStraightSegments(path);
+
+    // [3-2] - ゲート通過フェーズ
+    /* 格子上を移動し、ゲート通過する */
+    followNodeSegments(segments);
+
+    // [4] 終了フェーズ
+    /* 開始格子点まで戻る */
+
+    /* 開始格子点下のラインまで戻る */
+    turnToDirection(RallyTypes::Direction::SOUTH);
+    int colorCount = 2;
+    ColorJudge::Color colors[colorCount] = { ColorJudge::Color::BLACK, ColorJudge::Color::BLUE };
+    robot.runStraightUntilColors(colors, colorCount, Config::ETRALLY_SLOW_DRIVE_SPEED, 2);
+    moveToDirection(Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL,
+                    RallyTypes::Direction::SOUTH,
+                    Config::ETRALLY_SLOW_DRIVE_SPEED);
+    turnToDirection(RallyTypes::Direction::WEST);
+
+    {  // debug: segmentルートの確認
+        syslog(LOG_NOTICE, "=== segments ===");
+        for(RallyTypes::Segment segment : segments) {
+            syslog(LOG_NOTICE, "start: (%d, %d)", segment.start.x, segment.start.y);
+            syslog(LOG_NOTICE, "end: (%d, %d)", segment.end.x, segment.end.y);
+            switch(segment.direction) {
+                case RallyTypes::Direction::NORTH:
+                    syslog(LOG_NOTICE, "direction: NORTH");
+                    break;
+                case RallyTypes::Direction::EAST:
+                    syslog(LOG_NOTICE, "direction: EAST");
+                    break;
+                case RallyTypes::Direction::WEST:
+                    syslog(LOG_NOTICE, "direction: WEST");
+                    break;
+                case RallyTypes::Direction::SOUTH:
+                    syslog(LOG_NOTICE, "direction: SOUTH");
+                    break;
+                default:
+                    break;
+            }
+            dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US * 10);
+        }
+        syslog(LOG_NOTICE, "=== segments ===");
+    }
+
+    return;
+}
+
+float RallyTask::turn(float degrees, int delayTimeUs) {
+    dly_tsk(delayTimeUs);  // 直前のモータの動きによって正確性に影響が出ないようにdelayを挟む
+    float turnedDeg = robot.turnByImu(degrees, 150);
+    dly_tsk(delayTimeUs);  // モータの動きによって直後の動きの正確性に影響が出ないようにdelayを挟む
+    return turnedDeg;
+}
+
+float RallyTask::turnToDirection(RallyTypes::Direction direction, int delayTimeUs) {
+    float directionDeg = getDirectionDegrees(direction);
+    return turn(calculateTurnAngle(directionDeg), delayTimeUs);
+}
+
+int RallyTask::moveToDirection(int distanceMm, RallyTypes::Direction direction, int speedDegPerSec) {
+    float directionDeg = getDirectionDegrees(direction);
+    return robot.driveStraightByImu(distanceMm,
+                                    referenceGyroYaw + directionDeg,
+                                    speedDegPerSec);
+}
+
+float RallyTask::calculateTurnAngle(float degree) {
+    return referenceGyroYaw + degree - robot.getHeading();
+}
+
+float RallyTask::getDirectionDegrees(RallyTypes::Direction direction) const {
+    float directionDeg;
+    switch(direction) {
+        case RallyTypes::Direction::NORTH:
+            directionDeg = 0.0f;
             break;
+        case RallyTypes::Direction::EAST:
+            directionDeg = -90.0f * CourseConfig::sign();
+            break;
+        case RallyTypes::Direction::SOUTH:
+            directionDeg = 180.0f;
+            break;
+        case RallyTypes::Direction::WEST:
+            directionDeg = 90.0f * CourseConfig::sign();
+            break;
+        default:
+            syslog(LOG_ERROR, "ERROR[getDirectionDegrees] : invalid direction");
+            return 0.0f;
+            break;
+    }
+    return directionDeg;
+};
 
+void RallyTask::traceLineforDistance(float distance, Tracer tracer) {
+    Tracer::Edge edge = CourseConfig::isLeftCourse() ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT;
+    tracer.setEdge(edge);
+    int initialLeftCount = robot.getLeftMotorCount();
+    int initialRightCount = robot.getRightMotorCount();
+    float traveledMm = 0.0f;
+
+    while(1) {
+        if(robot.isForceSensorPressed() || traveledMm > distance)
+            break;
         tracer.run();
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
+
+        int count = (robot.getLeftMotorCount() - initialLeftCount
+                     + robot.getRightMotorCount() - initialRightCount)
+                    / 2;
+        traveledMm = (std::abs(count) / 360.0f) * 2 * Config::PI * Config::WHEEL_RADIUS_MM;
     }
+
     tracer.terminate();
+};
 
-    // ETラリー開始
-    for(const Gate& currentGate : gatesSequence) {
-        if(isFirstSequence) {
-            // 青ライン到達後90°左折(Lコース)
-            turn(90.0f * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
-            isFirstSequence = false;
-        } else {
-            // 青ライン到達後90°右折(Lコース)
-            turn(-90.0f * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
-        }
+void RallyTask::calibrateHeadingByLineTrace(Tracer tracer) {
+    Tracer::Edge edge = CourseConfig::isLeftCourse() ? Tracer::Edge::LEFT : Tracer::Edge::RIGHT;
+    tracer.setEdge(edge);
+    tracer.setLeftMotorOffset(2);
+    tracer.setConfig(Config::ETRALLY_HEADING_CALIBRATION_KP, Config::ETRALLY_HEADING_CALIBRATION_KI, Config::ETRALLY_HEADING_CALIBRATION_KD, Config::TRACER_TARGET_REFLECTION, Config::ETRALLY_HEADING_CALIBRATION_PWM);
 
-        // 蛇行走行で黒ラインの捜索
-        robot.runWavingUntilColor(ColorJudge::Color::BLACK, Config::ETRALLY_WAVING_SPEED);
+    int blueMatched = 0;
+    HeadingCalibration headingCalib;
 
-        // ゲートのある行に対応する色まで行って、90°右回転
-        goToGateRow(currentGate, tracer);
-
-        // ゲートを通過する
-        runThroughGate(currentGate);
-
-        // ゲートを通過したあと、スタート位置に戻る。
-        returnToRallyStart(currentGate, tracer);
-    }
-}
-
-// TODO: ターゲットカラーがwhiteの時の処理も考える。
-void RallyTask::goToGateRow(Gate gate, Tracer& tracer) {
-    // 黒ライン上ではライントレースを行い、色付き円の場所では停止
-    // 円の色がターゲットカラーの場合停止して右回転
-    // [1] 黒ライン上をライントレース
-    // [2] 色を検知したらストップ
-    // [3] 目的の色でなければ黒を見つけるまで蛇行走行して[1]に戻る。
-    ColorJudge::Color currentColor = ColorJudge::Color::UNKNOWN;
-    ColorJudge::Color targetColor = getTargetRowColor(gate);
-    int targetColorCount = 0;
-
-    tracer.setConfig(Config::TRACER_KP, 0.0, 0.0, Config::TRACER_TARGET_REFLECTION, Config::ETRALLY_LINE_TRACE_DEFAULT_POWER);
-    tracer.setEdge(CourseConfig::isLeftCourse() ? Tracer::Edge::LEFT : Tracer::Edge::RIGHT);
+    // ライントレース
     while(1) {
-        while(1) {  // [1]
-            int colorNum = 4;
-            ColorJudge::Color stopColors[] = { ColorJudge::Color::GREEN,
-                                               ColorJudge::Color::YELLOW,
-                                               ColorJudge::Color::RED,
-                                               ColorJudge::Color::BLUE };
-            if(robot.isOnColors(stopColors, colorNum, targetColorCount, 1)) {  // stableCountが3だと、色付き円に到着した際にすぐ止まらないため走行体の向きが斜めになる可能性があるため、1にしている。
-                currentColor = robot.getColor();
-                break;  // [2]
-            }
-
-            tracer.run();
-            dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
-        }
-        if(currentColor == targetColor)
+        // 停止条件
+        if(robot.isForceSensorPressed() || robot.isOnColor(ColorJudge::Color::BLUE, blueMatched)) {
+            tracer.terminate();
             break;
+        }
 
-        robot.runWavingUntilColor(ColorJudge::Color::BLACK, Config::ETRALLY_WAVING_SPEED);  // [3]
+        tracer.run();
+
+        // サンプルをリングバッファに保存
+        headingCalib.updateSample(robot.getHeading());
+
+        dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
     }
-    // 目的の色であれば停止して90°右に回転(Lコース)
-    tracer.terminate();
-    turn(-90.0f * CourseConfig::sign(), Config::COLOR_CIRCLE_RADIUS + Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
-    dly_tsk(Config::ETRALLY_DELAY);  // すぐに動き出すとずれが生じる可能性が高くなるので、少しディレイを入れている。
-}
 
-void RallyTask::runThroughGate(Gate gate) {
-    if(gate.color == GateColor::RED || gate.color == GateColor::YELLOW) {  // 赤ゲートor黄ゲートの場合
-        // [1] ゲートの列まで直進
-        syslog(LOG_NOTICE, "RED or YELLOW - Xmm: [%d]", toXmm(gate));  // TODO: debug終われば消す
-        robot.driveStraight(toXmm(gate) + Config::ETRALLY_THROUGH_GATE_ADJUSTMENT_DISTANCE, Config::ETRALLY_DEFAULT_SPEED);
-        // [2] ゲートの列に到着したら90°右に回転
-        turn(-90 * CourseConfig::sign(), 0, Config::ETRALLY_DELAY);
-        // [3] ETラリーフィールドの端まで下に直進（距離指定（変化））
-        syslog(LOG_NOTICE, "RED or YELLOW - Ymm: [%d]", toYmm(gate));  // TODO: debug終われば消す
-        robot.driveStraight(toYmm(gate), Config::ETRALLY_DEFAULT_SPEED);
-        // [4] 黒を探知するまで直進
-        robot.runStraightUntilColor(ColorJudge::Color::BLACK);
-        // [5] 探知したら右に90°曲がってライントレース
-        turn(-90 * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
-        // 終了
-    } else if(gate.color == GateColor::BLUE) {                                        // 青ゲートの場合
-                                                                                      // [1] ETラリーフィールドの端まで直進（距離指定（固定））
-        syslog(LOG_NOTICE, "BLUE - Xmm: [%d]", (Config::ETRALLY_UNIT_DISTANCE * 5));  // TODO: debug終われば消す
-
-        robot.driveStraight((Config::ETRALLY_UNIT_DISTANCE * 5), Config::ETRALLY_DEFAULT_SPEED);
-        // [2] 黒もしくは青を探知するまで直進
-        int colorCount = 2;
-        ColorJudge::Color colors[colorCount] = { ColorJudge::Color::BLACK, ColorJudge::Color::BLUE };
-        robot.runStraightUntilColors(colors, colorCount);
-        // [3] 探知したら右に90°曲がってライントレース
-        turn(-90 * CourseConfig::sign(), Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL);
-        // 終了
+    // 基準角設定
+    if(headingCalib.isSampleEnough()) {
+        referenceGyroYaw = headingCalib.getReferenceGyroYaw();
     } else {
-        // 受け取ったゲートの情報が不正
-        syslog(LOG_ERROR, "ERROR[runThroughGate]: invalid gate color");
+        referenceGyroYaw = robot.getHeading();
     }
+
+    // NORTHを基準角0°として設定
+    referenceGyroYaw += CourseConfig::sign() * -90.0f;
+    // -180°～180°に正規化
+    referenceGyroYaw = std::fmod(referenceGyroYaw, 360.0f);
+    if(referenceGyroYaw > 180.0f) {
+        referenceGyroYaw -= 360.0f;
+    } else if(referenceGyroYaw < -180.0f) {
+        referenceGyroYaw += 360.0f;
+    }
+
+    {  // debug用
+        int gyroYaw100 = referenceGyroYaw * 100;
+        syslog(LOG_NOTICE, "Reference Gyro Yaw : %d.%02d [°]", gyroYaw100 / 100, gyroYaw100 < 0 ? -gyroYaw100 % 100 : gyroYaw100 % 100);
+    }
+
+    return;
 }
 
-void RallyTask::returnToRallyStart(Gate gate, Tracer& tracer) {  // ゲート通過後のラインからスタート位置に戻る
-    // tracerのパラメータをデフォルトに戻す。
-    tracer.setConfig(Config::TRACER_KP, Config::TRACER_KI, Config::TRACER_KD, Config::TRACER_TARGET_REFLECTION, Config::ETRALLY_LINE_TRACE_FAST_POWER);
-    tracer.setEdge(CourseConfig::isLeftCourse() ? Tracer::Edge::LEFT : Tracer::Edge::RIGHT);
+void RallyTask::followNodeSegments(std::vector<RallyTypes::Segment> segments, int speed) {
+    for(RallyTypes::Segment segment : segments) {
+        float directionDeg = getDirectionDegrees(segment.direction);  // 基準角から見た走行方向の角度
 
-    if(gate.color == GateColor::RED || gate.color == GateColor::YELLOW) {
-        int onBlueCount = 0;
-
-        // ライントレースでスタート位置へ
-        while(1) {
-            if(robot.isOnColor(ColorJudge::Color::BLUE, onBlueCount))
+        switch(segment.direction) {
+            case RallyTypes::Direction::NORTH: {
+                turn(calculateTurnAngle(directionDeg));  // 進行方向へ回転
+                int edgeCount = segment.start.y - segment.end.y;
+                // 進行方向へ直進
+                logAngle("(NORTH)");
+                syslog(LOG_NOTICE, "%d [mm]",
+                       robot.driveStraightByImu(Config::RALLY_UNIT_DISTANCE_MM * edgeCount, referenceGyroYaw + directionDeg, speed));
+                logAngle("(NORTH)");
                 break;
-
-            tracer.run();
-
-            dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
-        }
-    } else if(gate.color == GateColor::BLUE) {  // 青ゲートの場合
-        // カーブ前の青ラインは全部無視する。（青ラインの通過をカウントして判定）
-        int blueIgnoreCount;       // 無視する青ラインの回数
-        int throughBlueCount = 0;  // 通った青ラインの数
-        int onBlueCount = 0;       // 青ライン上にいると判定するためのカウンタ
-        int onBlackCount = 0;      // 黒ライン上にいると判定するためのカウンタ
-        bool blueFlag = false;     // 青を通り過ぎて黒を検知待ちであるかどうかの状態
-
-        // ゲートの色によってblueIngnoreCountの数値を調整
-        ColorJudge::Color rowColor = getTargetRowColor(gate);
-        switch(rowColor) {
-            case ColorJudge::Color::BLUE:
-                blueIgnoreCount = 3;
-                break;
-            case ColorJudge::Color::RED:
-                blueIgnoreCount = 2;
-                break;
-            case ColorJudge::Color::YELLOW:
-                blueIgnoreCount = 1;
-                break;
-            default:
-                blueIgnoreCount = 0;
-                break;
-        }
-
-        // ライントレースでスタート位置へ
-        while(1) {
-            if(robot.isOnColor(ColorJudge::Color::BLUE, onBlueCount)) {
-                // ライントレース終了条件
-                if(throughBlueCount >= blueIgnoreCount)
-                    break;
-
-                // 青フラグが false → true になれば青に侵入したとみなす。
-                if(!blueFlag) {
-                    blueFlag = true;
-                }
-            } else if(robot.getColor() == ColorJudge::Color::BLACK) {
-                // 青フラグが true → false になれば青を通過したとみなす。
-                if(blueFlag) {
-                    throughBlueCount++;
-                    blueFlag = false;
-                }
             }
 
-            tracer.run();
+            case RallyTypes::Direction::EAST: {
+                turn(calculateTurnAngle(directionDeg));
+                int edgeCount = segment.end.x - segment.start.x;
 
-            dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
+                logAngle("(EAST)");
+                syslog(LOG_NOTICE, "%d [mm]",
+                       robot.driveStraightByImu(Config::RALLY_UNIT_DISTANCE_MM * edgeCount, referenceGyroYaw + directionDeg, speed));
+                logAngle("(EAST)");
+                break;
+            }
+
+            case RallyTypes::Direction::SOUTH: {
+                turn(calculateTurnAngle(directionDeg));
+                int edgeCount = segment.end.y - segment.start.y;
+
+                logAngle("(SOUTH)");
+                syslog(LOG_NOTICE, "%d [mm]",
+                       robot.driveStraightByImu(Config::RALLY_UNIT_DISTANCE_MM * edgeCount, referenceGyroYaw + directionDeg, speed));
+                logAngle("(SOUTH)");
+                break;
+            }
+
+            case RallyTypes::Direction::WEST: {
+                turn(calculateTurnAngle(directionDeg));
+                int edgeCount = segment.start.x - segment.end.x;
+
+                logAngle("(WEST)");
+                syslog(LOG_NOTICE, "%d [mm]",
+                       robot.driveStraightByImu(Config::RALLY_UNIT_DISTANCE_MM * edgeCount, referenceGyroYaw + directionDeg, speed));
+                logAngle("(WEST)");
+                break;
+            }
+
+            default:
+                syslog(LOG_ERROR, "ERROR: segment invalid direction");
+                break;
         }
-        // 終了
-    }
-
-    tracer.terminate();
-}
-
-ColorJudge::Color RallyTask::getTargetRowColor(Gate gate) {
-    int gateRowMax = gate.leftLeg.row;
-    if(gateRowMax < gate.rightLeg.row)
-        gateRowMax = gate.rightLeg.row;
-    switch(gateRowMax) {
-        case 1:
-            return ColorJudge::Color::WHITE;
-        case 2:
-            return ColorJudge::Color::BLUE;
-        case 3:
-            return ColorJudge::Color::RED;
-        case 4:
-            return ColorJudge::Color::YELLOW;
-        case 5:
-            return ColorJudge::Color::GREEN;
-        default:
-            syslog(LOG_NOTICE, "ERROR[getRowColor]: invalid gate position");
-            return ColorJudge::Color::UNKNOWN;
-            break;
     }
 }
 
-int RallyTask::toXmm(Gate gate) {  // 左(右)のラインからゲートの位置までの距離[mm]を返す
-    return (gate.leftLeg.col * Config::ETRALLY_UNIT_DISTANCE);
-}
-
-int RallyTask::toYmm(Gate gate) {  // ゲートの上側からラリーフィールドの端（下）までの距離[mm]を返す
-    return ((6 - gate.leftLeg.row) * Config::ETRALLY_UNIT_DISTANCE);
-}
-
-void RallyTask::turn(float degree, int adjustmentDistance, int delayTime) {
-    dly_tsk(delayTime);                                                          // 直前のモータの動きによって正確性に影響が出ないようにdelayを挟む
-    robot.driveStraight((int)(adjustmentDistance), Config::ETRALLY_SLOW_SPEED);  // 回転軸の位置を調整
-    robot.turnByImu(degree);
-    dly_tsk(delayTime);  // モータの動きによって直後の動きの正確性に影響が出ないようにdelayを挟む
+void RallyTask::logAngle(const char* s) {  // debug用
+    int gyroYaw100 = (robot.getHeading() - referenceGyroYaw) * 100;
+    syslog(LOG_NOTICE, "%s Gyro Yaw : %d.%02d [°]", s, gyroYaw100 / 100, gyroYaw100 < 0 ? -gyroYaw100 % 100 : gyroYaw100 % 100);
 }

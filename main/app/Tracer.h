@@ -33,7 +33,8 @@ public:
     // Pidのパラメータを更新
     void setConfig(float newKp, float newKi, float newKd, int32_t newTarget, int newPwm);
     void setTarget(int32_t newTarget);
-    void setPwm(int newPwm);
+    void setPwm(int newPwm);  // newPwmは0～100の大きさのみ
+    void setLeftMotorOffset(int newOffset);
 
     //
     void setEdge(Edge newEdge);
@@ -44,6 +45,7 @@ private:
     PidConfig pidConfig;
     Edge edge;
     float filteredTurnMag = 0.0f;  // カーブ減速量算出用、|turn|にEMAをかけた値
+    int leftMotorOffset = 0;       // 左右モーターの出力差を均すための調整値
 
     void updateConfig(const PidConfig& newConfig);  // PidクラスのsetGain, setTargetを呼び出し、パラメータを更新。
 };
