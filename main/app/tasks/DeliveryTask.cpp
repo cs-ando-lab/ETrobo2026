@@ -25,8 +25,15 @@ constexpr int kBluePassedConfirmMs = 400;  // 青を通過した（完全に降�
 // 斜め移動のパワー差とIMU回転量。実機調整で左右90/30・80度が良さそうだったのでこれを基準値にする
 constexpr int kDiagonalPwmHigh = 90;
 constexpr int kDiagonalPwmLow = 30;
-constexpr float kDiagonalTurnDeg = 80.0f;          // 安定角度を基準にできた場合の回転量
-constexpr float kFallbackDiagonalTurnDeg = 90.0f;  // 安定角度が取れず、直前の青検知角度を基準にする場合の回転量
+
+// エリア配置：左90・右0の斜め移動で80度回頭（安定/フォールバックどちらも同じ回転量にする）→ 前進180mm → 後退180mm
+constexpr int kAreaDiagonalPwmRight = 0;
+constexpr float kDiagonalTurnDeg = 80.0f;
+constexpr int kAreaForwardMm = 180;
+constexpr int kAreaBackwardMm = -180;
+
+// 青1本目通過後の直進の後に行う、左折の斜め移動の回転量（パワーはkDiagonalPwmHigh/Lowを左右逆にして流用）
+constexpr float kPostFirstBlueDiagonalTurnDeg = 70.0f;
 
 // 右エッジ復帰後、ライントレースが安定したかの判定用（要実測調整）
 constexpr float kHeadingStabilityThresholdDeg = 1.0f;  // 直前サンプルとの差がこの角度未満なら安定とみなす
@@ -225,7 +232,7 @@ void DeliveryTask::run() {
                     robot.turnByImu(targetHeading - robot.getImuHeading(), Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
 
                     constexpr int kStraightAfterPassPwm = 100;
-                    constexpr float kStraightAfterPassSec = 2.6f;
+                    constexpr float kStraightAfterPassSec = 2.3f;
                     int straightAfterPassLoopCount = static_cast<int>(kStraightAfterPassSec * 1000 * 1000 / Config::LINE_TRACE_POLL_INTERVAL_US);
                     for(int i = 0; i < straightAfterPassLoopCount; i++) {
                         if(robot.isCenterButtonPressed()) {
@@ -236,17 +243,16 @@ void DeliveryTask::run() {
                     }
                     robot.stop();
 
+                    // 左折の斜め移動（エリア配置のdiagonalMoveUntilImuTurnと同じ左右パワーを逆にして左折させる）
+                    float postFirstBlueDiagonalStartHeading = robot.getImuHeading();
+                    diagonalMoveUntilImuTurn(kDiagonalPwmLow, kDiagonalPwmHigh, postFirstBlueDiagonalStartHeading, kPostFirstBlueDiagonalTurnDeg);
+
                     tracer.setEdge(Tracer::Edge::RIGHT);
                     tracer.setPwm(kPostSlowTracePwm);
 
                     // ここから右エッジでのライントレースが安定するまでの角度変化を追跡開始
                     trackingHeadingStability = true;
                     prevHeadingForStability = robot.getImuHeading();
-                }
-                if(detectedBlueCount == 2) {
-                    // 青1本目と同様、ラインに乗っている最中ではなく完全に通過し終えてからエッジを切り替える
-                    // （乗ったまま切り替えると急な進路変化で誤検知・二重カウントが起きやすいため）
-                    tracer.setEdge(Tracer::Edge::LEFT);
                 }
             }
         }
@@ -283,28 +289,32 @@ void DeliveryTask::run() {
     tracer.terminate();
     syslog(LOG_NOTICE, "Reached target zone.");
 
-    // 安定角度が取れていればそれを基準に80度、取れていなければエリアに運ぶ直前の青検知角度を基準に90度回す
+    // 安定判定の成否に関わらず、平均値そのものを常にログへ出す（安定判定の妥当性を後で確認するため）
+    float averageStabilizedHeading = (stabilizedHeadingSampleCount > 0) ? (stabilizedHeadingSum / stabilizedHeadingSampleCount) : 0.0f;
+    syslog(LOG_NOTICE, "Average stabilized heading (samples=%d): %d deg", stabilizedHeadingSampleCount, (int)averageStabilizedHeading);
+
     float diagonalStartHeading;
-    float diagonalTurnDeg;
     if(headingStabilized) {
-        diagonalStartHeading = stabilizedHeadingSum / stabilizedHeadingSampleCount;
-        diagonalTurnDeg = kDiagonalTurnDeg;
+        diagonalStartHeading = averageStabilizedHeading;
+        robot.beep(50);  // 安定角度を採用すると決めた瞬間に短く鳴らす
         syslog(LOG_NOTICE, "Using stabilized heading: %d deg", (int)diagonalStartHeading);
     } else {
         diagonalStartHeading = lastBlueHeading;
-        diagonalTurnDeg = kFallbackDiagonalTurnDeg;
         syslog(LOG_NOTICE, "Heading never stabilized. Falling back to last-blue heading: %d deg", (int)diagonalStartHeading);
     }
 
-    // 10. エリアへの配置（斜め移動 → 150mm後退 → 回転）
+    // 10. エリアへの配置（斜め移動 → 前進180mm → 後退180mm → 回転）
     syslog(LOG_NOTICE, "Diagonal move into area");
-    diagonalMoveUntilImuTurn(kDiagonalPwmHigh, kDiagonalPwmLow, diagonalStartHeading, diagonalTurnDeg);
+    diagonalMoveUntilImuTurn(kDiagonalPwmHigh, kAreaDiagonalPwmRight, diagonalStartHeading, kDiagonalTurnDeg);
 
-    syslog(LOG_NOTICE, "Driving backward 150mm");
-    robot.driveStraight(-130, Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
+    syslog(LOG_NOTICE, "Driving forward 180mm");
+    robot.driveStraight(kAreaForwardMm, Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
 
-    syslog(LOG_NOTICE, "Turning right 90 degrees");
-    robot.turnByImu(90.0f, Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
+    syslog(LOG_NOTICE, "Driving backward 180mm");
+    robot.driveStraight(kAreaBackwardMm, Config::DRIVE_DEFAULT_SPEED_DEG_PER_SEC);
+
+    syslog(LOG_NOTICE, "Turning right 95 degrees");
+    robot.turnByImu(95.0f, Config::TURN_DEFAULT_SPEED_DEG_PER_SEC);
 
     // 11. 左エッジでライントレースを再開
     syslog(LOG_NOTICE, "Resuming line trace on LEFT edge");
