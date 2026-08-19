@@ -106,23 +106,27 @@ public:
     static constexpr float START_GRID_POINT_TO_START_LINE_MM = 1.097863f * BLUE_LINE_LENGTH_MM;  // [mm] 開始格子点の中心点から直下の青ラインの近い側のエッジまでの距離
     static constexpr float GRAY_CIRCLE_RADIUS_MM = 0.225f * BLUE_LINE_LENGTH_MM;                 // [mm] ゲート脚設置用の灰色円の半径
 
+    // 移動グリッドの初期ノード
+    static constexpr int ETRALLY_INIT_NODE_X = 0;
+    static constexpr int ETRALLY_INIT_NODE_Y = 5;
+
     // 赤ゲート
-    static constexpr int ETRALLY_RED_GATE_LEFT_ROW = 5;
-    static constexpr int ETRALLY_RED_GATE_LEFT_COL = 2;
-    static constexpr int ETRALLY_RED_GATE_RIGHT_ROW = 5;
-    static constexpr int ETRALLY_RED_GATE_RIGHT_COL = 3;
+    static constexpr int ETRALLY_RED_GATE_LEFT_X = 2;
+    static constexpr int ETRALLY_RED_GATE_LEFT_Y = 5;
+    static constexpr int ETRALLY_RED_GATE_RIGHT_X = 3;
+    static constexpr int ETRALLY_RED_GATE_RIGHT_Y = 5;
 
     // 青ゲート
-    static constexpr int ETRALLY_BLUE_GATE_LEFT_ROW = 3;
-    static constexpr int ETRALLY_BLUE_GATE_LEFT_COL = 5;
-    static constexpr int ETRALLY_BLUE_GATE_RIGHT_ROW = 4;
-    static constexpr int ETRALLY_BLUE_GATE_RIGHT_COL = 5;
+    static constexpr int ETRALLY_BLUE_GATE_LEFT_X = 5;
+    static constexpr int ETRALLY_BLUE_GATE_LEFT_Y = 3;
+    static constexpr int ETRALLY_BLUE_GATE_RIGHT_X = 5;
+    static constexpr int ETRALLY_BLUE_GATE_RIGHT_Y = 4;
 
     // 黄ゲート
-    static constexpr int ETRALLY_YELLOW_GATE_LEFT_ROW = 2;
-    static constexpr int ETRALLY_YELLOW_GATE_LEFT_COL = 1;
-    static constexpr int ETRALLY_YELLOW_GATE_RIGHT_ROW = 2;
-    static constexpr int ETRALLY_YELLOW_GATE_RIGHT_COL = 2;
+    static constexpr int ETRALLY_YELLOW_GATE_LEFT_X = 1;
+    static constexpr int ETRALLY_YELLOW_GATE_LEFT_Y = 2;
+    static constexpr int ETRALLY_YELLOW_GATE_RIGHT_X = 2;
+    static constexpr int ETRALLY_YELLOW_GATE_RIGHT_Y = 2;
 
     // 基準ジャイロ角調整用ライントレースのパラメータ
     static constexpr float ETRALLY_TRACE_BACK_DISTANCE = 300.0f;  // [mm] 走行体の基準ジャイロ角調整用ライントレースのための距離
@@ -136,7 +140,8 @@ public:
     static constexpr size_t ETRALLY_HEADING_CALIBRATION_EXCLUSION_COUNT = 5;  // 基準角を取得する際のサンプル除外数
     static constexpr size_t ETRALLY_HEADING_CALIBRATION_BUFFER_SIZE = ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT + ETRALLY_HEADING_CALIBRATION_EXCLUSION_COUNT;
 
-    // ETラリー自由走行用
+    // ETラリー走行
+    static constexpr int ETRALLY_LAP_COUNT = 1;
     static constexpr int ETRALLY_SLOW_DRIVE_SPEED = 150;
     static constexpr int ETRALLY_DEFAULT_DRIVE_SPEED = 500;
 

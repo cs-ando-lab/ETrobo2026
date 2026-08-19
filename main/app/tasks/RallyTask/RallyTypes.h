@@ -9,21 +9,24 @@
 // ゲートの色
 class RallyTypes {
 public:
+    // ゲートの色とその通過順
     enum struct GateColor {
         RED,
         BLUE,
         YELLOW
     };
-    // ゲートの足がどのグリッド上にあるかを保持する構造体
-    struct GatePoint {
-        int row;  // 1〜5
-        int col;  // 1〜5
+
+    // ゲート片足の座標
+    struct GateLeg {
+        int gX;  // 1〜5
+        int gY;  // 1〜5
     };
-    // ゲートの両足の座標
+
+    // ゲートの座標
     struct Gate {
         GateColor color;
-        GatePoint leftLeg;
-        GatePoint rightLeg;
+        GateLeg leftLeg;
+        GateLeg rightLeg;
     };
 
     // ────────── 移動グリッド ──────────────────
@@ -38,6 +41,11 @@ public:
     struct Node {
         int x;  // 0〜5
         int y;  // 0〜5
+    };
+
+    struct Edge {  // エッジ
+        Node endpointA;
+        Node endpointB;
     };
 
     struct Segment {

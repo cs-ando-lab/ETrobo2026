@@ -27,9 +27,6 @@ private:
 
     float referenceGyroYaw = 0.0f;
 
-    // ゲートを通る順番を保持する配列
-    static const RallyTypes::Gate gatesSequence[3];
-
     float turn(float degrees, int delayTimeUs = 100 * 1000);                               // 回転前後にdelayTimeUs分のディレイを挟み、指定した角度回転する。（robot.turnByImuのラッパー関数）
     float turnToDirection(RallyTypes::Direction direction, int delayTimeUs = 100 * 1000);  // 基準角を北としてDirectionの方角へ回転する。（turnのラッパー関数）
     int moveToDirection(int distanceMm,
