@@ -41,7 +41,7 @@ private:
         int turnCount;
         int stepCount;
     };
-    struct SearchRecord {
+    struct SearchRecord {  // 探索状態
         bool reached = false;
         bool hasPrevious = false;
         RouteCost cost = { 0, 0 };
@@ -80,16 +80,15 @@ private:
     bool isEdgePassGate(Node nodeA, Node nodeB) const;                         // nodeAとnodeBを結ぶエッジがゲートを通過するかを判定
 
     /* その他メソッド */
-    Edge findGateEdge(Gate gate);                        // 各ゲートの前後ノードを調べる
-    int calcNodeDistance(Node node1, Node node2) const;  // node1とnode2のマンハッタン距離を調べる
-    Direction getDirection(int dx, int dy) const;
-    bool appendPath(std::vector<Node>& destination, const ResultPath& result);
+    Edge findGateEdge(Gate gate);                                        // 各ゲートの前後ノードを調べる
+    int calcNodeDistance(Node node1, Node node2) const;                  // node1とnode2のマンハッタン距離を調べる
+    Direction getDirection(int dx, int dy) const;                        // xとyの差から方角を返す
+    bool appendPath(std::vector<Node>& path, const ResultPath& result);  // pathに経路探索の結果を繋げる
+    std::vector<Segment> groupStraightSegments(                          // Node列の直線部分をまとめてSegment列にする。
+        const std::vector<Node>& path);                                  // 入力するNode列のNodeの前後は隣接している必要がある。
 
 public:
     explicit RallyRoute(Node initNode);
-
-    std::vector<Segment> groupStraightSegments(         // Node列の直線部分をまとめてSegment列にする。
-        const std::vector<Node>& path);                 // 入力するNode列のNodeの前後は隣接している必要がある。
     std::vector<Segment> calculateRoute(int lapCount);  // lapCount(1 ~ 3)周のETラリーを行うためのルートをSegment列で返す。
 };
 

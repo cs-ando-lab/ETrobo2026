@@ -42,40 +42,6 @@ RallyRoute::RallyRoute(RallyTypes::Node initNode) {
     }
 }
 
-std::vector<RallyTypes::Segment> RallyRoute::groupStraightSegments(
-    const std::vector<RallyTypes::Node>& path) {
-    std::vector<RallyTypes::Segment> segments;
-
-    if(path.size() < 2) {
-        return segments;
-    }
-
-    RallyTypes::Node segmentStart = path[0];
-
-    RallyTypes::Direction currentDirection = getDirection(
-        path[1].x - path[0].x,
-        path[1].y - path[0].y);
-
-    for(std::size_t i = 1; i + 1 < path.size(); i++) {
-        RallyTypes::Direction nextDirection = getDirection(
-            path[i + 1].x - path[i].x,
-            path[i + 1].y - path[i].y);
-
-        if(currentDirection != nextDirection) {
-            // 方向が変わったので、現在地点までを直線として保存
-            segments.push_back({ segmentStart, path[i], currentDirection });
-
-            // 現在地点から新しい直線を開始
-            segmentStart = path[i];
-            currentDirection = nextDirection;
-        }
-    }
-    // 最後の直線を保存
-    segments.push_back({ segmentStart, path.back(), currentDirection });
-
-    return segments;
-}
-
 std::vector<RallyTypes::Segment> RallyRoute::calculateRoute(int lapCount) {
     if(lapCount < 1 || lapCount > 3) {
         syslog(LOG_ERROR, "ERROR[findPath]: invalid lapCount");
@@ -369,13 +335,6 @@ RallyRoute::Edge RallyRoute::findGateEdge(RallyTypes::Gate gate) {
     return edge;
 }
 
-int RallyRoute::calcNodeDistance(RallyTypes::Node node1, RallyTypes::Node node2) const {
-    int distance = 0;
-    distance += std::abs(node2.x - node1.x);
-    distance += std::abs(node2.y - node1.y);
-    return distance;
-}
-
 RallyTypes::Direction RallyRoute::getDirection(int dx, int dy) const {
     if(dx == 0 && dy < 0) {
         return RallyTypes::Direction::NORTH;
@@ -391,17 +350,51 @@ RallyTypes::Direction RallyRoute::getDirection(int dx, int dy) const {
     return Direction::NONE;
 }
 
-bool RallyRoute::appendPath(std::vector<Node>& destination, const ResultPath& result) {
+bool RallyRoute::appendPath(std::vector<Node>& path, const ResultPath& result) {
     if(!result.found || result.path.empty()) {
         return false;
     }
 
     for(const Node& node : result.path) {
-        if(destination.empty()
-           || !isSameNode(destination.back(), node)) {
-            destination.push_back(node);
+        if(path.empty()
+           || !isSameNode(path.back(), node)) {
+            path.push_back(node);
         }
     }
 
     return true;
+}
+
+std::vector<RallyTypes::Segment> RallyRoute::groupStraightSegments(
+    const std::vector<RallyTypes::Node>& path) {
+    std::vector<RallyTypes::Segment> segments;
+
+    if(path.size() < 2) {
+        return segments;
+    }
+
+    RallyTypes::Node segmentStart = path[0];
+
+    RallyTypes::Direction currentDirection = getDirection(
+        path[1].x - path[0].x,
+        path[1].y - path[0].y);
+
+    for(std::size_t i = 1; i + 1 < path.size(); i++) {
+        RallyTypes::Direction nextDirection = getDirection(
+            path[i + 1].x - path[i].x,
+            path[i + 1].y - path[i].y);
+
+        if(currentDirection != nextDirection) {
+            // 方向が変わったので、現在地点までを直線として保存
+            segments.push_back({ segmentStart, path[i], currentDirection });
+
+            // 現在地点から新しい直線を開始
+            segmentStart = path[i];
+            currentDirection = nextDirection;
+        }
+    }
+    // 最後の直線を保存
+    segments.push_back({ segmentStart, path.back(), currentDirection });
+
+    return segments;
 }

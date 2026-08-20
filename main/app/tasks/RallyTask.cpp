@@ -11,21 +11,6 @@ RallyTask::RallyTask(Robot& robot)
 
 // testはテスト用、runが本番用
 void RallyTask::test() {
-    // Tracer tracer(robot);
-    // referenceGyroYaw = robot.getHeading();
-    // syslog(LOG_NOTICE, "referenceGyroYaw : %d [°]", static_cast<int>(referenceGyroYaw));
-
-    // // [3-1] - ルート算出フェーズ
-    // /* 格子上のルートを求める */
-    // std::vector<RallyTypes::Node> path = { { 0, 5 }, { 1, 5 }, { 2, 5 }, { 2, 4 }, { 3, 4 }, { 3, 3 }, { 3, 2 }, { 2, 2 }, { 2, 3 }, { 1, 3 }, { 1, 2 }, { 0, 2 }, { 0, 3 }, { 0, 4 }, { 1, 4 }, { 1, 5 }, { 0, 5 } };
-    // RallyRoute rallyRoute;
-    // std::vector<RallyTypes::Segment> segments = rallyRoute.groupStraightSegments(path);
-    // // [3-2] - ゲート通過フェーズ
-    // /* 格子上を移動し、ゲート通過する */
-    // followNodeSegments(segments);
-
-    run();
-
     return;
 }
 
