@@ -5,40 +5,12 @@
 #include "kernel.h" /* dly_tskのため */
 #include "t_syslog.h"
 
-// 各色ゲートの座標
-const RallyTypes::Gate RallyTask::gatesSequence[3] = {
-    { RallyTypes::GateColor::RED,
-      { Config::ETRALLY_RED_GATE_LEFT_ROW, Config::ETRALLY_RED_GATE_LEFT_COL },
-      { Config::ETRALLY_RED_GATE_RIGHT_ROW, Config::ETRALLY_RED_GATE_RIGHT_COL } },
-    { RallyTypes::GateColor::BLUE,
-      { Config::ETRALLY_BLUE_GATE_LEFT_ROW, Config::ETRALLY_BLUE_GATE_LEFT_COL },
-      { Config::ETRALLY_BLUE_GATE_RIGHT_ROW, Config::ETRALLY_BLUE_GATE_RIGHT_COL } },
-    { RallyTypes::GateColor::YELLOW,
-      { Config::ETRALLY_YELLOW_GATE_LEFT_ROW, Config::ETRALLY_YELLOW_GATE_LEFT_COL },
-      { Config::ETRALLY_YELLOW_GATE_RIGHT_ROW, Config::ETRALLY_YELLOW_GATE_RIGHT_COL } }
-};
-
 RallyTask::RallyTask(Robot& robot)
     : robot(robot) {
 }
 
 // testはテスト用、runが本番用
 void RallyTask::test() {
-    // Tracer tracer(robot);
-    // referenceGyroYaw = robot.getHeading();
-    // syslog(LOG_NOTICE, "referenceGyroYaw : %d [°]", static_cast<int>(referenceGyroYaw));
-
-    // // [3-1] - ルート算出フェーズ
-    // /* 格子上のルートを求める */
-    // std::vector<RallyTypes::Node> path = { { 0, 5 }, { 1, 5 }, { 2, 5 }, { 2, 4 }, { 3, 4 }, { 3, 3 }, { 3, 2 }, { 2, 2 }, { 2, 3 }, { 1, 3 }, { 1, 2 }, { 0, 2 }, { 0, 3 }, { 0, 4 }, { 1, 4 }, { 1, 5 }, { 0, 5 } };
-    // RallyRoute rallyRoute;
-    // std::vector<RallyTypes::Segment> segments = rallyRoute.groupStraightSegments(path);
-    // // [3-2] - ゲート通過フェーズ
-    // /* 格子上を移動し、ゲート通過する */
-    // followNodeSegments(segments);
-
-    run();
-
     return;
 }
 
@@ -75,13 +47,16 @@ void RallyTask::run() {
 
     // [3-1] - ルート算出フェーズ
     /* 格子上のルートを求める */
-    RallyRoute rallyRoute;
-    // 仮のルート
-    std::vector<RallyTypes::Node> path = { { 0, 5 }, { 1, 5 }, { 2, 5 }, { 2, 4 }, { 3, 4 }, { 3, 3 }, { 3, 2 }, { 2, 2 }, { 2, 3 }, { 1, 3 }, { 1, 2 }, { 0, 2 }, { 0, 3 }, { 0, 4 }, { 1, 4 }, { 1, 5 }, { 0, 5 } };
-    std::vector<RallyTypes::Segment> segments = rallyRoute.groupStraightSegments(path);
+    RallyTypes::Node initNode = { Config::ETRALLY_INIT_NODE_X, Config::ETRALLY_INIT_NODE_Y };
+    RallyRoute rallyRoute(initNode);
+    std::vector<RallyTypes::Segment> segments = rallyRoute.calculateRoute(Config::ETRALLY_LAP_COUNT);
 
     // [3-2] - ゲート通過フェーズ
     /* 格子上を移動し、ゲート通過する */
+    if(segments.empty()) {
+        syslog(LOG_ERROR, "ERROR[RallyTask]: route calculation failed");
+        return;
+    }
     followNodeSegments(segments);
 
     // [4] 終了フェーズ
