@@ -56,8 +56,9 @@ public:
 
     // 指定された色（単色/複数色）を認識するまで蛇行走行する。
     // colors: Color配列 / colorCount: 配列数 / speedDegPerSec: 回転速度 [°/秒] / stableCount: 色を検知して止まるための連続検出回数 / swingDeg: 蛇行運転の1旋回あたりの角度
-    void runWavingUntilColor(ColorJudge::Color color, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT, float swingDeg = Config::RUC_SWING_DEFAULT_DEG);
-    void runWavingUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT, float swingDeg = Config::RUC_SWING_DEFAULT_DEG);
+    // firstSwingRight: 最初の半分旋回を右にするか（falseなら従来通り左）
+    void runWavingUntilColor(ColorJudge::Color color, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT, float swingDeg = Config::RUC_SWING_DEFAULT_DEG, bool firstSwingRight = false);
+    void runWavingUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec = Config::RUC_DEFAULT_SPEED_DEG_PER_SEC, int stableCount = Config::COLOR_DETECTED_STABLE_COUNT, float swingDeg = Config::RUC_SWING_DEFAULT_DEG, bool firstSwingRight = false);
 
     // 指定された色（単色/複数色）とカラーセンサーの値が複数回一致するか調べる。
     // colors: Color配列 / colorCount: 配列数 / matchedCount: 指定された色とカラーセンサーの値が一致した回数を保持する変数
