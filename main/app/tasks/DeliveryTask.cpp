@@ -7,85 +7,85 @@
 #include <cmath>
 
 namespace {
-// Config::DELIVERY_TRACER_PWM(30)のままだと、Tracerのカーブ減速機能（basePwmに対する絶対量で減速し、
-// basePwm×20%まで落ち込む）でほぼ動けなくなるため、接近フェーズだけこちらのローカル値を使う
-constexpr int kApproachPwm = 40;
-// 蛇行探索直後はラインに対してズレて乗っている分turnが大きくなりやすく、
-// カーブ減速機能でkApproachPwmよりさらに底(basePwm×20%)に張り付きやすいため、こちらは高めにする
-constexpr int kReacquireLinePwm = 50;
-constexpr int kPostSlowTracePwm = 65;    // ステップ8以降の速度。Config::TRACER_PWM(80)は実機で試すと速すぎたため
-constexpr int kOnFirstBlueLinePwm = 50;  // 仮実装（計測用）: 青1本目に乗っている間だけ落とす速度
-constexpr int kStraightAfterFirstBluePwm = 40;         // 青1本目通過後、直進する際のパワー
-constexpr int kStraightAfterFirstBlueUs = 500 * 1000;  // 青1本目通過後、直進する時間[us]
+    // Config::DELIVERY_TRACER_PWM(30)のままだと、Tracerのカーブ減速機能（basePwmに対する絶対量で減速し、
+    // basePwm×20%まで落ち込む）でほぼ動けなくなるため、接近フェーズだけこちらのローカル値を使う
+    constexpr int kApproachPwm = 40;
+    // 蛇行探索直後はラインに対してズレて乗っている分turnが大きくなりやすく、
+    // カーブ減速機能でkApproachPwmよりさらに底(basePwm×20%)に張り付きやすいため、こちらは高めにする
+    constexpr int kReacquireLinePwm = 50;
+    constexpr int kPostSlowTracePwm = 65;                  // ステップ8以降の速度。Config::TRACER_PWM(80)は実機で試すと速すぎたため
+    constexpr int kOnFirstBlueLinePwm = 50;                // 仮実装（計測用）: 青1本目に乗っている間だけ落とす速度
+    constexpr int kStraightAfterFirstBluePwm = 40;         // 青1本目通過後、直進する際のパワー
+    constexpr int kStraightAfterFirstBlueUs = 500 * 1000;  // 青1本目通過後、直進する時間[us]
 
-// 青ライン判定の確定時間。サンプル回数の固定値ではなくms基準にすることで、
-// LINE_TRACE_POLL_INTERVAL_US（制御周期）が変わっても意図した時間幅を保つ
-constexpr int kBlueEntryConfirmMs = 300;   // 青に乗ったと確定するまでの時間
-constexpr int kBluePassedConfirmMs = 400;  // 青を通過した（完全に降りた）と確定するまでの時間
+    // 青ライン判定の確定時間。サンプル回数の固定値ではなくms基準にすることで、
+    // LINE_TRACE_POLL_INTERVAL_US（制御周期）が変わっても意図した時間幅を保つ
+    constexpr int kBlueEntryConfirmMs = 300;   // 青に乗ったと確定するまでの時間
+    constexpr int kBluePassedConfirmMs = 400;  // 青を通過した（完全に降りた）と確定するまでの時間
 
-// 斜め移動のパワー差とIMU回転量。実機調整で左右90/30・80度が良さそうだったのでこれを基準値にする
-constexpr int kDiagonalPwmHigh = 90;
-constexpr int kDiagonalPwmLow = 30;
+    // 斜め移動のパワー差とIMU回転量。実機調整で左右90/30・80度が良さそうだったのでこれを基準値にする
+    constexpr int kDiagonalPwmHigh = 90;
+    constexpr int kDiagonalPwmLow = 30;
 
-// エリア配置：左90・右0の斜め移動で80度回頭（安定/フォールバックどちらも同じ回転量にする）→ 前進180mm → 後退140mm → 右85度旋回
-constexpr int kAreaDiagonalPwmRight = 0;
-constexpr float kDiagonalTurnDeg = 80.0f;
-constexpr int kAreaForwardMm = 180;
-constexpr int kAreaBackwardMm = -140;
-constexpr int kAreaBackwardSpeedDegPerSec = 700;  // 最速で後退させる（モーターの物理上限で自動的にクランプされる）
-constexpr float kAreaTurnDeg = 85.0f;
+    // エリア配置：左90・右0の斜め移動で80度回頭（安定/フォールバックどちらも同じ回転量にする）→ 前進180mm → 後退140mm → 右85度旋回
+    constexpr int kAreaDiagonalPwmRight = 0;
+    constexpr float kDiagonalTurnDeg = 80.0f;
+    constexpr int kAreaForwardMm = 180;
+    constexpr int kAreaBackwardMm = -140;
+    constexpr int kAreaBackwardSpeedDegPerSec = 700;  // 最速で後退させる（モーターの物理上限で自動的にクランプされる）
+    constexpr float kAreaTurnDeg = 85.0f;
 
-// 青1本目通過後の直進の後に行う、左折の斜め移動の回転量（パワーはkDiagonalPwmHigh/Lowを左右逆にして流用）
-constexpr float kPostFirstBlueDiagonalTurnDeg = 70.0f;
+    // 青1本目通過後の直進の後に行う、左折の斜め移動の回転量（パワーはkDiagonalPwmHigh/Lowを左右逆にして流用）
+    constexpr float kPostFirstBlueDiagonalTurnDeg = 70.0f;
 
-// 右エッジ復帰後、ライントレースが安定したかの判定用（要実測調整）
-constexpr float kHeadingStabilityThresholdDeg = 1.0f;  // 直前サンプルとの差がこの角度未満なら安定とみなす
-constexpr int kHeadingStabilityRequiredSamples = 10;    // 安定判定に必要な連続サンプル数
+    // 右エッジ復帰後、ライントレースが安定したかの判定用（要実測調整）
+    constexpr float kHeadingStabilityThresholdDeg = 1.0f;  // 直前サンプルとの差がこの角度未満なら安定とみなす
+    constexpr int kHeadingStabilityRequiredSamples = 10;   // 安定判定に必要な連続サンプル数
 
-// 帰り: 蛇行(右優先)で黒/青の線を探す。色判定ではなく反射率のしきい値判定にすることで、
-// ライントレースが境界を追う際の黒白判定のブレ(TRACER_TARGET_REFLECTIONとCOLOR_ACHROMATIC_REFLECTION_THRESHOLDが同値)を避ける
-constexpr int kWaveReflectionThreshold = 55;
-constexpr int kWavePwm = 35;
-constexpr int kWaveNonWhiteReflectionThreshold = 90;  // 白の実測値(約99)より少し低め。診断用ビープのしきい値
+    // 帰り: 蛇行(右優先)で黒/青の線を探す。色判定ではなく反射率のしきい値判定にすることで、
+    // ライントレースが境界を追う際の黒白判定のブレ(TRACER_TARGET_REFLECTIONとCOLOR_ACHROMATIC_REFLECTION_THRESHOLDが同値)を避ける
+    constexpr int kWaveReflectionThreshold = 55;
+    constexpr int kWavePwm = 35;
+    constexpr int kWaveNonWhiteReflectionThreshold = 90;  // 白の実測値(約99)より少し低め。診断用ビープのしきい値
 
-// 蛇行でラインを見つけた瞬間に、左30・右90で0.2秒動かす
-constexpr int kWaveFoundPwmLeft = 30;
-constexpr int kWaveFoundPwmRight = 90;
-constexpr float kWaveFoundSec = 0.2f;
+    // 蛇行でラインを見つけた瞬間に、左30・右90で0.2秒動かす
+    constexpr int kWaveFoundPwmLeft = 30;
+    constexpr int kWaveFoundPwmRight = 90;
+    constexpr float kWaveFoundSec = 0.2f;
 
-// 帰り: ラインを見つけた後、一定時間ライントレースしながら角度をサンプリングし、
-// ソートして左右の外側（黄色以外・青/赤で共通のロジック、時間は色ごとに変える）を除いてから平均する
-// （黄色はこの区間をスキップし、蛇行後すぐ左エッジ再開する）
-constexpr float kReturnHeadingAverageSecBlue = 1.0f;
-constexpr float kReturnHeadingAverageSecRed = 1.5f;
-constexpr float kReturnHeadingAverageSecMax = kReturnHeadingAverageSecRed;  // サンプル配列のサイズ確保用（大きい方に合わせる）
-constexpr int kReturnHeadingAverageLoopCountMax = static_cast<int>(kReturnHeadingAverageSecMax * 1000 * 1000 / Config::LINE_TRACE_POLL_INTERVAL_US);
-constexpr int kReturnHeadingTrimNumerator = 1;
-constexpr int kReturnHeadingTrimDenominator = 6;  // 左側(値が小さい方)からサンプルの1/6を除外する
-constexpr int kReturnHeadingRightTrimNumerator = 1;
-constexpr int kReturnHeadingRightTrimDenominator = 11;  // 右側(値が大きい方)からサンプルの1/11を除外する（左の半分程度）
+    // 帰り: ラインを見つけた後、一定時間ライントレースしながら角度をサンプリングし、
+    // ソートして左右の外側（黄色以外・青/赤で共通のロジック、時間は色ごとに変える）を除いてから平均する
+    // （黄色はこの区間をスキップし、蛇行後すぐ左エッジ再開する）
+    constexpr float kReturnHeadingAverageSecBlue = 1.0f;
+    constexpr float kReturnHeadingAverageSecRed = 1.5f;
+    constexpr float kReturnHeadingAverageSecMax = kReturnHeadingAverageSecRed;  // サンプル配列のサイズ確保用（大きい方に合わせる）
+    constexpr int kReturnHeadingAverageLoopCountMax = static_cast<int>(kReturnHeadingAverageSecMax * 1000 * 1000 / Config::LINE_TRACE_POLL_INTERVAL_US);
+    constexpr int kReturnHeadingTrimNumerator = 1;
+    constexpr int kReturnHeadingTrimDenominator = 6;  // 左側(値が小さい方)からサンプルの1/6を除外する
+    constexpr int kReturnHeadingRightTrimNumerator = 1;
+    constexpr int kReturnHeadingRightTrimDenominator = 11;  // 右側(値が大きい方)からサンプルの1/11を除外する（左の半分程度）
 
-// 平均角度の方向(=線と平行)に直進する時間。色によって変える
-constexpr float kReturnStraightSecBlue = 1.1f;
-constexpr float kReturnStraightSecRed = 1.65f;
-constexpr int kReturnStraightPwm = 100;
+    // 平均角度の方向(=線と平行)に直進する時間。色によって変える
+    constexpr float kReturnStraightSecBlue = 1.1f;
+    constexpr float kReturnStraightSecRed = 1.65f;
+    constexpr int kReturnStraightPwm = 100;
 
-// 帰りの右折斜め移動（パワーはkDiagonalPwmHigh/Lowを流用）
-constexpr float kReturnDiagonalTurnDeg = 70.0f;
+    // 帰りの右折斜め移動（パワーはkDiagonalPwmHigh/Lowを流用）
+    constexpr float kReturnDiagonalTurnDeg = 70.0f;
 
-// <algorithm>のstd::sortはRTOSのt_stddef.hと衝突してビルドできないため、自前の挿入ソートを使う。
-// サンプル数は高々150程度なのでO(n^2)でも問題にならない。
-void insertionSort(float* values, int count) {
-    for(int i = 1; i < count; i++) {
-        float key = values[i];
-        int j = i - 1;
-        while(j >= 0 && values[j] > key) {
-            values[j + 1] = values[j];
-            j--;
+    // <algorithm>のstd::sortはRTOSのt_stddef.hと衝突してビルドできないため、自前の挿入ソートを使う。
+    // サンプル数は高々150程度なのでO(n^2)でも問題にならない。
+    void insertionSort(float* values, int count) {
+        for(int i = 1; i < count; i++) {
+            float key = values[i];
+            int j = i - 1;
+            while(j >= 0 && values[j] > key) {
+                values[j + 1] = values[j];
+                j--;
+            }
+            values[j + 1] = key;
         }
-        values[j + 1] = key;
     }
-}
 }  // namespace
 
 DeliveryTask::DeliveryTask(Robot& robot)
@@ -116,7 +116,7 @@ void DeliveryTask::waveUntilReflectionBelow(int reflectionThreshold, float swing
 
         int loopCount = 0;
         while(isRightTurn ? ((robot.getImuHeading() - baseHeading) < targetCumulative)
-                           : ((robot.getImuHeading() - baseHeading) > targetCumulative)) {
+                          : ((robot.getImuHeading() - baseHeading) > targetCumulative)) {
             if(robot.isCenterButtonPressed()) {
                 robot.stop();
                 return;
@@ -246,7 +246,7 @@ void DeliveryTask::run() {
     // 6. 左エッジでライントレースを再開
     syslog(LOG_NOTICE, "Resuming line trace on LEFT edge (Slow Speed)");
     tracer.setEdge(isLeftCourse ? Tracer::Edge::LEFT : Tracer::Edge::RIGHT);
-    tracer.setPwm(kReacquireLinePwm);    // 蛇行直後はズレが大きくカーブ減速で止まりやすいため、kApproachPwmより高めに
+    tracer.setPwm(kReacquireLinePwm);  // 蛇行直後はズレが大きくカーブ減速で止まりやすいため、kApproachPwmより高めに
 
     // 7. 1秒間、遅い速度でライントレース
     // LINE_TRACE_POLL_INTERVAL_USを使って1秒間に必要なループ回数を計算
@@ -462,9 +462,9 @@ void DeliveryTask::run() {
         // トリム比率はLコースで実測した左偏りを補正するために非対称にしたもの。Rコースでは鏡像の偏りになるはずなので、
         // 大きく削る側(kReturnHeadingTrimNumerator/Denominator)と少なく削る側を左右入れ替える
         int leftTrimCount = (isLeftCourse ? headingSampleCount * kReturnHeadingTrimNumerator / kReturnHeadingTrimDenominator
-                                           : headingSampleCount * kReturnHeadingRightTrimNumerator / kReturnHeadingRightTrimDenominator);
+                                          : headingSampleCount * kReturnHeadingRightTrimNumerator / kReturnHeadingRightTrimDenominator);
         int rightTrimCount = (isLeftCourse ? headingSampleCount * kReturnHeadingRightTrimNumerator / kReturnHeadingRightTrimDenominator
-                                            : headingSampleCount * kReturnHeadingTrimNumerator / kReturnHeadingTrimDenominator);
+                                           : headingSampleCount * kReturnHeadingTrimNumerator / kReturnHeadingTrimDenominator);
         float headingAverageSum = 0.0f;
         int headingAverageSampleCount = 0;
         for(int i = leftTrimCount; i < headingSampleCount - rightTrimCount; i++) {
