@@ -323,11 +323,11 @@ void Robot::runStraightUntilColors(const ColorJudge::Color* colors, int colorCou
     stop();
 }
 
-void Robot::runWavingUntilColor(ColorJudge::Color color, int speedDegPerSec, int stableCount, float swingDeg) {
-    runWavingUntilColors(&color, 1, speedDegPerSec, stableCount, swingDeg);
+void Robot::runWavingUntilColor(ColorJudge::Color color, int speedDegPerSec, int stableCount, float swingDeg, bool firstSwingRight) {
+    runWavingUntilColors(&color, 1, speedDegPerSec, stableCount, swingDeg, firstSwingRight);
 }
 
-void Robot::runWavingUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec, int stableCount, float swingDeg) {
+void Robot::runWavingUntilColors(const ColorJudge::Color* colors, int colorCount, int speedDegPerSec, int stableCount, float swingDeg, bool firstSwingRight) {
     if(colors == nullptr || colorCount <= 0) {
         syslog(LOG_ERROR, "invalid colors or colorCount");
         return;
@@ -352,47 +352,30 @@ void Robot::runWavingUntilColors(const ColorJudge::Color* colors, int colorCount
         int loopCount = 0;
         float wheelDeg = 0.0f;
 
-        if(swingCnt == 0) {  // 最初の旋回は半分の旋回角度で左旋回
-            float firstTargetWheelDeg = targetWheelDeg / 2.0f;
+        // swingCnt==0は半分の旋回角度、それ以降は左右交互(奇数=右, 偶数=左)。
+        // firstSwingRightが立っていれば全体の左右を反転させる。
+        float target = (swingCnt == 0) ? (targetWheelDeg / 2.0f) : targetWheelDeg;
+        bool isLeftTurn = (swingCnt == 0) ? true : (swingCnt % 2 == 0);
+        if(firstSwingRight) {
+            isLeftTurn = !isLeftTurn;
+        }
 
-            resetMotorCounts();
+        resetMotorCounts();
+        if(isLeftTurn) {
             leftMotor.stop();
             rightMotor.setSpeed(speedDegPerSec);
-            while(wheelDeg < firstTargetWheelDeg && loopCount < Config::RUC_SWING_TIMEOUT_LOOP_COUNT) {
-                if(isCenterButtonPressed() || isOnColors(colors, colorCount, colorDetectedCount, stableCount)) {  // センターボタンもしくは停止条件で停止。
-                    stop();
-                    return;
-                }
-                dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
-                wheelDeg = std::abs(getRightMotorCount());
-                loopCount++;
-            }
-        } else if(swingCnt % 2 == 1) {  // 右旋回
-            resetMotorCounts();
+        } else {
             leftMotor.setSpeed(speedDegPerSec);
             rightMotor.stop();
-            while(wheelDeg < targetWheelDeg && loopCount < Config::RUC_SWING_TIMEOUT_LOOP_COUNT) {
-                if(isCenterButtonPressed() || isOnColors(colors, colorCount, colorDetectedCount, stableCount)) {  // センターボタンもしくは停止条件で停止。
-                    stop();
-                    return;
-                }
-                dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
-                wheelDeg = std::abs(getLeftMotorCount());
-                loopCount++;
+        }
+        while(wheelDeg < target && loopCount < Config::RUC_SWING_TIMEOUT_LOOP_COUNT) {
+            if(isCenterButtonPressed() || isOnColors(colors, colorCount, colorDetectedCount, stableCount)) {  // センターボタンもしくは停止条件で停止。
+                stop();
+                return;
             }
-        } else {  // 左旋回
-            resetMotorCounts();
-            leftMotor.stop();
-            rightMotor.setSpeed(speedDegPerSec);
-            while(wheelDeg < targetWheelDeg && loopCount < Config::RUC_SWING_TIMEOUT_LOOP_COUNT) {
-                if(isCenterButtonPressed() || isOnColors(colors, colorCount, colorDetectedCount, stableCount)) {  // センターボタンもしくは停止条件で停止。
-                    stop();
-                    return;
-                }
-                dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
-                wheelDeg = std::abs(getRightMotorCount());
-                loopCount++;
-            }
+            dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
+            wheelDeg = std::abs(isLeftTurn ? getRightMotorCount() : getLeftMotorCount());
+            loopCount++;
         }
         if(loopCount >= Config::RUC_SWING_TIMEOUT_LOOP_COUNT) {
             syslog(LOG_NOTICE, "STOP[runWavingUntilColor]: SWING,TIMEOUT");
@@ -492,6 +475,10 @@ ColorJudge::Reading Robot::getColorReading() const {
 
 ColorJudge::Color Robot::getColor() const {
     return ColorJudge::judge(getColorReading());
+}
+
+float Robot::getImuHeading() const {
+    return imu.getHeading();
 }
 
 bool Robot::isForceSensorPressed() const {

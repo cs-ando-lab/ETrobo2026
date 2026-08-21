@@ -88,9 +88,9 @@ public:
     static constexpr int LINE_TRACE_POLL_INTERVAL_US = 10 * 1000;  // ライントレースの制御周期[us]
     static constexpr int LABEL_CHANGE_CYCLES = 30;                 // 表示文字を切り替える周期(制御周期の何回分か。実時間で約300ms間隔を維持する値)
 
-    // ── DeliveryTask（課題）───────────────────────
-    static constexpr int8_t DELIVERY_TRACER_PWM = 30;       // ボトル接近時のライントレース速度
-    static constexpr int DELIVERY_TARGET_DISTANCE_MM = 95;  // ボトル手前で停止する目標距離[mm]
+    // ── DeliveryTask（ボトルデリバリー）───────────────────────
+    static constexpr int8_t DELIVERY_TRACER_PWM = 30;        // ボトル接近時のライントレース速度
+    static constexpr int DELIVERY_TARGET_DISTANCE_MM = 110;  // ボトル手前で停止する目標距離[mm]
 
     // ── Arm (アーム制御) ───────────────────────────────────
     static constexpr int ARM_RAISE_DEG = 155;   // アームを上げる角度
