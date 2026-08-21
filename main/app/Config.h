@@ -2,6 +2,7 @@
 #define CONFIG_H_
 
 #include <cstdint>
+#include <cstddef>
 
 /**
  * 走行体のチューニング用定数を一元管理するクラス。
@@ -17,12 +18,16 @@ public:
 
     // ── Robot: 走行機能 ────────────────────────────────
     // driveStraight
-    static constexpr int DRIVE_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 直進の既定速度[°/秒]
-    static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 2000;        // 直進のタイムアウト(周期の回数)
+    static constexpr int DRIVE_DEFAULT_SPEED_DEG_PER_SEC = 300;    // 直進の既定速度[°/秒]
+    static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 2000;          // 直進のタイムアウト(周期の回数)
+    static constexpr float DRIVE_IMU_DECEL_DISTANCE_MM = 100.0f;   // 停止前に減速を始める残距離[mm]
+    static constexpr int DRIVE_IMU_MIN_SPEED_DEG_PER_SEC = 150;    // 減速中の最低速度[°/秒]
+    static constexpr float DRIVE_IMU_HEADING_KP = 4.0f;            // heading誤差に対する比例ゲイン[(°/秒)/°]
+    static constexpr float DRIVE_IMU_MAX_CORRECTION_RATIO = 0.5f;  // 基準速度に対する左右速度補正の上限割合
     // turn
     static constexpr int TURN_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 旋回の既定速度[°/秒]
     static constexpr int TURN_TIMEOUT_LOOP_COUNT = 500;         // 旋回のタイムアウト(周期の回数)
-    static constexpr float TURN_IMU_STOP_TOLERANCE_DEG = 0.5f;  // IMU旋回の停止許容誤差[°]
+    static constexpr float TURN_IMU_STOP_TOLERANCE_DEG = 0.3f;  // IMU旋回の停止許容誤差[°]
     static constexpr float TURN_IMU_KP = 4.0f;                  // IMU旋回の比例ゲイン
     static constexpr int TURN_IMU_MIN_SPEED_DEG_PER_SEC = 80;   // IMU旋回の最低速度[°/秒]
     // runUntilColor
@@ -92,54 +97,53 @@ public:
     static constexpr int ARM_LOWER_DEG = 160;   // アームを下げる角度
     static constexpr int ARM_RAISE_PWM = -100;  // アームを上げる速度
     static constexpr int ARM_LOWER_PWM = 100;   // アームを下げる速度
+
     // ── ET-Rally（課題）───────────────────────────────────
-    // 走行速度
-    static constexpr int ETRALLY_DEFAULT_SPEED = 200;
-    static constexpr int ETRALLY_FAST_SPEED = 500;
-    static constexpr int ETRALLY_SLOW_SPEED = 100;
-    static constexpr int ETRALLY_WAVING_SPEED = 150;
-    static constexpr int ETRALLY_LINE_TRACE_DEFAULT_POWER = 34;
-    static constexpr int ETRALLY_LINE_TRACE_FAST_POWER = 40;
-    // コースの寸法
-    static constexpr int COLOR_CIRCLE_RADIUS = 35;                       // [mm] ラリーフィールド横のライン上にある色付きの円の半径（概数）
-    static constexpr int BLUE_LINE_DISTANCE = 100;                       // [mm] 青いラインの長さ（概数）
-    static constexpr int ETRALLY_UNIT_DISTANCE = 240;                    // [mm] ETラリーフィールドのQRからQRまでの距離を単位距離としている。（概数）
-    static constexpr int ETRALLY_THROUGH_GATE_ADJUSTMENT_DISTANCE = 25;  // [mm] ラリーフィールド横のラインからQRコードまでの距離と単位距離の差
-    // 調整値
-    static constexpr float ETRALLY_NARROW_SWING_DEG = 20.0f;  // [°]
-    static constexpr int ETRALLY_DELAY = 100 * 1000;
-    /*
-     * ETラリーフィールド上のゲート配置例
-     *
-     *          col
-     *        1 2 3 4 5
-     * row 1  . . . . .
-     *     2  Y Y . . .
-     *     3  . . . . B
-     *     4  . . . . B
-     *     5  . R R . .
-     *
-     * R: 赤ゲート
-     * B: 青ゲート
-     * Y: 黄ゲート
-     */
+    // コースの寸法（青ラインの長さを基準とし、その比率で算出）
+    static constexpr float BLUE_LINE_LENGTH_MM = 100.0f;                                         // [mm] 青ラインの長さ ... 基準
+    static constexpr float BLUE_LINE_WIDTH_MM = 0.2 * BLUE_LINE_LENGTH_MM;                       // [mm] 青ラインの幅
+    static constexpr float RALLY_UNIT_DISTANCE_MM = 2.5f * BLUE_LINE_LENGTH_MM;                  // [mm] ラリーエリアのグリッドの方眼1マスの一辺の長さ
+    static constexpr float START_GRID_POINT_TO_START_LINE_MM = 1.097863f * BLUE_LINE_LENGTH_MM;  // [mm] 開始格子点の中心点から直下の青ラインの近い側のエッジまでの距離
+    static constexpr float GRAY_CIRCLE_RADIUS_MM = 0.225f * BLUE_LINE_LENGTH_MM;                 // [mm] ゲート脚設置用の灰色円の半径
+
+    // 移動グリッドの初期ノード
+    static constexpr int ETRALLY_INIT_NODE_X = 0;
+    static constexpr int ETRALLY_INIT_NODE_Y = 5;
+
     // 赤ゲート
-    static constexpr int ETRALLY_RED_GATE_LEFT_ROW = 5;
-    static constexpr int ETRALLY_RED_GATE_LEFT_COL = 2;
-    static constexpr int ETRALLY_RED_GATE_RIGHT_ROW = 5;
-    static constexpr int ETRALLY_RED_GATE_RIGHT_COL = 3;
+    static constexpr int ETRALLY_RED_GATE_LEFT_X = 2;
+    static constexpr int ETRALLY_RED_GATE_LEFT_Y = 5;
+    static constexpr int ETRALLY_RED_GATE_RIGHT_X = 3;
+    static constexpr int ETRALLY_RED_GATE_RIGHT_Y = 5;
 
     // 青ゲート
-    static constexpr int ETRALLY_BLUE_GATE_LEFT_ROW = 3;
-    static constexpr int ETRALLY_BLUE_GATE_LEFT_COL = 5;
-    static constexpr int ETRALLY_BLUE_GATE_RIGHT_ROW = 4;
-    static constexpr int ETRALLY_BLUE_GATE_RIGHT_COL = 5;
+    static constexpr int ETRALLY_BLUE_GATE_LEFT_X = 5;
+    static constexpr int ETRALLY_BLUE_GATE_LEFT_Y = 3;
+    static constexpr int ETRALLY_BLUE_GATE_RIGHT_X = 5;
+    static constexpr int ETRALLY_BLUE_GATE_RIGHT_Y = 4;
 
     // 黄ゲート
-    static constexpr int ETRALLY_YELLOW_GATE_LEFT_ROW = 2;
-    static constexpr int ETRALLY_YELLOW_GATE_LEFT_COL = 1;
-    static constexpr int ETRALLY_YELLOW_GATE_RIGHT_ROW = 2;
-    static constexpr int ETRALLY_YELLOW_GATE_RIGHT_COL = 2;
+    static constexpr int ETRALLY_YELLOW_GATE_LEFT_X = 1;
+    static constexpr int ETRALLY_YELLOW_GATE_LEFT_Y = 2;
+    static constexpr int ETRALLY_YELLOW_GATE_RIGHT_X = 2;
+    static constexpr int ETRALLY_YELLOW_GATE_RIGHT_Y = 2;
+
+    // 基準ジャイロ角調整用ライントレースのパラメータ
+    static constexpr float ETRALLY_TRACE_BACK_DISTANCE = 300.0f;  // [mm] 走行体の基準ジャイロ角調整用ライントレースのための距離
+    static constexpr int ETRALLY_HEADING_CALIBRATION_PWM = 40;
+    static constexpr float ETRALLY_HEADING_CALIBRATION_KP = 0.30f;
+    static constexpr float ETRALLY_HEADING_CALIBRATION_KI = 0.0f;
+    static constexpr float ETRALLY_HEADING_CALIBRATION_KD = 0.0f;
+
+    // 基準ジャイロ角調整用リングバッファ関連
+    static constexpr size_t ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT = 10;    // 基準角を取得する際のサンプル数
+    static constexpr size_t ETRALLY_HEADING_CALIBRATION_EXCLUSION_COUNT = 5;  // 基準角を取得する際のサンプル除外数
+    static constexpr size_t ETRALLY_HEADING_CALIBRATION_BUFFER_SIZE = ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT + ETRALLY_HEADING_CALIBRATION_EXCLUSION_COUNT;
+
+    // ETラリー走行
+    static constexpr int ETRALLY_LAP_COUNT = 1;
+    static constexpr int ETRALLY_SLOW_DRIVE_SPEED = 150;
+    static constexpr int ETRALLY_DEFAULT_DRIVE_SPEED = 500;
 
     // ── ET-Sumo（課題）────────────────────────────────────
     // コースの寸法（実測して調整する、今の値は画像から計算した値）

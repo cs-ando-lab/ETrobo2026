@@ -1,6 +1,7 @@
 #include "Robot.h"
 #include "kernel.h"
 #include <cstdlib>
+#include <cmath>
 #include <t_syslog.h>  // タイムアウト時の警告ログ出力に使用
 
 Robot::Robot()
@@ -94,15 +95,93 @@ bool Robot::waitForImuReady() {
     return true;
 }
 
+int Robot::driveStraightByImu(int distanceMm, float directionDeg, int speedDegPerSec) {
+    if(distanceMm == 0 || !std::isfinite(directionDeg) || !waitForImuReady()) {
+        return 0;
+    }
+
+    // distanceMmが負の場合は後退する
+    int direction = (distanceMm >= 0) ? 1 : -1;
+    int targetDistanceMm = std::abs(distanceMm);
+    int maxSpeed = std::abs(speedDegPerSec);
+    if(maxSpeed == 0) {
+        return 0;
+    }
+
+    int initialLeftCounts = getLeftMotorCount();
+    int initialRightCounts = getRightMotorCount();
+
+    float traveledMm = 0.0f;
+    int loopCount = 0;
+    while(traveledMm < targetDistanceMm && loopCount < Config::DRIVE_TIMEOUT_LOOP_COUNT) {
+        if(isCenterButtonPressed()) {  // センターボタンで安全停止
+            break;
+        }
+
+        float remainingMm = targetDistanceMm - traveledMm;
+        float speedRatio = 1.0f;
+        if(Config::DRIVE_IMU_DECEL_DISTANCE_MM > 0.0f && remainingMm < Config::DRIVE_IMU_DECEL_DISTANCE_MM) {
+            speedRatio = remainingMm / Config::DRIVE_IMU_DECEL_DISTANCE_MM;
+        }
+
+        int baseSpeed = static_cast<int>(maxSpeed * speedRatio);
+        int minSpeed = (maxSpeed < Config::DRIVE_IMU_MIN_SPEED_DEG_PER_SEC)
+                           ? maxSpeed
+                           : Config::DRIVE_IMU_MIN_SPEED_DEG_PER_SEC;
+        if(baseSpeed < minSpeed) {
+            baseSpeed = minSpeed;
+        }
+
+        // headingは複数回転分を含むことがあるため、目標との差を最短方向の[-180, 180]°にする。
+        float headingErrorDeg = std::fmod(directionDeg - imu.getHeading(), 360.0f);
+        if(headingErrorDeg > 180.0f) {
+            headingErrorDeg -= 360.0f;
+        } else if(headingErrorDeg < -180.0f) {
+            headingErrorDeg += 360.0f;
+        }
+
+        int correction = static_cast<int>(headingErrorDeg * Config::DRIVE_IMU_HEADING_KP);
+        int maxCorrection = static_cast<int>(baseSpeed * Config::DRIVE_IMU_MAX_CORRECTION_RATIO);
+        if(correction > maxCorrection) {
+            correction = maxCorrection;
+        } else if(correction < -maxCorrection) {
+            correction = -maxCorrection;
+        }
+
+        // 補正の符号は車体固定。後退時も「左を速く、右を遅く」でheadingの正方向へ旋回する。
+        int signedBaseSpeed = baseSpeed * direction;
+        leftMotor.setSpeed(signedBaseSpeed + correction);
+        rightMotor.setSpeed(signedBaseSpeed - correction);
+
+        dly_tsk(Config::MOTION_POLL_INTERVAL_US); /* エンコーダーを確認する周期 */
+        float averageCount = (std::abs(getLeftMotorCount() - initialLeftCounts) + std::abs(getRightMotorCount() - initialRightCounts)) / 2.0f;
+        traveledMm = (averageCount / 360.0f) * 2 * Config::PI * Config::WHEEL_RADIUS_MM;
+        loopCount++;
+    }
+    if(loopCount >= Config::DRIVE_TIMEOUT_LOOP_COUNT) {
+        syslog(LOG_NOTICE, "DRIVE_IMU,TIMEOUT");
+    }
+
+    brake();
+
+    return static_cast<int>(traveledMm) * direction;
+}
+
 float Robot::turnByImu(float degrees, int speedDegPerSec) {
-    if(!waitForImuReady()) {
+    if(!std::isfinite(degrees) || !waitForImuReady()) {
         return 0.0f;
     }
 
-    imu.resetHeading();
+    degrees = std::fmod(degrees, 360.0f);
+    if(degrees > 180.0f) {
+        degrees -= 360.0f;
+    } else if(degrees < -180.0f) {
+        degrees += 360.0f;
+    }
 
-    // 簡易的なP制御で回転速度を制御
-    const float targetDeg = degrees;
+    float initialAngle = imu.getHeading();  // 最初の角度
+
+    const float targetDeg = degrees;  // -180°～180°に正規化している
     const int maxSpeed = std::abs(speedDegPerSec);
 
     int loopCount = 0;
@@ -111,14 +190,14 @@ float Robot::turnByImu(float degrees, int speedDegPerSec) {
             break;
         }
 
-        float errorDeg = targetDeg - imu.getHeading();
+        float errorDeg = initialAngle + targetDeg - imu.getHeading();  // 目標との差 = 最初の角度 ＋ 回転角度 － 現在の角度
         float absErrorDeg = std::abs(errorDeg);
         if(absErrorDeg <= Config::TURN_IMU_STOP_TOLERANCE_DEG) {
             break;
         }
 
         int direction = (errorDeg >= 0.0f) ? 1 : -1;
-        int turnSpeed = static_cast<int>(absErrorDeg * Config::TURN_IMU_KP);
+        int turnSpeed = static_cast<int>(absErrorDeg * Config::TURN_IMU_KP);  // 簡易的なP制御で回転速度を制御
         if(turnSpeed < Config::TURN_IMU_MIN_SPEED_DEG_PER_SEC) {
             turnSpeed = Config::TURN_IMU_MIN_SPEED_DEG_PER_SEC;
         }
@@ -136,9 +215,9 @@ float Robot::turnByImu(float degrees, int speedDegPerSec) {
         syslog(LOG_ERROR, "TURN_IMU,TIMEOUT");
     }
 
-    stop();
+    brake();
 
-    return imu.getHeading();
+    return imu.getHeading() - initialAngle;
 }
 
 Robot::SearchResult Robot::turnByImuUntilUltrasonic(float degrees, int detectDistanceMm, int speedDegPerSec) {
@@ -373,6 +452,11 @@ void Robot::stop() {
     rightMotor.stop();
 }
 
+void Robot::brake() {
+    leftMotor.brake();
+    rightMotor.brake();
+}
+
 int Robot::getUltrasonicDistance() const {
     return ultrasonicSensor.getDistance();
 }
@@ -399,6 +483,20 @@ float Robot::getImuHeading() const {
 
 bool Robot::isForceSensorPressed() const {
     return forceSensor.isTouched();
+}
+
+float Robot::getAngularVelocityZ() {
+    IMU::AngularVelocity angv;
+    imu.getAngularVelocity(angv);
+    return -angv.z;
+}
+
+float Robot::getHeading() const {
+    return imu.getHeading();
+}
+
+void Robot::resetHeading() {
+    imu.resetHeading();
 }
 
 bool Robot::isLeftButtonPressed() {

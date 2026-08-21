@@ -1,4 +1,5 @@
 #include "Tracer.h"
+#include <t_syslog.h>
 #include <cmath>
 
 Tracer::Tracer(Robot& robot)
@@ -33,22 +34,45 @@ void Tracer::run() {
 
     int pwm_l = static_cast<int>(curvePwm - (static_cast<int>(edge) * turn));  // 基準値と調整値を使って操作量を求める
     int pwm_r = static_cast<int>(curvePwm + (static_cast<int>(edge) * turn));
-    robot.setMotorPower(pwm_l, pwm_r);
+    robot.setMotorPower(pwm_l + leftMotorOffset, pwm_r);
 }
 
 void Tracer::setConfig(float newKp, float newKi, float newKd, int32_t newTarget, int newPwm) {
+    if(newTarget < 0 || newTarget > 100) {
+        syslog(LOG_ERROR, "invalid target value : target must be 0 ~ 100");
+        return;
+    }
+    if(newPwm < 0 || newPwm > 100) {
+        syslog(LOG_ERROR, "invalid pwm : pwm must be 0 ~ 100");
+        return;
+    }
+
     PidConfig newConfig = { newKp, newKi, newKd, newTarget, newPwm };
     updateConfig(newConfig);
 }
 
 void Tracer::setTarget(int32_t newTarget) {
+    if(newTarget < 0 || newTarget > 100) {
+        syslog(LOG_ERROR, "invalid target value : target must be 0 ~ 100");
+        return;
+    }
+
     PidConfig newConfig = { pidConfig.kp, pidConfig.ki, pidConfig.kd, newTarget, pidConfig.basePwm };
     updateConfig(newConfig);
 }
 
 void Tracer::setPwm(int newPwm) {
+    if(newPwm < 0 || newPwm > 100) {
+        syslog(LOG_ERROR, "invalid pwm : pwm must be 0 ~ 100");
+        return;
+    }
+
     PidConfig newConfig = { pidConfig.kp, pidConfig.ki, pidConfig.kd, pidConfig.targetReflection, newPwm };
     updateConfig(newConfig);
+}
+
+void Tracer::setLeftMotorOffset(int newOffset) {
+    leftMotorOffset = newOffset;
 }
 
 void Tracer::setEdge(Edge newEdge) {

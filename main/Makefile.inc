@@ -13,6 +13,8 @@ APPL_CXXOBJS +=\
     SumoTask.o \
     DeliveryTask.o \
     RallyTask.o \
+    RallyRoute.o \
+    HeadingCalibration.o \
     test.o
 
 SRCLANG := c++
@@ -21,7 +23,8 @@ APPL_LIBS += -lm
 
 APPL_DIRS +=\
     $(mkfile_path)app \
-    $(mkfile_path)app/tasks
+    $(mkfile_path)app/tasks \
+    $(mkfile_path)app/tasks/RallyTask
 
 INCLUDES += \
     -I$(mkfile_path)../../../drivers/include/libcpp/spike \
