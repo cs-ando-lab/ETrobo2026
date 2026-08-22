@@ -54,6 +54,14 @@ function groupByCategory(settings) {
   }, {});
 }
 
+function groupBySubcategory(settings) {
+  return settings.reduce((groups, setting) => {
+    const name = setting.subcategory || "その他";
+    (groups[name] ||= []).push(setting);
+    return groups;
+  }, {});
+}
+
 function displayMetadata(description) {
   const unitMatch = description.match(/\[([^\]]+)\]/);
   return {
@@ -85,28 +93,32 @@ function renderSettings() {
         <span>${settings.length}項目</span>
       </div>
       <div class="setting-list">
-        ${settings.map(setting => {
-          const metadata = displayMetadata(setting.description);
-          return `
-          <label class="setting-row"
-            data-search="${`${setting.name} ${setting.description} ${category}`.toLowerCase()}">
-            <span class="setting-copy">
-              <strong>${setting.name}</strong>
-              <small>${metadata.description || "説明なし"}</small>
-            </span>
-            <span class="value-field">
-              <code class="type-label">${setting.type}</code>
-              <input
-                type="number"
-                data-name="${setting.name}"
-                data-type="${setting.type}"
-                value="${setting.value}"
-                step="${setting.type === "float" ? "any" : "1"}"
-                required>
-              <span class="unit-label">${metadata.unit}</span>
-            </span>
-          </label>`;
-        }).join("")}
+        ${Object.entries(groupBySubcategory(settings)).map(([subcategory, subgroup]) => `
+          <section class="subcategory-group">
+            <h3>${subcategory}<span>${subgroup.length}</span></h3>
+            ${subgroup.map(setting => {
+              const metadata = displayMetadata(setting.description);
+              return `
+              <label class="setting-row"
+                data-search="${`${setting.name} ${setting.description} ${category} ${subcategory}`.toLowerCase()}">
+                <span class="setting-copy">
+                  <strong>${setting.name}</strong>
+                  <small>${metadata.description || "説明なし"}</small>
+                </span>
+                <span class="value-field">
+                  <code class="type-label">${setting.type}</code>
+                  <input
+                    type="number"
+                    data-name="${setting.name}"
+                    data-type="${setting.type}"
+                    value="${setting.value}"
+                    step="${setting.type === "float" ? "any" : "1"}"
+                    required>
+                  <span class="unit-label">${metadata.unit}</span>
+                </span>
+              </label>`;
+            }).join("")}
+          </section>`).join("")}
       </div>
       <p class="empty-results" hidden>このカテゴリに一致する設定はありません。</p>
     </section>`).join("");
@@ -119,7 +131,7 @@ function gateCoordinates(values) {
       side,
       Object.fromEntries(["row", "col"].map(axis => [
         axis,
-        values[`${gate.prefix}_${side.toUpperCase()}_${axis.toUpperCase()}`],
+        values[`${gate.prefix}_${side.toUpperCase()}_${axis === "row" ? "Y" : "X"}`],
       ])),
     ])),
   ]));
@@ -182,7 +194,8 @@ function placeGate(row, col) {
   const coordinates = placementAt(row, col);
   ["left", "right"].forEach(side => {
     ["row", "col"].forEach(axis => {
-      settingInput(`${gate.prefix}_${side.toUpperCase()}_${axis.toUpperCase()}`).value =
+      const suffix = axis === "row" ? "Y" : "X";
+      settingInput(`${gate.prefix}_${side.toUpperCase()}_${suffix}`).value =
         coordinates[side][axis];
     });
   });
@@ -342,7 +355,12 @@ function formatTimestamp(iso) {
 }
 
 function valuesFromSnapshot(snapshot) {
-  return Object.fromEntries(snapshot.settings.map(setting => [setting.name, setting.value]));
+  const values = { ...valuesFromConfig() };
+  snapshot.settings.forEach(setting => {
+    // 設定項目の追加・削除後でも、現在存在する項目だけ安全に復元する。
+    if (Object.hasOwn(values, setting.name)) values[setting.name] = setting.value;
+  });
+  return values;
 }
 
 function renderHistory() {
@@ -396,6 +414,9 @@ function filterSettings() {
     row.hidden = Boolean(query) && !row.dataset.search.includes(query);
   });
   settingsRoot.querySelectorAll(".settings-section").forEach(section => {
+    section.querySelectorAll(".subcategory-group").forEach(group => {
+      group.hidden = ![...group.querySelectorAll(".setting-row")].some(row => !row.hidden);
+    });
     const hasMatch = [...section.querySelectorAll(".setting-row")].some(row => !row.hidden);
     const index = Number(section.dataset.categoryIndex);
     section.hidden = index !== selectedCategoryIndex;
