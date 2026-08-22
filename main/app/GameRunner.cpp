@@ -12,7 +12,7 @@ GameRunner::GameRunner(Robot& robot)
 }
 
 void GameRunner::run() {
-    // 1. キャリブレーション（L/R選択、スタート待ち）
+    // キャリブレーション（L/R選択、スタート待ち）
     Calibrator calib(robot);
     calib.run();
     while(true) {
@@ -21,11 +21,11 @@ void GameRunner::run() {
     }
 
     // モード管理用の配列と変数
-    const char modeChars[] = { 'P', 'D', 'R', 'T' };
+    const char modeChars[] = { 'O', 'D', 'R', 'T' };
     const int MODE_MAX = 3;
-    int startMode = 0;  // 0:本番(P), 1:デリバリー(D), 2:ラリー(R), 3:テスト(T)
+    int startMode = 0;  // 0:本番(O), 1:デリバリー(D), 2:ラリー(R), 3:テスト(T)
 
-    // 試走会用のモード切替関数、汚いので今後捨てます
+    // 試走会用のモード切替
     robot.showChar(modeChars[startMode]);
     while(true) {
         // 右ボタン：+1して次のモードへ
@@ -58,11 +58,12 @@ void GameRunner::run() {
         dly_tsk(Config::MOTION_POLL_INTERVAL_US);
     }
 
-    // 2. LAPゲートまでライントレース → ET相撲
+    // 0. 本番走行
     if(startMode <= 0) {
         // LAPゲートまでライントレース
-        if(!lineTraceUntilLap())
+        if(!lineTraceUntilLap()) {
             return;
+        }
 
         // ボトルデリバリー
         DeliveryTask delivery(robot);
@@ -73,9 +74,12 @@ void GameRunner::run() {
         rally.run();
 
         // ガレージ入庫
+        if(!moveTowardGarageArea()) {
+            return;
+        }
     }
 
-    // 3. LAPゲートまでライントレース → ボトルデリバリー
+    // 1. LAPゲートまでライントレース → ボトルデリバリー
     if(startMode <= 1) {
         if(!lineTraceUntilLap()) {
             return;
@@ -84,16 +88,13 @@ void GameRunner::run() {
         delivery.run();
     }
 
-    // 4. LAPゲートまでライントレース → ETラリー
+    // 2. ETラリー
     if(startMode <= 2) {
-        if(!lineTraceUntilLap()) {
-            return;
-        }
         RallyTask rally(robot);
         rally.run();
     }
 
-    // 5. テスト用（関数などを試す）
+    // 3. テスト用（関数などを試す）
     if(startMode <= 3) {
         Test test(robot);
         test.run();
@@ -139,5 +140,102 @@ bool GameRunner::lineTraceUntilLap() {
     }
 
     tracer.terminate();
+    robot.off();
+    return true;
+}
+
+bool GameRunner::moveTowardGarageArea() {
+    Tracer tracer(robot);
+
+    /* ↓↓ 仮案 ↓↓ */
+    bool straight = true;        // ガレージまで直接行く
+    bool traceLine = !straight;  // ラインをトレースしてガレージまで行く
+
+    if(straight) {  // ガレージまでそのまま直進
+        // Todo：後でConfigに移す
+        float BLUE_LINE_LEFT_TO_GARAGE = 5.364415f * Config::BLUE_LINE_LENGTH_MM;
+
+        robot.driveStraightByImu(BLUE_LINE_LEFT_TO_GARAGE, robot.getHeading());
+        robot.turnByImu(90 * CourseConfig::sign());
+    }
+
+    if(traceLine) {  // ライントレースでガレージまで向かう
+        // Todo：後でConfigに移す
+        float BLUE_LINE_LEFT_TO_JUNCTION_MM = 7.587079f * Config::BLUE_LINE_LENGTH_MM;
+        float JUNCTION_TO_GARAGE_MM = 3.5f * Config::BLUE_LINE_LENGTH_MM;
+        float GARAGE_ENTRANCE_TO_CENTER = 1.5f * Config::BLUE_LINE_LENGTH_MM;
+
+        int initialLeftCount;
+        int initialRightCount;
+        float traveledMm;
+        tracer.setEdge(CourseConfig::isLeftCourse() ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT);
+
+        // 三叉路上までライントレース
+        initialLeftCount = robot.getLeftMotorCount();
+        initialRightCount = robot.getRightMotorCount();
+        traveledMm = 0.0f;
+
+        while(1) {
+            /* センターボタンで安全停止 */
+            if(robot.isCenterButtonPressed()) {
+                tracer.terminate();
+                return false;
+            }
+
+            /* 三叉路までの距離をライントレースしたら停止 */
+            if(traveledMm >= BLUE_LINE_LEFT_TO_JUNCTION_MM) {
+                break;
+            }
+
+            tracer.run();
+
+            dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
+
+            int leftCount = robot.getLeftMotorCount() - initialLeftCount;
+            int rightCount = robot.getRightMotorCount() - initialRightCount;
+            int count = (leftCount + rightCount) / 2;
+            traveledMm = (count / 360.0f) * 2 * Config::PI * Config::WHEEL_RADIUS_MM;
+        }
+        tracer.terminate();
+
+        // コース外側に90°回転
+        robot.turnByImu(90 * CourseConfig::sign());
+        // ラインの太さだけ直進
+        robot.driveStraight(Config::BLUE_LINE_WIDTH_MM, 150);
+        // ガレージ側に90°回転
+        robot.turnByImu(90 * CourseConfig::sign());
+
+        // 三叉路からガレージ手前までライントレース
+        initialLeftCount = robot.getLeftMotorCount();
+        initialRightCount = robot.getRightMotorCount();
+        traveledMm = 0.0f;
+
+        while(1) {
+            /* センターボタンで安全停止 */
+            if(robot.isCenterButtonPressed()) {
+                tracer.terminate();
+                return false;
+            }
+
+            /* 三叉路までの距離をライントレースしたら停止 */
+            if(traveledMm >= JUNCTION_TO_GARAGE_MM) {
+                break;
+            }
+
+            tracer.run();
+
+            dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
+
+            int leftCount = robot.getLeftMotorCount() - initialLeftCount;
+            int rightCount = robot.getRightMotorCount() - initialRightCount;
+            int count = (leftCount + rightCount) / 2;
+            traveledMm = (count / 360.0f) * 2 * Config::PI * Config::WHEEL_RADIUS_MM;
+        }
+        tracer.terminate();
+
+        // ガレージ中央まで進む
+        robot.driveStraight(GARAGE_ENTRANCE_TO_CENTER);
+    }
+
     return true;
 }
