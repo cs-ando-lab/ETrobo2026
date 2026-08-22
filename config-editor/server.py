@@ -38,6 +38,7 @@ DECLARATION_PATTERN = re.compile(
     r"(?:\s*//\s*(?P<comment>.*))?$"
 )
 SECTION_PATTERN = re.compile(r"^\s*//\s*──\s*(?P<name>.+?)(?:─{2,}.*)?$")
+SUBSECTION_PATTERN = re.compile(r"^\s*//\s*─(?!─)\s*(?P<name>.+?)\s*─+\s*$")
 INTEGER_RANGES = {
     "int8_t": (-128, 127),
     "uint8_t": (0, 255),
@@ -87,19 +88,39 @@ def evaluate_number(expression: str) -> int | float:
     return value
 
 
+def is_derived_expression(expression: str) -> bool:
+    """ほかの定数・識別子を参照する派生式か判定する。"""
+    normalized = re.sub(r"(?<=\d)[fF]\b", "", expression.strip())
+    try:
+        tree = ast.parse(normalized, mode="eval")
+    except SyntaxError:
+        return True
+    return any(isinstance(node, ast.Name) for node in ast.walk(tree))
+
+
 def parse_header() -> list[dict]:
     settings = []
     category = "その他"
+    subcategory = "その他"
     for line in CONFIG_HEADER.read_text(encoding="utf-8").splitlines():
         section = SECTION_PATTERN.match(line)
         if section:
             category = section.group("name").strip(" ─")
+            subcategory = "その他"
+            continue
+        subsection = SUBSECTION_PATTERN.match(line)
+        if subsection:
+            subcategory = subsection.group("name").strip(" ─")
             continue
         declaration = DECLARATION_PATTERN.match(line)
         if not declaration:
             continue
+        expression = declaration.group("expression")
+        # ほかの定数を参照する値はConfig.h側で自動算出されるため、編集対象にしない。
+        if is_derived_expression(expression):
+            continue
         cpp_type = declaration.group("type")
-        value = evaluate_number(declaration.group("expression"))
+        value = evaluate_number(expression)
         if cpp_type != "float":
             if isinstance(value, float) and not value.is_integer():
                 raise ValueError(f"{declaration.group('name')}は整数型ですが小数です")
@@ -112,6 +133,7 @@ def parse_header() -> list[dict]:
                 "type": cpp_type,
                 "value": value,
                 "category": category,
+                "subcategory": subcategory,
                 "description": (declaration.group("comment") or "").strip(),
             }
         )
@@ -174,54 +196,12 @@ def append_history(settings: list[dict]) -> None:
     write_history(snapshots)
 
 
-def legacy_gate_values(config: dict) -> dict[str, int]:
-    values = {}
-    gates = config.get("gates")
-    if not isinstance(gates, dict):
-        return values
-    for color, prefix in GATE_PREFIXES.items():
-        gate = gates.get(color)
-        if not isinstance(gate, dict):
-            continue
-        for side in ("left", "right"):
-            point = gate.get(side)
-            if not isinstance(point, dict):
-                continue
-            for axis in ("row", "col"):
-                value = point.get(axis)
-                if type(value) is int:
-                    values[f"{prefix}_{side.upper()}_{axis.upper()}"] = value
-    return values
-
-
 def initialize_config() -> dict:
-    """Config.hの構造とJSONの値をマージし、両ファイルを同期する。"""
+    """Config.hを正本として編集可能項目をJSONへ同期する。"""
     settings = parse_header()
-    saved_values: dict[str, int | float] = {}
-    if CONFIG_JSON.exists():
-        try:
-            existing = read_json()
-            if isinstance(existing.get("settings"), list):
-                saved_values = {
-                    setting["name"]: setting["value"]
-                    for setting in existing["settings"]
-                    if isinstance(setting, dict)
-                    and isinstance(setting.get("name"), str)
-                    and type(setting.get("value")) in (int, float)
-                }
-            else:
-                saved_values = legacy_gate_values(existing)
-        except (OSError, json.JSONDecodeError):
-            saved_values = {}
-
-    for setting in settings:
-        if setting["name"] in saved_values:
-            setting["value"] = saved_values[setting["name"]]
-
     config = validate_values(
         {setting["name"]: setting["value"] for setting in settings}, settings
     )
-    update_header(config["settings"])
     write_json(config)
     return config
 
@@ -272,25 +252,25 @@ def validate_gates(values: dict[str, int | float]) -> None:
         coordinates = {
             side: {
                 axis: values[f"{prefix}_{side.upper()}_{axis.upper()}"]
-                for axis in ("row", "col")
+                for axis in ("x", "y")
             }
             for side in ("left", "right")
         }
         for point in coordinates.values():
-            if not 1 <= point["row"] <= 5 or not 1 <= point["col"] <= 5:
-                raise ValueError(f"{GATE_LABELS[color]}のrowとcolは1〜5で指定してください")
-            position = (point["row"], point["col"])
+            if not 1 <= point["x"] <= 5 or not 1 <= point["y"] <= 5:
+                raise ValueError(f"{GATE_LABELS[color]}のXとYは1〜5で指定してください")
+            position = (point["x"], point["y"])
             if position in occupied:
-                row, col = position
-                raise ValueError(f"row {row}, col {col}でゲート同士が重なっています")
+                x, y = position
+                raise ValueError(f"X={x}, Y={y}でゲート同士が重なっています")
             occupied[position] = color
         left, right = coordinates["left"], coordinates["right"]
-        distance = abs(left["row"] - right["row"]) + abs(left["col"] - right["col"])
+        distance = abs(left["x"] - right["x"]) + abs(left["y"] - right["y"])
         if distance != 1:
             raise ValueError(f"{GATE_LABELS[color]}の脚は隣り合うマスに配置してください")
-        if GATE_ORIENTATIONS[color] == "horizontal" and left["row"] != right["row"]:
+        if GATE_ORIENTATIONS[color] == "horizontal" and left["y"] != right["y"]:
             raise ValueError(f"{GATE_LABELS[color]}は横向きに配置してください")
-        if GATE_ORIENTATIONS[color] == "vertical" and left["col"] != right["col"]:
+        if GATE_ORIENTATIONS[color] == "vertical" and left["x"] != right["x"]:
             raise ValueError(f"{GATE_LABELS[color]}は縦向きに配置してください")
 
 

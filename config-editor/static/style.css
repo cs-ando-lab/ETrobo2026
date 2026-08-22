@@ -253,6 +253,32 @@ h2 { margin: 0; font-size: 1.15rem; }
   background: var(--panel-light);
 }
 .section-heading span { color: var(--muted); font-size: .75rem; }
+.subcategory-group + .subcategory-group {
+  border-top: 1px solid var(--border);
+}
+.subcategory-group[hidden] { display: none; }
+.subcategory-group > h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 11px 20px;
+  color: #b9c5d5;
+  background: #101722;
+  font-size: .8rem;
+  letter-spacing: .02em;
+}
+.subcategory-group > h3 span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: #9cabbf;
+  background: #242e3e;
+  font-size: .65rem;
+}
 .setting-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(290px, 360px);

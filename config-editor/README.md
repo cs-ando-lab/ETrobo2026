@@ -1,7 +1,7 @@
 # Config Editor
 
 ブラウザから`main/app/Config.h`の数値定数を編集するローカルツールです。
-`static constexpr`で宣言された数値を自動検出するため、設定項目を追加しても
+`static constexpr`で宣言された編集可能な数値を自動検出するため、設定項目を追加しても
 画面側の修正は必要ありません。
 
 ## 起動
@@ -24,7 +24,7 @@ http://localhost:8080
 
 ## 仕組み
 
-- 起動時に`Config.h`の項目と`config.json`の値をマージし、両方を同期します。
+- 起動時は`Config.h`を正本として、編集可能な項目を`config.json`へ同期します。
 - ブラウザで保存すると、`config.json`と`Config.h`が同時に更新されます。
 - `Config.h`のセクションコメントを画面のカテゴリとして使用します。
 - コメント内の`[...]`を単位として抽出し、数値の右側へ表示します。
@@ -81,6 +81,50 @@ static constexpr uint8_t COLOR_CHROMATIC_MIN_SATURATION = 30;
 - タグ右側の数字は、そのカテゴリに含まれる設定数です。
 - カテゴリ名は検索対象に含まれ、該当項目がないタグは薄く表示されます。
 - `Config.h`へカテゴリを追加しても、Web UI側の修正は必要ありません。
+
+### サブカテゴリー
+
+メインカテゴリーの中をさらに分ける場合は、罫線を1本にした次のコメントを使用します。
+
+```cpp
+// ── Robot: 走行機能 ────────────────────────────────
+
+// ─ driveStraight ─
+static constexpr int DRIVE_DEFAULT_SPEED_DEG_PER_SEC = 300;
+static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 2000;
+
+// ─ turn ─
+static constexpr int TURN_DEFAULT_SPEED_DEG_PER_SEC = 300;
+static constexpr int TURN_TIMEOUT_LOOP_COUNT = 500;
+```
+
+この場合、`Robot: 走行機能`がメインカテゴリー、`driveStraight`と`turn`が
+サブカテゴリーになります。Web UIではメインカテゴリーをタグで選択し、選択した
+カテゴリー内の設定をサブカテゴリー見出しで区切って表示します。
+
+- `// ── 名前 ──`のように先頭の罫線が2本ならメインカテゴリーです。
+- `// ─ 名前 ─`のように先頭の罫線が1本ならサブカテゴリーです。
+- メインカテゴリーが変わると、サブカテゴリーは`その他`へ戻ります。
+- サブカテゴリーを指定していない定数は`その他`へ分類されます。
+- `// driveStraight`のような通常コメントはサブカテゴリーとして扱いません。
+- サブカテゴリー名も検索対象に含まれます。
+
+## 編集対象外の派生定数
+
+ほかの定数名を参照して計算される定数は、基準値から自動算出される派生値として
+Config Editorの編集対象および`config.json`から除外します。
+
+```cpp
+static constexpr float BLUE_LINE_LENGTH_MM = 100.0f;  // 編集可能
+static constexpr float BLUE_LINE_WIDTH_MM = 0.2f * BLUE_LINE_LENGTH_MM;  // 編集対象外
+```
+
+この例では`BLUE_LINE_LENGTH_MM`だけがWeb UIに表示されます。
+`BLUE_LINE_WIDTH_MM`は`Config.h`内の式を維持し、基準値の変更に追従して
+C++のコンパイル時に計算されます。
+
+数値リテラルだけで構成された`10 * 1000`のような式は編集対象です。値を変更せず
+保存した場合は元の式を維持し、Web UIで値を変更した場合は計算後の数値で更新します。
 
 サーバーを起動せず同期だけ行う場合：
 
