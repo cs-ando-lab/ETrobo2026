@@ -20,6 +20,10 @@ private:
     // 青ゲートを検出するまでライントレースする
     // センターボタンで中断された場合はfalseを返す（呼び出し側はそこで走行を打ち切る）
     bool lineTraceUntilLap();
+
+    // ガレージエリアに向かう
+    // センターボタンで中断された場合はfalseを返す（呼び出し側はそこで走行を打ち切る）
+    bool moveTowardGarageArea();
 };
 
 #endif  // !GAMERUNNER_H_
