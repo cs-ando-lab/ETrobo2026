@@ -1,7 +1,6 @@
 #include "GameRunner.h"
 #include "Calibrator.h"
 #include "Tracer.h"
-#include "tasks/SumoTask.h"
 #include "tasks/DeliveryTask.h"
 #include "tasks/RallyTask.h"
 #include "tasks/test.h"
@@ -22,9 +21,9 @@ void GameRunner::run() {
     }
 
     // モード管理用の配列と変数
-    const char modeChars[] = { 'S', 'D', 'R', 'T' };
+    const char modeChars[] = { 'P', 'D', 'R', 'T' };
     const int MODE_MAX = 3;
-    int startMode = 0;  // 0:相撲(S), 1:デリバリー(D), 2:ラリー(R), 3:テスト(T)
+    int startMode = 0;  // 0:本番(P), 1:デリバリー(D), 2:ラリー(R), 3:テスト(T)
 
     // 試走会用のモード切替関数、汚いので今後捨てます
     robot.showChar(modeChars[startMode]);
@@ -61,11 +60,19 @@ void GameRunner::run() {
 
     // 2. LAPゲートまでライントレース → ET相撲
     if(startMode <= 0) {
-        if(!lineTraceUntilLap()) {
+        // LAPゲートまでライントレース
+        if(!lineTraceUntilLap())
             return;
-        }
-        SumoTask sumo(robot);
-        sumo.run();
+
+        // ボトルデリバリー
+        DeliveryTask delivery(robot);
+        delivery.run();
+
+        // ETラリー
+        RallyTask rally(robot);
+        rally.run();
+
+        // ガレージ入庫
     }
 
     // 3. LAPゲートまでライントレース → ボトルデリバリー
@@ -93,10 +100,6 @@ void GameRunner::run() {
         return;
     }
 
-    // 6. ゴール
-    if(!lineTraceUntilLap()) {
-        return;
-    }
     robot.stop();
 }
 
