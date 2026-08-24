@@ -50,30 +50,6 @@ namespace {
     constexpr int kWaveFoundPwmRight = 90;
     constexpr float kWaveFoundSec = 0.2f;
 
-    // 帰り: ラインを見つけた後、一定時間ライントレースしながら角度をサンプリングし、
-    // ソートして左右の外側を除いてから平均する（黄色はこの区間をスキップし、蛇行後すぐ左エッジ再開する）
-    constexpr float kReturnHeadingAverageSecBlue = 1.0f;
-    constexpr float kReturnHeadingAverageSecRed = 1.5f;
-    constexpr float kReturnHeadingAverageSecMax = kReturnHeadingAverageSecRed;  // サンプル配列のサイズ確保用（大きい方に合わせる）
-    constexpr int kReturnHeadingAverageLoopCountMax = static_cast<int>(kReturnHeadingAverageSecMax * 1000 * 1000 / Config::LINE_TRACE_POLL_INTERVAL_US);
-    constexpr int kReturnHeadingTrimNumerator = 1;
-    constexpr int kReturnHeadingTrimDenominator = 6;  // 左側(値が小さい方)からサンプルの1/6を除外する
-    constexpr int kReturnHeadingRightTrimNumerator = 1;
-    constexpr int kReturnHeadingRightTrimDenominator = 11;  // 右側(値が大きい方)からサンプルの1/11を除外する（左の半分程度）
-
-    // <algorithm>のstd::sortはRTOSのt_stddef.hと衝突してビルドできないため、自前の挿入ソートを使う。
-    // サンプル数は高々150程度なのでO(n^2)でも問題にならない。
-    void insertionSort(float* values, int count) {
-        for(int i = 1; i < count; i++) {
-            float key = values[i];
-            int j = i - 1;
-            while(j >= 0 && values[j] > key) {
-                values[j + 1] = values[j];
-                j--;
-            }
-            values[j + 1] = key;
-        }
-    }
 }  // namespace
 
 DeliveryTask::DeliveryTask(Robot& robot)
@@ -392,53 +368,6 @@ void DeliveryTask::run() {
     // 帰りの線探し（優先側はコース依存、反射率ベース）。色に関わらず共通。見つけた瞬間の0.2秒移動もこの中で行う
     syslog(LOG_NOTICE, "Waving to find line by reflection");
     waveUntilReflectionBelow(kWaveReflectionThreshold, Config::RUC_SWING_DEFAULT_DEG, kWavePwm, isLeftCourse);
-
-    // 黄色だけは、ここから先の角度サンプリングをスキップしてそのまま左エッジ再開する
-    if(bottleColor != ColorJudge::Color::YELLOW) {
-        // ラインを見つけた後、一定時間ライントレースしながら角度をサンプリングする。
-        // ソートして片側(Lコースなら左側=値が小さい方)を多め、反対側を少なめに切り捨ててから残りを平均する（トリム平均）。
-        // 青は短め(1.0秒)、赤は長め(1.5秒)の区間を使う
-        tracer.setEdge(isLeftCourse ? Tracer::Edge::LEFT : Tracer::Edge::RIGHT);
-        tracer.setPwm(kPostSlowTracePwm);
-
-        float headingAverageSec = (bottleColor == ColorJudge::Color::BLUE) ? kReturnHeadingAverageSecBlue : kReturnHeadingAverageSecRed;
-        int headingAverageLoopCount = static_cast<int>(headingAverageSec * 1000 * 1000 / Config::LINE_TRACE_POLL_INTERVAL_US);
-
-        float headingSamples[kReturnHeadingAverageLoopCountMax];
-        int headingSampleCount = 0;
-
-        for(int i = 0; i < headingAverageLoopCount; i++) {
-            if(robot.isCenterButtonPressed()) {
-                tracer.terminate();
-                return;
-            }
-
-            headingSamples[headingSampleCount++] = robot.getImuHeading();
-
-            tracer.run();
-            dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
-        }
-        tracer.terminate();
-
-        insertionSort(headingSamples, headingSampleCount);
-        // トリム比率はLコースで実測した左偏りを補正するために非対称にしたもの。Rコースでは鏡像の偏りになるはずなので、
-        // 大きく削る側(kReturnHeadingTrimNumerator/Denominator)と少なく削る側を左右入れ替える
-        int leftTrimCount = (isLeftCourse ? headingSampleCount * kReturnHeadingTrimNumerator / kReturnHeadingTrimDenominator
-                                          : headingSampleCount * kReturnHeadingRightTrimNumerator / kReturnHeadingRightTrimDenominator);
-        int rightTrimCount = (isLeftCourse ? headingSampleCount * kReturnHeadingRightTrimNumerator / kReturnHeadingRightTrimDenominator
-                                           : headingSampleCount * kReturnHeadingTrimNumerator / kReturnHeadingTrimDenominator);
-        float headingAverageSum = 0.0f;
-        int headingAverageSampleCount = 0;
-        for(int i = leftTrimCount; i < headingSampleCount - rightTrimCount; i++) {
-            headingAverageSum += headingSamples[i];
-            headingAverageSampleCount++;
-        }
-
-        float returnDiagonalStartHeading = headingAverageSum / headingAverageSampleCount;
-        robot.beep(50);  // 平均角度が取れた瞬間に短く鳴らす
-        syslog(LOG_NOTICE, "Trimmed average heading (%d/%d samples used): %d deg", headingAverageSampleCount, headingSampleCount, (int)returnDiagonalStartHeading);
-        // 試走会で不要と判断したため、平行角度への旋回・直進・右斜め移動は行わない。サンプリング結果はログ確認用のみに使う
-    }
 
     // 11. 左エッジでライントレースを再開
     syslog(LOG_NOTICE, "Resuming line trace on LEFT edge");
