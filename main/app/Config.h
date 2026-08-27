@@ -75,6 +75,11 @@ public:
     static constexpr uint8_t COLOR_CHROMATIC_MIN_SATURATION = 36;
     // 無彩色のとき、反射率がこれ未満なら黒、以上なら白（TRACER_TARGET_REFLECTIONと同じ考え方）
     static constexpr int COLOR_ACHROMATIC_REFLECTION_THRESHOLD = 60;
+    // 黒ライン上の暗い場面ではHue/Saturationの計算がノイズで不安定になり、彩度がCOLOR_CHROMATIC_MIN_SATURATIONを
+    // 超えて有彩色(例:青)に誤判定することがある。反射率または明度がこれ未満なら彩度に関わらず無彩色扱いにする
+    // (実測: 誤判定時は反射率13%・明度24。実際の有彩色は反射率50%・明度75以上あるため、この間の値を設定)
+    static constexpr int COLOR_DARK_REFLECTION_THRESHOLD = 20;
+    static constexpr int COLOR_DARK_VALUE_THRESHOLD = 30;
     static constexpr uint16_t COLOR_RED_HUE = 0;
     static constexpr uint16_t COLOR_YELLOW_HUE = 60;
     static constexpr uint16_t COLOR_GREEN_HUE = 120;
