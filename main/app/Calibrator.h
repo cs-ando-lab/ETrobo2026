@@ -18,6 +18,10 @@ private:
 
     // 左右ボタンでコースを選びながら、フォースセンサーが押されるまで待機する
     void selectCourseAndWaitForStart();
+
+    // 選択中のコースに応じて、コース文字と追従エッジの矢印を交互に表示する
+    // showArrow: falseならコース文字('L'/'R')、trueなら矢印を表示
+    void updateCourseDisplay(bool showArrow);
 };
 
 #endif  // !CALIBRATOR_H_
