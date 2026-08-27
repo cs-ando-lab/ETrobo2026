@@ -58,21 +58,21 @@ public:
     static constexpr int BEEP_DEFAULT_MS = 100;  // ビープ音のデフォルト再生時間[ms]
 
     // ── Tracer（ライントレース）───────────────────────────
-    static constexpr float TRACER_KP = 0.35f;                // 反射率PID制御の比例ゲイン
+    static constexpr float TRACER_KP = 0.38f;                // 反射率PID制御の比例ゲイン
     static constexpr float TRACER_KI = 0.01f;                // 反射率PID制御の積分ゲイン
-    static constexpr float TRACER_KD = 0.03f;                // 反射率PID制御の微分ゲイン
+    static constexpr float TRACER_KD = 0.02f;                // 反射率PID制御の微分ゲイン
     static constexpr int32_t TRACER_TARGET_REFLECTION = 60;  // 黒白の中間反射率
-    static constexpr int8_t TRACER_PWM = 80;                 // 基準パワー（直線区間での上限速度。カーブではここから動的に減速する）
+    static constexpr int8_t TRACER_PWM = 90;                 // 基準パワー（直線区間での上限速度。カーブではここから動的に減速する）
     // ─ カーブ減速 ─
     // |turn|が大きいほど基準パワーから減速する
-    static constexpr float TRACER_CURVE_DECEL_GAIN = 2.0f;     // |turn|1あたりの減速量[PWM]。turnとbasePwmは同スケール
+    static constexpr float TRACER_CURVE_DECEL_GAIN = 2.3f;     // |turn|1あたりの減速量[PWM]。turnとbasePwmは同スケール
     static constexpr float TRACER_CURVE_MIN_PWM_RATIO = 0.2f;  // basePwmに対する減速下限の割合(0〜1)。
     // 減速量算出用|turn|のEMA平滑化係数(0〜1、小さいほど滑らか)。LINE_TRACE_POLL_INTERVAL_USに合わせて調整する
-    static constexpr float TRACER_CURVE_TURN_FILTER_ALPHA = 0.035f;
+    static constexpr float TRACER_CURVE_TURN_FILTER_ALPHA = 0.05f;
 
     // ── ColorJudge（色判定）───────────────────────────────
     // 彩度がこれ未満なら無彩色(黒/白)とみなす（黒ラインが実測でS=22〜27前後のノイズが乗るため、それより高い値にする）
-    static constexpr uint8_t COLOR_CHROMATIC_MIN_SATURATION = 36;
+    static constexpr uint8_t COLOR_CHROMATIC_MIN_SATURATION = 40;
     // 無彩色のとき、反射率がこれ未満なら黒、以上なら白（TRACER_TARGET_REFLECTIONと同じ考え方）
     static constexpr int COLOR_ACHROMATIC_REFLECTION_THRESHOLD = 60;
     // 黒ライン上の暗い場面ではHue/Saturationの計算がノイズで不安定になり、彩度がCOLOR_CHROMATIC_MIN_SATURATIONを
@@ -90,7 +90,7 @@ public:
     // ── Pid（PID制御共通）─────────────────────────────────
     static constexpr float PID_INTEGRAL_LIMIT = 100.0f;  // 積分項の暴走を防ぐ上下限
     // 微分項のローパスフィルタ係数。LINE_TRACE_POLL_INTERVAL_USに合わせて調整する
-    static constexpr float PID_DERIVATIVE_FILTER_ALPHA = 0.15f;
+    static constexpr float PID_DERIVATIVE_FILTER_ALPHA = 0.10f;
 
     // ── Calibrator（起動準備）────────────────────────────
     static constexpr int CALIBRATOR_BLE_WAIT_US = 3 * 1000 * 1000;  // BLE接続待ち時間[us]
