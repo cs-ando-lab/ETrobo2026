@@ -91,6 +91,8 @@ public:
     static constexpr int CALIBRATOR_BLE_WAIT_US = 3 * 1000 * 1000;  // BLE接続待ち時間[us]
     static constexpr int CALIBRATOR_POLL_INTERVAL_US = 50 * 1000;   // ボタン確認周期[us]
     static constexpr int CALIBRATOR_BEEP_MS = 300;                  // 起動ビープの再生時間[ms]
+    // コース文字と追従エッジの矢印を切り替える周期(ポーリング周期の何回分か。実時間で約500ms間隔を維持する値)
+    static constexpr int CALIBRATOR_DISPLAY_TOGGLE_CYCLES = 10;
 
     // ── GameRunner（全体フロー）───────────────────────────
     static constexpr int LINE_TRACE_POLL_INTERVAL_US = 10 * 1000;  // ライントレースの制御周期[us]
