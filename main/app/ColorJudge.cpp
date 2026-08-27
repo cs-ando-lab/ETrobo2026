@@ -2,24 +2,24 @@
 #include <t_syslog.h>
 
 namespace {
-const char* colorName(ColorJudge::Color color) {
-    switch(color) {
-        case ColorJudge::Color::BLACK:
-            return "BLACK";
-        case ColorJudge::Color::WHITE:
-            return "WHITE";
-        case ColorJudge::Color::RED:
-            return "RED";
-        case ColorJudge::Color::GREEN:
-            return "GREEN";
-        case ColorJudge::Color::BLUE:
-            return "BLUE";
-        case ColorJudge::Color::YELLOW:
-            return "YELLOW";
-        default:
-            return "UNKNOWN";
+    const char* colorName(ColorJudge::Color color) {
+        switch(color) {
+            case ColorJudge::Color::BLACK:
+                return "BLACK";
+            case ColorJudge::Color::WHITE:
+                return "WHITE";
+            case ColorJudge::Color::RED:
+                return "RED";
+            case ColorJudge::Color::GREEN:
+                return "GREEN";
+            case ColorJudge::Color::BLUE:
+                return "BLUE";
+            case ColorJudge::Color::YELLOW:
+                return "YELLOW";
+            default:
+                return "UNKNOWN";
+        }
     }
-}
 }  // namespace
 
 int ColorJudge::hueDistance(uint16_t h1, uint16_t h2) {
