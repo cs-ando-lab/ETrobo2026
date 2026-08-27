@@ -1,5 +1,6 @@
 #include "GameRunner.h"
 #include "Calibrator.h"
+#include "CourseConfig.h"
 #include "Tracer.h"
 #include "tasks/DeliveryTask.h"
 #include "tasks/RallyTask.h"
@@ -106,6 +107,8 @@ void GameRunner::run() {
 
 bool GameRunner::lineTraceUntilLap() {
     Tracer tracer(robot);
+    // Rコースでは左右の走行体配置が反転するため、追従エッジも反転させる
+    tracer.setEdge(CourseConfig::isLeftCourse() ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT);
 
     const char* const TRACER_LABEL = "Tracer";
     const int TRACER_LABEL_LEN = 6; /* strlen(TRACER_LABEL) */
