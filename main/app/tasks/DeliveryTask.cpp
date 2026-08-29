@@ -46,9 +46,13 @@ namespace {
     constexpr float kCornerDoneTurnDeg = 70.0f;        // これだけ回って復帰できたら曲がりきったとみなし、以降の判定を止める
     constexpr float kCornerPivotMaxTurnDeg = 120.0f;   // 暴走を止める保険
     constexpr int kCornerPivotTimeoutLoopCount = 300;  // 保険その2（10ms周期なので3秒）
-    constexpr int kCornerSuppressAfterBlueMs = 600;      // 青を跨ぐとき脇の白を踏むため、青の上と直後は判定を止める
-    constexpr int kCornerSuppressAfterRecoveryMs = 1500;  // 復帰したが曲がりきってはいない場合、Tracerが掴み直す時間
+    constexpr int kCornerSuppressAfterBlueMs = 600;   // 青を跨ぐとき脇の白を踏むため、青の上と直後は判定を止める
+    constexpr int kCornerRetryAfterFailMs = 1500;     // 線を見つけられなかったときに次の検知まで置く間隔
+    constexpr int kCornerConfirmTimeoutMs = 1500;     // 線に復帰した後、Tracerが曲がりきるのを待つ上限
     constexpr int kReturnCornerDetectStartDelayMs = 500;  // 帰りの判定開始前に置く無効期間
+    constexpr int kCornerSuppressAfterBlueCount = (kCornerSuppressAfterBlueMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
+    constexpr int kCornerRetryAfterFailCount = (kCornerRetryAfterFailMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
+    constexpr int kCornerConfirmTimeoutCount = (kCornerConfirmTimeoutMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
 
     // ── エリア配置 ────────────────────────────────────
     constexpr int kDiagonalPwmHigh = 85;       // 斜め移動の外輪PWM
@@ -74,6 +78,9 @@ namespace {
 
     constexpr float kAreaTurnDeg = 70.0f;  // 後退後、帰りの線を探す向きへの旋回量
     constexpr int kAreaTurnPwm = 70;       // 両輪逆転のその場旋回PWM（ボトル配置済みなのでジャークは気にしない）
+    // IMUが動かなくなった場合に回り続けるのを防ぐ保険。実測は斜め移動600ms・その場旋回308ms
+    constexpr int kDiagonalTimeoutMs = 3000;
+    constexpr int kAreaTurnTimeoutMs = 2000;
 
     // ── 帰りの線探し ──────────────────────────────────
     // 色判定ではなく反射率で判定する（TRACER_TARGET_REFLECTIONとCOLOR_ACHROMATIC_REFLECTION_THRESHOLDが
@@ -99,10 +106,16 @@ void DeliveryTask::diagonalMoveUntilImuTurn(bool isOuterLeft, int outerPwm, floa
     const int rampStageCount = static_cast<int>(sizeof(kDiagonalRampPwms) / sizeof(kDiagonalRampPwms[0]));
     const int innerStageCount = static_cast<int>(sizeof(kAreaDiagonalInnerPwms) / sizeof(kAreaDiagonalInnerPwms[0]));
 
+    const int timeoutLoopCount = (kDiagonalTimeoutMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
+
     int loopCount = 0;
     float turnedDeg = 0.0f;
     while(turnedDeg < turnDeg) {
         if(robot.isCenterButtonPressed()) {
+            break;
+        }
+        if(loopCount >= timeoutLoopCount) {
+            syslog(LOG_NOTICE, "STOP[diagonalMoveUntilImuTurn]: TIMEOUT");
             break;
         }
 
@@ -171,27 +184,35 @@ void DeliveryTask::driveStraightWithDutyLimit(int distanceMm, int speedDegPerSec
 
 // 両輪を逆向きに回してその場で旋回する。turnByImu(閉ループ)より速く回せる
 void DeliveryTask::turnInPlaceByImu(int leftPwm, int rightPwm, float turnDeg) {
+    const int timeoutLoopCount = (kAreaTurnTimeoutMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
+
     float startHeading = robot.getImuHeading();
+    int loopCount = 0;
     while(std::fabs(robot.getImuHeading() - startHeading) < turnDeg) {
         if(robot.isCenterButtonPressed()) {
             break;
         }
+        if(loopCount >= timeoutLoopCount) {
+            syslog(LOG_NOTICE, "STOP[turnInPlaceByImu]: TIMEOUT");
+            break;
+        }
         robot.setMotorPower(leftPwm, rightPwm);
         dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+        loopCount++;
     }
     robot.stop();
 }
 
 // 帰りの線探し。片輪ピボットのまま反射率で線を見つけるまで回し続ける。
 // 左右交互の蛇行だと、振り戻しで一度ライン上に来ても行き過ぎて見失うため一方向にした
-void DeliveryTask::pivotUntilReflectionBelow(int reflectionThreshold, int pwm, bool isRightTurn) {
+bool DeliveryTask::pivotUntilReflectionBelow(int reflectionThreshold, int pwm, bool isRightTurn) {
     float startHeading = robot.getImuHeading();
     int loopCount = 0;
 
     while(std::fabs(robot.getImuHeading() - startHeading) < kSearchMaxTurnDeg) {
         if(robot.isCenterButtonPressed()) {
             robot.stop();
-            return;
+            return false;
         }
 
         int reflection = robot.getReflection();
@@ -210,7 +231,7 @@ void DeliveryTask::pivotUntilReflectionBelow(int reflectionThreshold, int pwm, b
                 dly_tsk(Config::MOTION_POLL_INTERVAL_US);
             }
             robot.stop();
-            return;
+            return true;
         }
 
         if(loopCount >= kSearchTimeoutLoopCount) {
@@ -224,6 +245,7 @@ void DeliveryTask::pivotUntilReflectionBelow(int reflectionThreshold, int pwm, b
     }
     robot.stop();
     syslog(LOG_NOTICE, "STOP[pivotUntilReflectionBelow]: line not found");
+    return false;
 }
 
 // 直角コーナー用。内輪を落として旋回し、線を見つけた時点で止まる。
@@ -238,6 +260,13 @@ bool DeliveryTask::pivotUntilLineFound(bool isLeftTurn, int outerPwm, int innerP
     //  正しく曲がれたときは白の上を通過してから反射率17〜18の真っ黒で終了している）
     bool seenWhiteAfterGate = false;
     turnedDegOut = 0.0f;
+
+    // 以下は診断専用。制御には一切使わず、旋回が終わったときに一度だけまとめて出す
+    // （周期ごとにログを出すと制御周期が伸びるうえ、以前カウンタを制御と共用して挙動を壊したことがある）
+    int firstWhiteAfterGateDeg = -1;  // ゲート後に初めて白を読んだ角度
+    int minReflectionAfterGate = 101;
+    int minReflectionAtDeg = -1;
+    int maxBlackRun = 0;
 
     for(int loopCount = 0; loopCount < kCornerPivotTimeoutLoopCount; loopCount++) {
         if(robot.isCenterButtonPressed()) {
@@ -258,15 +287,30 @@ bool DeliveryTask::pivotUntilLineFound(bool isLeftTurn, int outerPwm, int innerP
             seenWhiteAfterGate = true;
         }
 
+        if(turnedDeg >= minTurnDeg) {
+            if(firstWhiteAfterGateDeg < 0 && reflection >= kCornerWhiteReflection) {
+                firstWhiteAfterGateDeg = static_cast<int>(turnedDeg);
+            }
+            if(reflection < minReflectionAfterGate) {
+                minReflectionAfterGate = reflection;
+                minReflectionAtDeg = static_cast<int>(turnedDeg);
+            }
+        }
+        if(blackRun > maxBlackRun) {
+            maxBlackRun = blackRun;
+        }
+
         if(seenWhiteAfterGate && blackRun >= kCornerPivotBlackRunCount) {
             robot.stop();
             syslog(LOG_NOTICE, "Pivot done: line found (reflection %d, turned %d deg)", reflection, (int)turnedDeg);
+        syslog(LOG_NOTICE, "Pivot stats: firstWhite %d deg, minRefl %d @ %d deg, maxBlackRun %d", firstWhiteAfterGateDeg, minReflectionAfterGate, minReflectionAtDeg, maxBlackRun);
             return true;
         }
 
         if(turnedDeg >= maxTurnDeg) {
             robot.stop();
             syslog(LOG_NOTICE, "STOP[pivotUntilLineFound]: MAX_TURN (reflection %d)", reflection);
+        syslog(LOG_NOTICE, "Pivot stats: firstWhite %d deg, minRefl %d @ %d deg, maxBlackRun %d", firstWhiteAfterGateDeg, minReflectionAfterGate, minReflectionAtDeg, maxBlackRun);
             return false;
         }
 
@@ -298,17 +342,17 @@ bool DeliveryTask::pivotUntilLineFound(bool isLeftTurn, int outerPwm, int innerP
 
     robot.stop();
     syslog(LOG_NOTICE, "STOP[pivotUntilLineFound]: TIMEOUT");
+    syslog(LOG_NOTICE, "Pivot stats: firstWhite %d deg, minRefl %d @ %d deg, maxBlackRun %d", firstWhiteAfterGateDeg, minReflectionAfterGate, minReflectionAtDeg, maxBlackRun);
     return false;
 }
 
 // コーナーを検知した後の旋回。線を捕まえ直し、失敗したら逆へ振り戻す。行き（左折）と帰り（右折）で共用する。
-// 戻り値: 曲がりきったか。recoveredOutは、曲がりきってはいないが線には復帰したか
-bool DeliveryTask::turnAtCorner(bool isLeftTurn, bool& recoveredOut) {
+// 完了判定は「正方向の旋回量 - 振り戻し量」ではなく、startHeadingからの実方位差で行う。
+// 正方向と振り戻しでは軸にする車輪が変わって旋回中心が別物になるうえ、停止後の惰性も引き算には入らないため
+DeliveryTask::CornerResult DeliveryTask::turnAtCorner(bool isLeftTurn, float startHeading) {
     float pivotTurnedDeg = 0.0f;
     bool lineFound = pivotUntilLineFound(isLeftTurn, kCornerPivotOuterPwm, kCornerPivotInnerPwm, kCornerPivotMinTurnDeg, kCornerPivotMaxTurnDeg, pivotTurnedDeg);
 
-    // 正味の回転量。振り戻した場合は逆向きなので差し引く
-    float netTurnedDeg = pivotTurnedDeg;
     bool sweepBackFoundLine = false;
     if(!lineFound) {
         // 回りすぎて通り過ぎたか、そもそも線が無い方向だった。
@@ -316,23 +360,95 @@ bool DeliveryTask::turnAtCorner(bool isLeftTurn, bool& recoveredOut) {
         syslog(LOG_NOTICE, "Pivot failed. Sweeping back the other way.");
         float sweepBackTurnedDeg = 0.0f;
         sweepBackFoundLine = pivotUntilLineFound(!isLeftTurn, kCornerPivotOuterPwm, kCornerPivotInnerPwm, 0.0f, kCornerPivotMaxTurnDeg * 2.0f, sweepBackTurnedDeg);
-        netTurnedDeg = pivotTurnedDeg - sweepBackTurnedDeg;
-        syslog(LOG_NOTICE, "Sweep back %s (turned %d deg, net %d deg)", sweepBackFoundLine ? "found line" : "FAILED", (int)sweepBackTurnedDeg, (int)netTurnedDeg);
+        syslog(LOG_NOTICE, "Sweep back %s (turned %d deg)", sweepBackFoundLine ? "found line" : "FAILED", (int)sweepBackTurnedDeg);
     }
-    recoveredOut = sweepBackFoundLine;
 
-    // 正味で大きく回ってラインに復帰できた＝本物の90度カーブを曲がりきった。
-    // 振り戻しで復帰した場合も正味の回転量で判断する（振り戻しには最低旋回角のゲートが無く、
-    // 元の線を掴んでいる可能性があるため、「線を見つけた」だけでは曲がりきった証拠にならない）
-    if((lineFound || sweepBackFoundLine) && netTurnedDeg >= kCornerDoneTurnDeg) {
-        syslog(LOG_NOTICE, "Corner cleared (net %d deg).", (int)netTurnedDeg);
-        return true;
+    if(!lineFound && !sweepBackFoundLine) {
+        return CornerResult::FAILED;
     }
-    if(sweepBackFoundLine) {
-        // 線には乗ったが曲がりきってはいない
-        syslog(LOG_NOTICE, "Recovered onto line but corner not cleared (net %d deg).", (int)netTurnedDeg);
+
+    float turnedDeg = std::fabs(robot.getImuHeading() - startHeading);
+    return (turnedDeg >= kCornerDoneTurnDeg) ? CornerResult::CLEARED : CornerResult::REACQUIRED;
+}
+
+// コーナー検知の1周期分。ライントレースのループから毎周期呼ぶ。
+// 行き・帰りで状態を別に持つだけで、判定そのものは共通
+void DeliveryTask::updateCornerDetection(CornerState& state, bool isLeftTurn, Tracer& tracer, bool isOnBlue, const char* label) {
+    if(state.done) {
+        return;
     }
-    return false;
+
+    state.loopCount++;
+    if(state.suppressCount > 0) {
+        state.suppressCount--;
+    }
+    // 青ラインを跨ぐときは脇の白を踏んで誤検知するため抑制する
+    if(isOnBlue) {
+        state.suppressCount = kCornerSuppressAfterBlueCount;
+    }
+
+    if(state.pending && state.loopCount >= state.enableLoop) {
+        state.pending = false;
+        state.enabled = true;
+        syslog(LOG_NOTICE, "%s detection ENABLED.", label);
+    }
+
+    // 線には復帰したが曲がりきってはいない状態。残りはTracerに任せ、方位が届いたら完了とする
+    if(state.confirming) {
+        float turnedDeg = std::fabs(robot.getImuHeading() - state.startHeading);
+        if(turnedDeg >= kCornerDoneTurnDeg) {
+            state.confirming = false;
+            state.done = true;
+            tracer.setPwm(Config::TRACER_PWM);
+            syslog(LOG_NOTICE, "%s cleared by tracer (%d deg). Detection DISABLED.", label, (int)turnedDeg);
+        } else if(state.loopCount >= state.confirmDeadlineLoop) {
+            // 曲がりきれていない。検知を戻してやり直させる
+            state.confirming = false;
+            state.enabled = true;
+            state.whiteRun = 0;
+            syslog(LOG_NOTICE, "%s NOT cleared after wait (%d deg). Re-arming.", label, (int)turnedDeg);
+        }
+        return;
+    }
+
+    if(!state.enabled || state.suppressCount > 0) {
+        return;
+    }
+
+    int reflection = robot.getReflection();
+    if(reflection >= kCornerWhiteReflection) {
+        state.whiteRun++;
+    } else {
+        state.whiteRun = 0;
+    }
+    if(state.whiteRun < kCornerWhiteRunCount) {
+        return;
+    }
+
+    syslog(LOG_NOTICE, "%s detected (reflection %d). Pivoting.", label, reflection);
+    state.whiteRun = 0;
+    state.startHeading = robot.getImuHeading();
+    state.suppressCount = kCornerSuppressAfterBlueCount;
+
+    CornerResult result = turnAtCorner(isLeftTurn, state.startHeading);
+    float turnedDeg = std::fabs(robot.getImuHeading() - state.startHeading);
+
+    if(result == CornerResult::CLEARED) {
+        // カーブは1周に1つしかないので、通過後の検知は誤検知のリスクにしかならない
+        state.enabled = false;
+        state.done = true;
+        tracer.setPwm(Config::TRACER_PWM);
+        syslog(LOG_NOTICE, "%s cleared (%d deg). Detection DISABLED.", label, (int)turnedDeg);
+    } else if(result == CornerResult::REACQUIRED) {
+        state.enabled = false;
+        state.confirming = true;
+        state.confirmDeadlineLoop = state.loopCount + kCornerConfirmTimeoutCount;
+        syslog(LOG_NOTICE, "%s reacquired line (%d deg). Waiting for tracer.", label, (int)turnedDeg);
+    } else {
+        // 線を見つけられなかった。間隔を置いてから再挑戦させる
+        state.suppressCount = kCornerRetryAfterFailCount;
+        syslog(LOG_NOTICE, "%s pivot FAILED (%d deg). Retrying later.", label, (int)turnedDeg);
+    }
 }
 
 void DeliveryTask::run() {
@@ -347,18 +463,17 @@ void DeliveryTask::run() {
     Tracer tracer(robot);
     tracer.setEdge(isLeftCourse ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT);
     tracer.setPwm(kApproachPwm);
-    bool hasBeeped = false;
 
     // 1. ライントレースしながらボトルに近づく（この間、ラインに正対した基準角度をIMUで平均して求めておく）
     float headingSum = 0.0f;
     int headingSampleCount = 0;
     while(true) {
-        int currentDistance = robot.getUltrasonicDistance();
-
-        if(!hasBeeped && currentDistance > 0 && currentDistance < 150) {
-            robot.beep(100);
-            hasBeeped = true;
+        if(robot.isCenterButtonPressed()) {  // センターボタンで安全停止
+            tracer.terminate();
+            return;
         }
+
+        int currentDistance = robot.getUltrasonicDistance();
 
         if(currentDistance > 0 && currentDistance <= Config::DELIVERY_TARGET_DISTANCE_MM) {
             tracer.terminate();
@@ -449,7 +564,6 @@ void DeliveryTask::run() {
 
     // 8. 1秒経過したら、通常速度に戻してライントレースを継続
     syslog(LOG_NOTICE, "1 second passed. Switching to TRACER_PWM.");
-    robot.beep(50);  // 速度切り替わりの合図
     tracer.setPwm(kPostSlowTracePwm);
 
     // 9. 指定回数青ラインを検知するまでライントレース
@@ -468,16 +582,8 @@ void DeliveryTask::run() {
     int bluePassedConfirmCount = (kBluePassedConfirmMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
 
     // 直角コーナー対策の状態。青1本目通過後の80度旋回から1秒経ったら有効化する
-    bool cornerDetectPending = false;
-    bool cornerDetectEnabled = false;
-    bool cornerDone = false;  // 曲がりきったら立てる。以降は判定を一切行わない
-    int cornerWhiteRun = 0;
-    int cornerSuppressCount = 0;  // 0より大きい間はコーナー検知を止める
-    int traceLoopCount = 0;
-    int cornerDetectEnableLoop = 0;
+    CornerState outboundCorner;
     const int cornerDetectStartDelayCount = (kCornerDetectStartDelayMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
-    const int cornerSuppressAfterBlueCount = (kCornerSuppressAfterBlueMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
-    const int cornerSuppressAfterRecoveryCount = (kCornerSuppressAfterRecoveryMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
 
     while(true) {
         if(robot.isCenterButtonPressed()) {
@@ -495,7 +601,6 @@ void DeliveryTask::run() {
 
                 // 青を読んだ瞬間にカウントアップ！
                 detectedBlueCount++;
-                robot.beep(100);
                 syslog(LOG_NOTICE, "Entered blue line. Count: %d / %d", detectedBlueCount, targetBlueLineCount);
                 if(detectedBlueCount == 1) {
                     // 仮実装（計測用）: 青1本目の上に乗っている間（判定しなくなるまで）は速度を落とす
@@ -535,58 +640,14 @@ void DeliveryTask::run() {
 
                     // この先に90度カーブがある。旋回直後は姿勢が乱れていて誤検知するので、
                     // 1秒トレースしてから判定を有効化する
-                    cornerDetectPending = true;
-                    cornerDetectEnableLoop = traceLoopCount + cornerDetectStartDelayCount;
+                    outboundCorner.pending = true;
+                    outboundCorner.enableLoop = outboundCorner.loopCount + cornerDetectStartDelayCount;
                 }
             }
         }
 
-        // 直角コーナーで線を見失ったら、その場で旋回して線を捕まえ直す。
-        // 青ライン上とその直後は、脇の白を踏んで誤検知するため抑制する
-        // （誤検知したまま旋回すると致命的なので必須）
-        traceLoopCount++;
-        if(cornerSuppressCount > 0) {
-            cornerSuppressCount--;
-        }
-        if(isCurrentlyOnBlue) {
-            cornerSuppressCount = cornerSuppressAfterBlueCount;
-        }
-        if(cornerDetectPending && !cornerDone && traceLoopCount >= cornerDetectEnableLoop) {
-            cornerDetectPending = false;
-            cornerDetectEnabled = true;
-            syslog(LOG_NOTICE, "Corner detection ENABLED.");
-        }
-
-        if(cornerDetectEnabled && cornerSuppressCount == 0) {
-            int cornerReflection = robot.getReflection();
-            if(cornerReflection >= kCornerWhiteReflection) {
-                cornerWhiteRun++;
-            } else {
-                cornerWhiteRun = 0;
-            }
-
-            if(cornerWhiteRun >= kCornerWhiteRunCount) {
-                syslog(LOG_NOTICE, "Corner detected (reflection %d). Pivoting.", cornerReflection);
-
-                // Lコースでは左90度コーナーなので左へ回す
-                bool recoveredOntoLine = false;
-                bool cornerCleared = turnAtCorner(isLeftCourse, recoveredOntoLine);
-
-                cornerWhiteRun = 0;
-                cornerSuppressCount = cornerSuppressAfterBlueCount;
-
-                if(cornerCleared) {
-                    // カーブは1つしかないので、通過後の検知は誤検知のリスクにしかならない
-                    cornerDone = true;
-                    cornerDetectEnabled = false;
-                    tracer.setPwm(Config::TRACER_PWM);
-                    syslog(LOG_NOTICE, "Corner detection DISABLED, back to normal trace.");
-                } else if(recoveredOntoLine) {
-                    // すぐ再検知すると連鎖するので、Tracerに掴み直す時間を与える
-                    cornerSuppressCount = cornerSuppressAfterRecoveryCount;
-                }
-            }
-        }
+        // Lコースでは左90度コーナーなので左へ回す
+        updateCornerDetection(outboundCorner, isLeftCourse, tracer, isCurrentlyOnBlue, "Corner");
 
         // 青ライン上でも関係なく通常のライントレースを継続
         tracer.run();
@@ -612,7 +673,12 @@ void DeliveryTask::run() {
 
     // 帰りの線探し（旋回方向はコース依存、反射率ベース）。見つけた瞬間の踏み込みもこの中で行う
     syslog(LOG_NOTICE, "Pivoting to find line by reflection");
-    pivotUntilReflectionBelow(kSearchReflectionThreshold, kSearchPwm, isLeftCourse);
+    if(!pivotUntilReflectionBelow(kSearchReflectionThreshold, kSearchPwm, isLeftCourse)) {
+        // 線が無い場所でTracerを起動すると白の上を暴走するだけなので、ここで打ち切る
+        syslog(LOG_NOTICE, "Line search FAILED. Aborting return trip.");
+        robot.stop();
+        return;
+    }
 
     // 11. 左エッジでライントレースを再開
     syslog(LOG_NOTICE, "Resuming line trace on LEFT edge");
@@ -636,13 +702,9 @@ void DeliveryTask::run() {
     // finalTargetBlueLineCount - 1 本目の通過で揃う（黄=0本＝トレース開始直後 / 青=1本目 / 赤=2本目）
     const int returnCornerAfterBlueCount = finalTargetBlueLineCount - 1;
     const int returnCornerStartDelayCount = (kReturnCornerDetectStartDelayMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
-    bool returnCornerPending = (returnCornerAfterBlueCount <= 0);
-    bool returnCornerEnabled = false;
-    bool returnCornerDone = false;  // 帰りもカーブは1つだけなので、曲がりきったら二度と判定しない
-    int returnCornerWhiteRun = 0;
-    int returnCornerSuppressCount = 0;
-    int returnTraceLoopCount = 0;
-    int returnCornerEnableLoop = returnCornerStartDelayCount;
+    CornerState returnCorner;
+    returnCorner.pending = (returnCornerAfterBlueCount <= 0);  // 黄はトレース開始直後から数え始める
+    returnCorner.enableLoop = returnCornerStartDelayCount;
 
     while(!robot.isCenterButtonPressed()) {
         if(!isCurrentlyOnFinalBlue) {
@@ -653,7 +715,6 @@ void DeliveryTask::run() {
                 finalMatchedNonBlueCount = 0;  // 青以外カウントをリセット
 
                 finalDetectedBlueCount++;
-                robot.beep(100);
                 syslog(LOG_NOTICE, "Entered blue line. Count: %d / %d", finalDetectedBlueCount, finalTargetBlueLineCount);
 
                 if(finalDetectedBlueCount >= finalTargetBlueLineCount) {
@@ -678,55 +739,15 @@ void DeliveryTask::run() {
                 syslog(LOG_NOTICE, "Passed blue line!");
 
                 // 目的の本数を通過し終えたら、無効期間を置いてからコーナー判定を始める
-                if(!returnCornerDone && returnCornerAfterBlueCount > 0 && finalDetectedBlueCount == returnCornerAfterBlueCount) {
-                    returnCornerPending = true;
-                    returnCornerEnableLoop = returnTraceLoopCount + returnCornerStartDelayCount;
+                if(!returnCorner.done && returnCornerAfterBlueCount > 0 && finalDetectedBlueCount == returnCornerAfterBlueCount) {
+                    returnCorner.pending = true;
+                    returnCorner.enableLoop = returnCorner.loopCount + returnCornerStartDelayCount;
                 }
             }
         }
 
-        // 帰りの直角コーナー判定。青ライン上とその直後は脇の白を踏んで誤検知するため抑制する
-        returnTraceLoopCount++;
-        if(returnCornerSuppressCount > 0) {
-            returnCornerSuppressCount--;
-        }
-        if(isCurrentlyOnFinalBlue) {
-            returnCornerSuppressCount = cornerSuppressAfterBlueCount;
-        }
-        if(returnCornerPending && !returnCornerDone && returnTraceLoopCount >= returnCornerEnableLoop) {
-            returnCornerPending = false;
-            returnCornerEnabled = true;
-            syslog(LOG_NOTICE, "Return corner detection ENABLED.");
-        }
-
-        if(returnCornerEnabled && returnCornerSuppressCount == 0) {
-            int cornerReflection = robot.getReflection();
-            if(cornerReflection >= kCornerWhiteReflection) {
-                returnCornerWhiteRun++;
-            } else {
-                returnCornerWhiteRun = 0;
-            }
-
-            if(returnCornerWhiteRun >= kCornerWhiteRunCount) {
-                syslog(LOG_NOTICE, "Return corner detected (reflection %d). Pivoting.", cornerReflection);
-
-                // 帰りはLコースで右90度コーナーなので、行きとは逆の右へ回す
-                bool recoveredOntoLine = false;
-                bool cornerCleared = turnAtCorner(!isLeftCourse, recoveredOntoLine);
-
-                returnCornerWhiteRun = 0;
-                returnCornerSuppressCount = cornerSuppressAfterBlueCount;
-
-                if(cornerCleared) {
-                    returnCornerDone = true;
-                    returnCornerEnabled = false;
-                    tracer.setPwm(Config::TRACER_PWM);
-                    syslog(LOG_NOTICE, "Return corner detection DISABLED, back to normal trace.");
-                } else if(recoveredOntoLine) {
-                    returnCornerSuppressCount = cornerSuppressAfterRecoveryCount;
-                }
-            }
-        }
+        // 帰りはLコースで右90度コーナーなので、行きとは逆の右へ回す
+        updateCornerDetection(returnCorner, !isLeftCourse, tracer, isCurrentlyOnFinalBlue, "Return corner");
 
         tracer.run();
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);

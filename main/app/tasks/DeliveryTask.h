@@ -4,6 +4,8 @@
 #include "Robot.h"
 #include "Motor.h"  // ▼ アームのモーターを引数で渡すために追加！
 
+class Tracer;
+
 using namespace spikeapi;
 
 /**
@@ -16,6 +18,27 @@ public:
 
 private:
     Robot& robot;
+
+    // コーナー旋回の結果。「線を見つけたか」だけでは曲がりきったか判断できないため3状態にする
+    enum class CornerResult {
+        CLEARED,     // 線を発見し、検知時からの方位差が完了角度以上
+        REACQUIRED,  // 線には復帰したが、まだ完了角度に届いていない
+        FAILED       // 正方向・振り戻しとも線を発見できなかった
+    };
+
+    // 直角コーナー検知の状態。行きと帰りで1つずつ持ち、互いに干渉させない
+    struct CornerState {
+        bool pending = false;     // 有効化待ち
+        bool enabled = false;     // 白の連続を数えている
+        bool confirming = false;  // 線には復帰した。Tracerが残りを曲がりきるのを待っている
+        bool done = false;        // 曲がりきった。以降は一切判定しない
+        int whiteRun = 0;
+        int suppressCount = 0;
+        int loopCount = 0;
+        int enableLoop = 0;
+        int confirmDeadlineLoop = 0;
+        float startHeading = 0.0f;  // コーナーを検知した時点の方位
+    };
 
     // ▼ アーム操作用の関数（モーターを受け取るように変更） ▼
     void lowerArm(Motor& armMotor);
@@ -35,8 +58,8 @@ private:
     void turnInPlaceByImu(int leftPwm, int rightPwm, float turnDeg);
 
     // 帰りの線探し。色判定(isOnColors)ではなく反射率のしきい値判定で、片輪ピボットのまま回し続ける。
-    // isRightTurnがtrueなら右旋回、falseなら左旋回（Rコース用に反転）
-    void pivotUntilReflectionBelow(int reflectionThreshold, int pwm, bool isRightTurn);
+    // isRightTurnがtrueなら右旋回、falseなら左旋回（Rコース用に反転）。戻り値: 線を見つけられたか
+    bool pivotUntilReflectionBelow(int reflectionThreshold, int pwm, bool isRightTurn);
 
     // 直角コーナー用。内輪を落として旋回し、線を見つけたら止まる。
     // minTurnDegまでは線を見つけても無視する（元の線を掴むのを防ぐ。探索用途では0を渡す）。
@@ -44,8 +67,12 @@ private:
     bool pivotUntilLineFound(bool isLeftTurn, int outerPwm, int innerPwm, float minTurnDeg, float maxTurnDeg, float& turnedDegOut);
 
     // コーナー検知後の旋回。行き（左折）と帰り（右折）で共用する。
-    // 戻り値: 曲がりきったか。recoveredOutは、曲がりきってはいないが線には復帰したか
-    bool turnAtCorner(bool isLeftTurn, bool& recoveredOut);
+    // 完了判定にはstartHeading（検知時の方位）からの実方位差を使う
+    CornerResult turnAtCorner(bool isLeftTurn, float startHeading);
+
+    // コーナー検知の1周期分の更新。ライントレースのループから毎周期呼ぶ。
+    // labelはログの接頭辞（行き/帰りの区別用）
+    void updateCornerDetection(CornerState& state, bool isLeftTurn, Tracer& tracer, bool isOnBlue, const char* label);
 };
 
 #endif  // !DELIVERYTASK_H_
