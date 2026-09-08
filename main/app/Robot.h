@@ -1,6 +1,7 @@
 #ifndef ROBOT_H_
 #define ROBOT_H_
 
+#include <cstdint>
 #include "Motor.h"
 #include "ColorSensor.h"
 #include "UltrasonicSensor.h"
@@ -115,6 +116,7 @@ public:
 
     // ── HMI ──────────────────────────────────────────
     void showChar(char c);                        // ディスプレイに1文字表示
+    void showImage(const uint8_t image[25]);      // ディスプレイに5x5の輝度パターン(0～100)を表示
     void off();                                   // ディスプレイを消灯
     void beep(int ms = Config::BEEP_DEFAULT_MS);  // ビープ音
 

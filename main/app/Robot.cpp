@@ -515,6 +515,15 @@ void Robot::showChar(char c) {
     display.showChar(c);
 }
 
+void Robot::showImage(const uint8_t image[25]) {
+    // Display::setImageはuint8_t*を要求するため、渡された配列をコピーして使う
+    uint8_t buffer[25];
+    for(int i = 0; i < 25; i++) {
+        buffer[i] = image[i];
+    }
+    display.setImage(buffer);
+}
+
 void Robot::off() {
     display.off();
 }

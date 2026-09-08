@@ -6,6 +6,7 @@
       "type": "float",
       "value": 28.0,
       "category": "機体の寸法",
+      "subcategory": "その他",
       "description": "ホイール半径[mm]"
     },
     {
@@ -13,6 +14,7 @@
       "type": "float",
       "value": 112.0,
       "category": "機体の寸法",
+      "subcategory": "その他",
       "description": "左右ホイール間の距離[mm]"
     },
     {
@@ -20,6 +22,7 @@
       "type": "float",
       "value": 3.14159,
       "category": "機体の寸法",
+      "subcategory": "その他",
       "description": ""
     },
     {
@@ -27,13 +30,23 @@
       "type": "float",
       "value": 40.0,
       "category": "機体の寸法",
+      "subcategory": "その他",
       "description": "[mm] カラーセンサーからホイール軸までの距離（概数）"
+    },
+    {
+      "name": "BLUE_LINE_LENGTH_MM",
+      "type": "float",
+      "value": 100.0,
+      "category": "コースの寸法（青ラインの長さを基準とし、その比率で算出）",
+      "subcategory": "その他",
+      "description": "[mm] 青ラインの長さ ... 基準"
     },
     {
       "name": "DRIVE_DEFAULT_SPEED_DEG_PER_SEC",
       "type": "int",
       "value": 300,
       "category": "Robot: 走行機能",
+      "subcategory": "driveStraight",
       "description": "直進の既定速度[°/秒]"
     },
     {
@@ -41,13 +54,47 @@
       "type": "int",
       "value": 2000,
       "category": "Robot: 走行機能",
+      "subcategory": "driveStraight",
       "description": "直進のタイムアウト(周期の回数)"
+    },
+    {
+      "name": "DRIVE_IMU_DECEL_DISTANCE_MM",
+      "type": "float",
+      "value": 100.0,
+      "category": "Robot: 走行機能",
+      "subcategory": "driveStraight",
+      "description": "停止前に減速を始める残距離[mm]"
+    },
+    {
+      "name": "DRIVE_IMU_MIN_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 150,
+      "category": "Robot: 走行機能",
+      "subcategory": "driveStraight",
+      "description": "減速中の最低速度[°/秒]"
+    },
+    {
+      "name": "DRIVE_IMU_HEADING_KP",
+      "type": "float",
+      "value": 4.0,
+      "category": "Robot: 走行機能",
+      "subcategory": "driveStraight",
+      "description": "heading誤差に対する比例ゲイン[(°/秒)/°]"
+    },
+    {
+      "name": "DRIVE_IMU_MAX_CORRECTION_RATIO",
+      "type": "float",
+      "value": 0.5,
+      "category": "Robot: 走行機能",
+      "subcategory": "driveStraight",
+      "description": "基準速度に対する左右速度補正の上限割合"
     },
     {
       "name": "TURN_DEFAULT_SPEED_DEG_PER_SEC",
       "type": "int",
       "value": 300,
       "category": "Robot: 走行機能",
+      "subcategory": "turn",
       "description": "旋回の既定速度[°/秒]"
     },
     {
@@ -55,13 +102,15 @@
       "type": "int",
       "value": 500,
       "category": "Robot: 走行機能",
+      "subcategory": "turn",
       "description": "旋回のタイムアウト(周期の回数)"
     },
     {
       "name": "TURN_IMU_STOP_TOLERANCE_DEG",
       "type": "float",
-      "value": 0.5,
+      "value": 0.3,
       "category": "Robot: 走行機能",
+      "subcategory": "turn",
       "description": "IMU旋回の停止許容誤差[°]"
     },
     {
@@ -69,6 +118,7 @@
       "type": "float",
       "value": 4.0,
       "category": "Robot: 走行機能",
+      "subcategory": "turn",
       "description": "IMU旋回の比例ゲイン"
     },
     {
@@ -76,6 +126,7 @@
       "type": "int",
       "value": 80,
       "category": "Robot: 走行機能",
+      "subcategory": "turn",
       "description": "IMU旋回の最低速度[°/秒]"
     },
     {
@@ -83,6 +134,7 @@
       "type": "int",
       "value": 300,
       "category": "Robot: 走行機能",
+      "subcategory": "runUntilColor",
       "description": "既定速度[°/秒]"
     },
     {
@@ -90,6 +142,7 @@
       "type": "int",
       "value": 50,
       "category": "Robot: 走行機能",
+      "subcategory": "runUntilColor",
       "description": "蛇行/最大旋回回数"
     },
     {
@@ -97,6 +150,7 @@
       "type": "float",
       "value": 50.0,
       "category": "Robot: 走行機能",
+      "subcategory": "runUntilColor",
       "description": "蛇行/1旋回における旋回角度[°]"
     },
     {
@@ -104,6 +158,7 @@
       "type": "int",
       "value": 500,
       "category": "Robot: 走行機能",
+      "subcategory": "runUntilColor",
       "description": "蛇行/1旋回におけるタイムアウト(周期の回数)"
     },
     {
@@ -111,6 +166,7 @@
       "type": "int",
       "value": 10000,
       "category": "Robot: 走行機能",
+      "subcategory": "共通",
       "description": "直進・旋回・蛇行中のエンコーダー確認周期[us]"
     },
     {
@@ -118,6 +174,7 @@
       "type": "int",
       "value": 1000,
       "category": "Robot: 走行機能",
+      "subcategory": "turnByImuUntilUltrasonic",
       "description": "超音波センサの確認周期[us]"
     },
     {
@@ -125,6 +182,7 @@
       "type": "int",
       "value": 15000,
       "category": "Robot: 走行機能",
+      "subcategory": "turnByImuUntilUltrasonic",
       "description": "走行のタイムアウト(周期の回数。上記周期で約30秒分)"
     },
     {
@@ -132,6 +190,7 @@
       "type": "int",
       "value": 50,
       "category": "Robot: 走行機能",
+      "subcategory": "turnByImuUntilUltrasonic",
       "description": "走行中、距離とIMU角度をsyslog出力する周期(ループ回数。上記周期で約50ms間隔)"
     },
     {
@@ -139,6 +198,7 @@
       "type": "int",
       "value": 50,
       "category": "Robot: 起動時の設定 / HMI",
+      "subcategory": "その他",
       "description": "スピーカー音量[0-100]"
     },
     {
@@ -146,13 +206,15 @@
       "type": "int",
       "value": 100,
       "category": "Robot: 起動時の設定 / HMI",
+      "subcategory": "その他",
       "description": "ビープ音のデフォルト再生時間[ms]"
     },
     {
       "name": "TRACER_KP",
       "type": "float",
-      "value": 0.33,
+      "value": 0.35,
       "category": "Tracer（ライントレース）",
+      "subcategory": "その他",
       "description": "反射率PID制御の比例ゲイン"
     },
     {
@@ -160,6 +222,7 @@
       "type": "float",
       "value": 0.01,
       "category": "Tracer（ライントレース）",
+      "subcategory": "その他",
       "description": "反射率PID制御の積分ゲイン"
     },
     {
@@ -167,6 +230,7 @@
       "type": "float",
       "value": 0.03,
       "category": "Tracer（ライントレース）",
+      "subcategory": "その他",
       "description": "反射率PID制御の微分ゲイン"
     },
     {
@@ -174,20 +238,47 @@
       "type": "int32_t",
       "value": 60,
       "category": "Tracer（ライントレース）",
+      "subcategory": "その他",
       "description": "黒白の中間反射率"
     },
     {
       "name": "TRACER_PWM",
       "type": "int8_t",
-      "value": 50,
+      "value": 80,
       "category": "Tracer（ライントレース）",
-      "description": "基準パワー"
+      "subcategory": "その他",
+      "description": "基準パワー（直線区間での上限速度。カーブではここから動的に減速する）"
+    },
+    {
+      "name": "TRACER_CURVE_DECEL_GAIN",
+      "type": "float",
+      "value": 2.0,
+      "category": "Tracer（ライントレース）",
+      "subcategory": "カーブ減速",
+      "description": "|turn|1あたりの減速量[PWM]。turnとbasePwmは同スケール"
+    },
+    {
+      "name": "TRACER_CURVE_MIN_PWM_RATIO",
+      "type": "float",
+      "value": 0.2,
+      "category": "Tracer（ライントレース）",
+      "subcategory": "カーブ減速",
+      "description": "basePwmに対する減速下限の割合(0〜1)。"
+    },
+    {
+      "name": "TRACER_CURVE_TURN_FILTER_ALPHA",
+      "type": "float",
+      "value": 0.035,
+      "category": "Tracer（ライントレース）",
+      "subcategory": "カーブ減速",
+      "description": ""
     },
     {
       "name": "COLOR_CHROMATIC_MIN_SATURATION",
       "type": "uint8_t",
-      "value": 30,
+      "value": 36,
       "category": "ColorJudge（色判定）",
+      "subcategory": "その他",
       "description": ""
     },
     {
@@ -195,6 +286,7 @@
       "type": "int",
       "value": 60,
       "category": "ColorJudge（色判定）",
+      "subcategory": "その他",
       "description": ""
     },
     {
@@ -202,6 +294,7 @@
       "type": "uint16_t",
       "value": 0,
       "category": "ColorJudge（色判定）",
+      "subcategory": "その他",
       "description": ""
     },
     {
@@ -209,6 +302,7 @@
       "type": "uint16_t",
       "value": 60,
       "category": "ColorJudge（色判定）",
+      "subcategory": "その他",
       "description": ""
     },
     {
@@ -216,6 +310,7 @@
       "type": "uint16_t",
       "value": 120,
       "category": "ColorJudge（色判定）",
+      "subcategory": "その他",
       "description": ""
     },
     {
@@ -223,6 +318,7 @@
       "type": "uint16_t",
       "value": 240,
       "category": "ColorJudge（色判定）",
+      "subcategory": "その他",
       "description": ""
     },
     {
@@ -230,6 +326,7 @@
       "type": "int",
       "value": 40,
       "category": "ColorJudge（色判定）",
+      "subcategory": "その他",
       "description": "各色のHueからの許容誤差[度]"
     },
     {
@@ -237,6 +334,7 @@
       "type": "int",
       "value": 3,
       "category": "ColorJudge（色判定）",
+      "subcategory": "その他",
       "description": "色判定を行う際、信頼するカラーセンサーの連続判定回数"
     },
     {
@@ -244,20 +342,23 @@
       "type": "float",
       "value": 100.0,
       "category": "Pid（PID制御共通）",
+      "subcategory": "その他",
       "description": "積分項の暴走を防ぐ上下限"
     },
     {
       "name": "PID_DERIVATIVE_FILTER_ALPHA",
       "type": "float",
-      "value": 0.8,
+      "value": 0.15,
       "category": "Pid（PID制御共通）",
-      "description": "微分項のローパスフィルタ係数"
+      "subcategory": "その他",
+      "description": ""
     },
     {
       "name": "CALIBRATOR_BLE_WAIT_US",
       "type": "int",
       "value": 3000000,
       "category": "Calibrator（起動準備）",
+      "subcategory": "その他",
       "description": "BLE接続待ち時間[us]"
     },
     {
@@ -265,6 +366,7 @@
       "type": "int",
       "value": 50000,
       "category": "Calibrator（起動準備）",
+      "subcategory": "その他",
       "description": "ボタン確認周期[us]"
     },
     {
@@ -272,34 +374,39 @@
       "type": "int",
       "value": 300,
       "category": "Calibrator（起動準備）",
+      "subcategory": "その他",
       "description": "起動ビープの再生時間[ms]"
     },
     {
       "name": "LINE_TRACE_POLL_INTERVAL_US",
       "type": "int",
-      "value": 100000,
+      "value": 10000,
       "category": "GameRunner（全体フロー）",
+      "subcategory": "その他",
       "description": "ライントレースの制御周期[us]"
     },
     {
       "name": "LABEL_CHANGE_CYCLES",
       "type": "int",
-      "value": 3,
+      "value": 30,
       "category": "GameRunner（全体フロー）",
-      "description": "表示文字を切り替える周期(制御周期の何回分か)"
+      "subcategory": "その他",
+      "description": "表示文字を切り替える周期(制御周期の何回分か。実時間で約300ms間隔を維持する値)"
     },
     {
       "name": "DELIVERY_TRACER_PWM",
       "type": "int8_t",
       "value": 30,
       "category": "DeliveryTask（ボトルデリバリー）",
+      "subcategory": "その他",
       "description": "ボトル接近時のライントレース速度"
     },
     {
       "name": "DELIVERY_TARGET_DISTANCE_MM",
       "type": "int",
-      "value": 95,
+      "value": 110,
       "category": "DeliveryTask（ボトルデリバリー）",
+      "subcategory": "その他",
       "description": "ボトル手前で停止する目標距離[mm]"
     },
     {
@@ -307,6 +414,7 @@
       "type": "int",
       "value": 155,
       "category": "Arm (アーム制御)",
+      "subcategory": "その他",
       "description": "アームを上げる角度"
     },
     {
@@ -314,6 +422,7 @@
       "type": "int",
       "value": 160,
       "category": "Arm (アーム制御)",
+      "subcategory": "その他",
       "description": "アームを下げる角度"
     },
     {
@@ -321,6 +430,7 @@
       "type": "int",
       "value": -100,
       "category": "Arm (アーム制御)",
+      "subcategory": "その他",
       "description": "アームを上げる速度"
     },
     {
@@ -328,174 +438,199 @@
       "type": "int",
       "value": 100,
       "category": "Arm (アーム制御)",
+      "subcategory": "その他",
       "description": "アームを下げる速度"
     },
     {
-      "name": "ETRALLY_DEFAULT_SPEED",
+      "name": "ETRALLY_INIT_NODE_X",
       "type": "int",
-      "value": 200,
+      "value": 0,
       "category": "ET-Rally（課題）",
+      "subcategory": "移動グリッドの初期ノード",
       "description": ""
     },
     {
-      "name": "ETRALLY_FAST_SPEED",
-      "type": "int",
-      "value": 500,
-      "category": "ET-Rally（課題）",
-      "description": ""
-    },
-    {
-      "name": "ETRALLY_SLOW_SPEED",
-      "type": "int",
-      "value": 100,
-      "category": "ET-Rally（課題）",
-      "description": ""
-    },
-    {
-      "name": "ETRALLY_WAVING_SPEED",
-      "type": "int",
-      "value": 150,
-      "category": "ET-Rally（課題）",
-      "description": ""
-    },
-    {
-      "name": "ETRALLY_LINE_TRACE_DEFAULT_POWER",
-      "type": "int",
-      "value": 34,
-      "category": "ET-Rally（課題）",
-      "description": ""
-    },
-    {
-      "name": "ETRALLY_LINE_TRACE_FAST_POWER",
-      "type": "int",
-      "value": 40,
-      "category": "ET-Rally（課題）",
-      "description": ""
-    },
-    {
-      "name": "COLOR_CIRCLE_RADIUS",
-      "type": "int",
-      "value": 35,
-      "category": "ET-Rally（課題）",
-      "description": "[mm] ラリーフィールド横のライン上にある色付きの円の半径（概数）"
-    },
-    {
-      "name": "BLUE_LINE_DISTANCE",
-      "type": "int",
-      "value": 100,
-      "category": "ET-Rally（課題）",
-      "description": "[mm] 青いラインの長さ（概数）"
-    },
-    {
-      "name": "ETRALLY_UNIT_DISTANCE",
-      "type": "int",
-      "value": 240,
-      "category": "ET-Rally（課題）",
-      "description": "[mm] ETラリーフィールドのQRからQRまでの距離を単位距離としている。（概数）"
-    },
-    {
-      "name": "ETRALLY_THROUGH_GATE_ADJUSTMENT_DISTANCE",
-      "type": "int",
-      "value": 25,
-      "category": "ET-Rally（課題）",
-      "description": "[mm] ラリーフィールド横のラインからQRコードまでの距離と単位距離の差"
-    },
-    {
-      "name": "ETRALLY_NARROW_SWING_DEG",
-      "type": "float",
-      "value": 20.0,
-      "category": "ET-Rally（課題）",
-      "description": "[°]"
-    },
-    {
-      "name": "ETRALLY_DELAY",
-      "type": "int",
-      "value": 100000,
-      "category": "ET-Rally（課題）",
-      "description": ""
-    },
-    {
-      "name": "ETRALLY_RED_GATE_LEFT_ROW",
+      "name": "ETRALLY_INIT_NODE_Y",
       "type": "int",
       "value": 5,
       "category": "ET-Rally（課題）",
+      "subcategory": "移動グリッドの初期ノード",
       "description": ""
     },
     {
-      "name": "ETRALLY_RED_GATE_LEFT_COL",
+      "name": "ETRALLY_RED_GATE_LEFT_X",
       "type": "int",
       "value": 2,
       "category": "ET-Rally（課題）",
+      "subcategory": "赤ゲート",
       "description": ""
     },
     {
-      "name": "ETRALLY_RED_GATE_RIGHT_ROW",
+      "name": "ETRALLY_RED_GATE_LEFT_Y",
       "type": "int",
       "value": 5,
       "category": "ET-Rally（課題）",
+      "subcategory": "赤ゲート",
       "description": ""
     },
     {
-      "name": "ETRALLY_RED_GATE_RIGHT_COL",
+      "name": "ETRALLY_RED_GATE_RIGHT_X",
       "type": "int",
       "value": 3,
       "category": "ET-Rally（課題）",
+      "subcategory": "赤ゲート",
       "description": ""
     },
     {
-      "name": "ETRALLY_BLUE_GATE_LEFT_ROW",
-      "type": "int",
-      "value": 3,
-      "category": "ET-Rally（課題）",
-      "description": ""
-    },
-    {
-      "name": "ETRALLY_BLUE_GATE_LEFT_COL",
+      "name": "ETRALLY_RED_GATE_RIGHT_Y",
       "type": "int",
       "value": 5,
       "category": "ET-Rally（課題）",
+      "subcategory": "赤ゲート",
       "description": ""
     },
     {
-      "name": "ETRALLY_BLUE_GATE_RIGHT_ROW",
+      "name": "ETRALLY_BLUE_GATE_LEFT_X",
+      "type": "int",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "subcategory": "青ゲート",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_BLUE_GATE_LEFT_Y",
+      "type": "int",
+      "value": 3,
+      "category": "ET-Rally（課題）",
+      "subcategory": "青ゲート",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_BLUE_GATE_RIGHT_X",
+      "type": "int",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "subcategory": "青ゲート",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_BLUE_GATE_RIGHT_Y",
       "type": "int",
       "value": 4,
       "category": "ET-Rally（課題）",
+      "subcategory": "青ゲート",
       "description": ""
     },
     {
-      "name": "ETRALLY_BLUE_GATE_RIGHT_COL",
-      "type": "int",
-      "value": 5,
-      "category": "ET-Rally（課題）",
-      "description": ""
-    },
-    {
-      "name": "ETRALLY_YELLOW_GATE_LEFT_ROW",
-      "type": "int",
-      "value": 2,
-      "category": "ET-Rally（課題）",
-      "description": ""
-    },
-    {
-      "name": "ETRALLY_YELLOW_GATE_LEFT_COL",
+      "name": "ETRALLY_YELLOW_GATE_LEFT_X",
       "type": "int",
       "value": 1,
       "category": "ET-Rally（課題）",
+      "subcategory": "黄ゲート",
       "description": ""
     },
     {
-      "name": "ETRALLY_YELLOW_GATE_RIGHT_ROW",
+      "name": "ETRALLY_YELLOW_GATE_LEFT_Y",
       "type": "int",
       "value": 2,
       "category": "ET-Rally（課題）",
+      "subcategory": "黄ゲート",
       "description": ""
     },
     {
-      "name": "ETRALLY_YELLOW_GATE_RIGHT_COL",
+      "name": "ETRALLY_YELLOW_GATE_RIGHT_X",
       "type": "int",
       "value": 2,
       "category": "ET-Rally（課題）",
+      "subcategory": "黄ゲート",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_YELLOW_GATE_RIGHT_Y",
+      "type": "int",
+      "value": 2,
+      "category": "ET-Rally（課題）",
+      "subcategory": "黄ゲート",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_TRACE_BACK_DISTANCE",
+      "type": "float",
+      "value": 300.0,
+      "category": "ET-Rally（課題）",
+      "subcategory": "基準ジャイロ角調整用ライントレース",
+      "description": "[mm] 走行体の基準ジャイロ角調整用ライントレースのための距離"
+    },
+    {
+      "name": "ETRALLY_HEADING_CALIBRATION_PWM",
+      "type": "int",
+      "value": 40,
+      "category": "ET-Rally（課題）",
+      "subcategory": "基準ジャイロ角調整用ライントレース",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_HEADING_CALIBRATION_KP",
+      "type": "float",
+      "value": 0.3,
+      "category": "ET-Rally（課題）",
+      "subcategory": "基準ジャイロ角調整用ライントレース",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_HEADING_CALIBRATION_KI",
+      "type": "float",
+      "value": 0.0,
+      "category": "ET-Rally（課題）",
+      "subcategory": "基準ジャイロ角調整用ライントレース",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_HEADING_CALIBRATION_KD",
+      "type": "float",
+      "value": 0.0,
+      "category": "ET-Rally（課題）",
+      "subcategory": "基準ジャイロ角調整用ライントレース",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT",
+      "type": "size_t",
+      "value": 10,
+      "category": "ET-Rally（課題）",
+      "subcategory": "基準ジャイロ角調整用リングバッファ",
+      "description": "基準角を取得する際のサンプル数"
+    },
+    {
+      "name": "ETRALLY_HEADING_CALIBRATION_EXCLUSION_COUNT",
+      "type": "size_t",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "subcategory": "基準ジャイロ角調整用リングバッファ",
+      "description": "基準角を取得する際のサンプル除外数"
+    },
+    {
+      "name": "ETRALLY_LAP_COUNT",
+      "type": "int",
+      "value": 1,
+      "category": "ET-Rally（課題）",
+      "subcategory": "ETラリー走行",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_SLOW_DRIVE_SPEED",
+      "type": "int",
+      "value": 150,
+      "category": "ET-Rally（課題）",
+      "subcategory": "ETラリー走行",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_DEFAULT_DRIVE_SPEED",
+      "type": "int",
+      "value": 500,
+      "category": "ET-Rally（課題）",
+      "subcategory": "ETラリー走行",
       "description": ""
     },
     {
@@ -503,6 +638,7 @@
       "type": "float",
       "value": 152.5,
       "category": "ET-Sumo（課題）",
+      "subcategory": "コースの寸法",
       "description": "[°] LAPゲートから土俵の方向を向くための旋回角度（Rコース基準。Lコースはsign()で反転）"
     },
     {
@@ -510,6 +646,7 @@
       "type": "int",
       "value": 723,
       "category": "ET-Sumo（課題）",
+      "subcategory": "コースの寸法",
       "description": "[mm] 旋回後、土俵の縁に到達するまでの直進距離"
     },
     {
@@ -517,6 +654,7 @@
       "type": "int",
       "value": 500,
       "category": "ET-Sumo（課題）",
+      "subcategory": "コースの寸法",
       "description": "[mm] 土俵の直径。ボトルを押し出す距離として使う"
     },
     {
@@ -524,6 +662,7 @@
       "type": "int",
       "value": 300,
       "category": "ET-Sumo（課題）",
+      "subcategory": "往路・復路の速度",
       "description": "土俵方向へ旋回する速度[°/秒]"
     },
     {
@@ -531,6 +670,7 @@
       "type": "int",
       "value": 400,
       "category": "ET-Sumo（課題）",
+      "subcategory": "往路・復路の速度",
       "description": "土俵の縁まで直進する速度[°/秒]"
     },
     {
@@ -538,6 +678,7 @@
       "type": "int",
       "value": 300,
       "category": "ET-Sumo（課題）",
+      "subcategory": "往路・復路の速度",
       "description": "復路の旋回速度[°/秒]（原点方向への旋回・最初の向きへの復帰の両方に使う）"
     },
     {
@@ -545,13 +686,15 @@
       "type": "int",
       "value": 400,
       "category": "ET-Sumo（課題）",
+      "subcategory": "往路・復路の速度",
       "description": "復路の直進速度[°/秒]"
     },
     {
       "name": "SUMO_SEARCH_MAX_ANGLE_DEG",
       "type": "float",
-      "value": 100.0,
+      "value": 90.0,
       "category": "ET-Sumo（課題）",
+      "subcategory": "ボトル探索",
       "description": "[°] 土俵の正面を0°として、探索する走行範囲(±この角度)"
     },
     {
@@ -559,6 +702,7 @@
       "type": "int",
       "value": 80,
       "category": "ET-Sumo（課題）",
+      "subcategory": "ボトル探索",
       "description": "探索時の旋回速度の上限[°/秒]"
     },
     {
@@ -566,20 +710,63 @@
       "type": "int",
       "value": 600,
       "category": "ET-Sumo（課題）",
+      "subcategory": "ボトル探索",
       "description": "[mm] 超音波センサの距離がこれ未満ならボトルを検知したとみなす（要実測。壁などで誤検知しない値でなければ要確認）"
+    },
+    {
+      "name": "SUMO_SEARCH_MAX_ATTEMPTS",
+      "type": "int",
+      "value": 4,
+      "category": "ET-Sumo（課題）",
+      "subcategory": "ボトル探索",
+      "description": "探索（走査+前進）の最大試行回数"
+    },
+    {
+      "name": "SUMO_SEARCH_ADVANCE_MM",
+      "type": "int",
+      "value": 100,
+      "category": "ET-Sumo（課題）",
+      "subcategory": "ボトル探索",
+      "description": "[mm] 1回見つからなかった場合に前進する距離"
+    },
+    {
+      "name": "SUMO_SEARCH_ADVANCE_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 300,
+      "category": "ET-Sumo（課題）",
+      "subcategory": "ボトル探索",
+      "description": "探索中に前進する速度[°/秒]"
     },
     {
       "name": "SUMO_PUSH_SPEED_DEG_PER_SEC",
       "type": "int",
       "value": 200,
       "category": "ET-Sumo（課題）",
+      "subcategory": "押し出し",
       "description": "ボトルを押し出す際の直進速度[°/秒]"
+    },
+    {
+      "name": "SUMO_RETREAT_AFTER_PUSH_MM",
+      "type": "int",
+      "value": 100,
+      "category": "ET-Sumo（課題）",
+      "subcategory": "押し出し後の後退",
+      "description": "[mm] 押し出し後に後退する距離"
+    },
+    {
+      "name": "SUMO_RETREAT_AFTER_PUSH_SPEED_DEG_PER_SEC",
+      "type": "int",
+      "value": 300,
+      "category": "ET-Sumo（課題）",
+      "subcategory": "押し出し後の後退",
+      "description": "後退速度[°/秒]"
     },
     {
       "name": "SUMO_MOVE_SETTLE_US",
       "type": "int",
       "value": 200000,
       "category": "ET-Sumo（課題）",
+      "subcategory": "移動間の整定待ち",
       "description": "[us] 各moveの後の整定待ち時間"
     }
   ]

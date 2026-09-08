@@ -16,29 +16,36 @@ public:
     static constexpr float PI = 3.14159f;
     static constexpr float DISTANCE_FROM_COLORCENSOR_TO_WHEEL = 40.0f;  // [mm] カラーセンサーからホイール軸までの距離（概数）
 
+    // ── コースの寸法（青ラインの長さを基準とし、その比率で算出）──────────
+    static constexpr float BLUE_LINE_LENGTH_MM = 100.0f;                                         // [mm] 青ラインの長さ ... 基準
+    static constexpr float BLUE_LINE_WIDTH_MM = 0.2 * BLUE_LINE_LENGTH_MM;                       // [mm] 青ラインの幅
+    static constexpr float RALLY_UNIT_DISTANCE_MM = 2.5f * BLUE_LINE_LENGTH_MM;                  // [mm] ラリーエリアのグリッドの方眼1マスの一辺の長さ
+    static constexpr float START_GRID_POINT_TO_START_LINE_MM = 1.097863f * BLUE_LINE_LENGTH_MM;  // [mm] 開始格子点の中心点から直下の青ラインの近い側のエッジまでの距離
+    static constexpr float GRAY_CIRCLE_RADIUS_MM = 0.225f * BLUE_LINE_LENGTH_MM;                 // [mm] ゲート脚設置用の灰色円の半径
+
     // ── Robot: 走行機能 ────────────────────────────────
-    // driveStraight
+    // ─ driveStraight ─
     static constexpr int DRIVE_DEFAULT_SPEED_DEG_PER_SEC = 300;    // 直進の既定速度[°/秒]
     static constexpr int DRIVE_TIMEOUT_LOOP_COUNT = 2000;          // 直進のタイムアウト(周期の回数)
     static constexpr float DRIVE_IMU_DECEL_DISTANCE_MM = 100.0f;   // 停止前に減速を始める残距離[mm]
     static constexpr int DRIVE_IMU_MIN_SPEED_DEG_PER_SEC = 150;    // 減速中の最低速度[°/秒]
     static constexpr float DRIVE_IMU_HEADING_KP = 4.0f;            // heading誤差に対する比例ゲイン[(°/秒)/°]
     static constexpr float DRIVE_IMU_MAX_CORRECTION_RATIO = 0.5f;  // 基準速度に対する左右速度補正の上限割合
-    // turn
+    // ─ turn ─
     static constexpr int TURN_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 旋回の既定速度[°/秒]
     static constexpr int TURN_TIMEOUT_LOOP_COUNT = 500;         // 旋回のタイムアウト(周期の回数)
     static constexpr float TURN_IMU_STOP_TOLERANCE_DEG = 0.3f;  // IMU旋回の停止許容誤差[°]
     static constexpr float TURN_IMU_KP = 4.0f;                  // IMU旋回の比例ゲイン
     static constexpr int TURN_IMU_MIN_SPEED_DEG_PER_SEC = 80;   // IMU旋回の最低速度[°/秒]
-    // runUntilColor
+    // ─ runUntilColor ─
     static constexpr int RUC_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 既定速度[°/秒]
     static constexpr int RUC_SWING_MAX_COUNT = 50;             // 蛇行/最大旋回回数
     static constexpr float RUC_SWING_DEFAULT_DEG = 50.0f;      // 蛇行/1旋回における旋回角度[°]
     static constexpr int RUC_SWING_TIMEOUT_LOOP_COUNT = 500;   // 蛇行/1旋回におけるタイムアウト(周期の回数)
-    // 共通
+    // ─ 共通 ─
     static constexpr int MOTION_POLL_INTERVAL_US = 10 * 1000;  // 直進・旋回・蛇行中のエンコーダー確認周期[us]
 
-    // turnByImuUntilUltrasonic
+    // ─ turnByImuUntilUltrasonic ─
     // 超音波センサのポーリング周期は他の移動系（turn/driveStraight等）と共通のMOTION_POLL_INTERVAL_USではなく、
     // 検知精度を上げたいため専用に短い周期を使う。周期が短くなる分、同じタイムアウトのループ回数上限を確保
     // しないと実時間でのタイムアウトが短くなりすぎる（低速走行だと完了前に打ち切られる）。
@@ -51,22 +58,28 @@ public:
     static constexpr int BEEP_DEFAULT_MS = 100;  // ビープ音のデフォルト再生時間[ms]
 
     // ── Tracer（ライントレース）───────────────────────────
-    static constexpr float TRACER_KP = 0.35f;                // 反射率PID制御の比例ゲイン
+    static constexpr float TRACER_KP = 0.38f;                // 反射率PID制御の比例ゲイン
     static constexpr float TRACER_KI = 0.01f;                // 反射率PID制御の積分ゲイン
-    static constexpr float TRACER_KD = 0.03f;                // 反射率PID制御の微分ゲイン
+    static constexpr float TRACER_KD = 0.02f;                // 反射率PID制御の微分ゲイン
     static constexpr int32_t TRACER_TARGET_REFLECTION = 60;  // 黒白の中間反射率
-    static constexpr int8_t TRACER_PWM = 80;                 // 基準パワー（直線区間での上限速度。カーブではここから動的に減速する）
-    // カーブ減速（|turn|が大きいほど基準パワーから減速する）
-    static constexpr float TRACER_CURVE_DECEL_GAIN = 2.0f;     // |turn|1あたりの減速量[PWM]。turnとbasePwmは同スケール
+    static constexpr int8_t TRACER_PWM = 90;                 // 基準パワー（直線区間での上限速度。カーブではここから動的に減速する）
+    // ─ カーブ減速 ─
+    // |turn|が大きいほど基準パワーから減速する
+    static constexpr float TRACER_CURVE_DECEL_GAIN = 2.3f;     // |turn|1あたりの減速量[PWM]。turnとbasePwmは同スケール
     static constexpr float TRACER_CURVE_MIN_PWM_RATIO = 0.2f;  // basePwmに対する減速下限の割合(0〜1)。
     // 減速量算出用|turn|のEMA平滑化係数(0〜1、小さいほど滑らか)。LINE_TRACE_POLL_INTERVAL_USに合わせて調整する
-    static constexpr float TRACER_CURVE_TURN_FILTER_ALPHA = 0.035f;
+    static constexpr float TRACER_CURVE_TURN_FILTER_ALPHA = 0.05f;
 
     // ── ColorJudge（色判定）───────────────────────────────
     // 彩度がこれ未満なら無彩色(黒/白)とみなす（黒ラインが実測でS=22〜27前後のノイズが乗るため、それより高い値にする）
-    static constexpr uint8_t COLOR_CHROMATIC_MIN_SATURATION = 36;
+    static constexpr uint8_t COLOR_CHROMATIC_MIN_SATURATION = 40;
     // 無彩色のとき、反射率がこれ未満なら黒、以上なら白（TRACER_TARGET_REFLECTIONと同じ考え方）
     static constexpr int COLOR_ACHROMATIC_REFLECTION_THRESHOLD = 60;
+    // 黒ライン上の暗い場面ではHue/Saturationの計算がノイズで不安定になり、彩度がCOLOR_CHROMATIC_MIN_SATURATIONを
+    // 超えて有彩色(例:青)に誤判定することがある。反射率または明度がこれ未満なら彩度に関わらず無彩色扱いにする
+    // (実測: 誤判定時は反射率13%・明度24。実際の有彩色は反射率50%・明度75以上あるため、この間の値を設定)
+    static constexpr int COLOR_DARK_REFLECTION_THRESHOLD = 20;
+    static constexpr int COLOR_DARK_VALUE_THRESHOLD = 30;
     static constexpr uint16_t COLOR_RED_HUE = 0;
     static constexpr uint16_t COLOR_YELLOW_HUE = 60;
     static constexpr uint16_t COLOR_GREEN_HUE = 120;
@@ -77,12 +90,14 @@ public:
     // ── Pid（PID制御共通）─────────────────────────────────
     static constexpr float PID_INTEGRAL_LIMIT = 100.0f;  // 積分項の暴走を防ぐ上下限
     // 微分項のローパスフィルタ係数。LINE_TRACE_POLL_INTERVAL_USに合わせて調整する
-    static constexpr float PID_DERIVATIVE_FILTER_ALPHA = 0.15f;
+    static constexpr float PID_DERIVATIVE_FILTER_ALPHA = 0.10f;
 
     // ── Calibrator（起動準備）────────────────────────────
     static constexpr int CALIBRATOR_BLE_WAIT_US = 3 * 1000 * 1000;  // BLE接続待ち時間[us]
     static constexpr int CALIBRATOR_POLL_INTERVAL_US = 50 * 1000;   // ボタン確認周期[us]
     static constexpr int CALIBRATOR_BEEP_MS = 300;                  // 起動ビープの再生時間[ms]
+    // コース文字と追従エッジの矢印を切り替える周期(ポーリング周期の何回分か。実時間で約500ms間隔を維持する値)
+    static constexpr int CALIBRATOR_DISPLAY_TOGGLE_CYCLES = 10;
 
     // ── GameRunner（全体フロー）───────────────────────────
     static constexpr int LINE_TRACE_POLL_INTERVAL_US = 10 * 1000;  // ライントレースの制御周期[us]
@@ -99,63 +114,59 @@ public:
     static constexpr int ARM_LOWER_PWM = 100;   // アームを下げる速度
 
     // ── ET-Rally（課題）───────────────────────────────────
-    // コースの寸法（青ラインの長さを基準とし、その比率で算出）
-    static constexpr float BLUE_LINE_LENGTH_MM = 100.0f;                                         // [mm] 青ラインの長さ ... 基準
-    static constexpr float BLUE_LINE_WIDTH_MM = 0.2 * BLUE_LINE_LENGTH_MM;                       // [mm] 青ラインの幅
-    static constexpr float RALLY_UNIT_DISTANCE_MM = 2.5f * BLUE_LINE_LENGTH_MM;                  // [mm] ラリーエリアのグリッドの方眼1マスの一辺の長さ
-    static constexpr float START_GRID_POINT_TO_START_LINE_MM = 1.097863f * BLUE_LINE_LENGTH_MM;  // [mm] 開始格子点の中心点から直下の青ラインの近い側のエッジまでの距離
-    static constexpr float GRAY_CIRCLE_RADIUS_MM = 0.225f * BLUE_LINE_LENGTH_MM;                 // [mm] ゲート脚設置用の灰色円の半径
 
-    // 移動グリッドの初期ノード
+    // ─ 移動グリッドの初期ノード ─
     static constexpr int ETRALLY_INIT_NODE_X = 0;
     static constexpr int ETRALLY_INIT_NODE_Y = 5;
 
-    // 赤ゲート
+    // ─ 赤ゲート ─
     static constexpr int ETRALLY_RED_GATE_LEFT_X = 2;
     static constexpr int ETRALLY_RED_GATE_LEFT_Y = 5;
     static constexpr int ETRALLY_RED_GATE_RIGHT_X = 3;
     static constexpr int ETRALLY_RED_GATE_RIGHT_Y = 5;
 
-    // 青ゲート
+    // ─ 青ゲート ─
     static constexpr int ETRALLY_BLUE_GATE_LEFT_X = 5;
     static constexpr int ETRALLY_BLUE_GATE_LEFT_Y = 3;
     static constexpr int ETRALLY_BLUE_GATE_RIGHT_X = 5;
     static constexpr int ETRALLY_BLUE_GATE_RIGHT_Y = 4;
 
-    // 黄ゲート
+    // ─ 黄ゲート ─
     static constexpr int ETRALLY_YELLOW_GATE_LEFT_X = 1;
     static constexpr int ETRALLY_YELLOW_GATE_LEFT_Y = 2;
     static constexpr int ETRALLY_YELLOW_GATE_RIGHT_X = 2;
     static constexpr int ETRALLY_YELLOW_GATE_RIGHT_Y = 2;
 
-    // 基準ジャイロ角調整用ライントレースのパラメータ
+    // ─ 基準ジャイロ角調整用ライントレース ─
     static constexpr float ETRALLY_TRACE_BACK_DISTANCE = 300.0f;  // [mm] 走行体の基準ジャイロ角調整用ライントレースのための距離
     static constexpr int ETRALLY_HEADING_CALIBRATION_PWM = 40;
     static constexpr float ETRALLY_HEADING_CALIBRATION_KP = 0.30f;
     static constexpr float ETRALLY_HEADING_CALIBRATION_KI = 0.0f;
     static constexpr float ETRALLY_HEADING_CALIBRATION_KD = 0.0f;
 
-    // 基準ジャイロ角調整用リングバッファ関連
+    // ─ 基準ジャイロ角調整用リングバッファ ─
     static constexpr size_t ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT = 10;    // 基準角を取得する際のサンプル数
     static constexpr size_t ETRALLY_HEADING_CALIBRATION_EXCLUSION_COUNT = 5;  // 基準角を取得する際のサンプル除外数
     static constexpr size_t ETRALLY_HEADING_CALIBRATION_BUFFER_SIZE = ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT + ETRALLY_HEADING_CALIBRATION_EXCLUSION_COUNT;
 
-    // ETラリー走行
+    // ─ ETラリー走行 ─
     static constexpr int ETRALLY_LAP_COUNT = 1;
     static constexpr int ETRALLY_SLOW_DRIVE_SPEED = 150;
     static constexpr int ETRALLY_DEFAULT_DRIVE_SPEED = 500;
 
     // ── ET-Sumo（課題）────────────────────────────────────
-    // コースの寸法（実測して調整する、今の値は画像から計算した値）
+    // ─ コースの寸法 ─
+    // 実測して調整する（今の値は画像から計算した値）
     static constexpr float SUMO_TURN_TO_RING_DEG = 152.5f;  // [°] LAPゲートから土俵の方向を向くための旋回角度（Rコース基準。Lコースはsign()で反転）
     static constexpr int SUMO_DRIVE_TO_RING_MM = 723;       // [mm] 旋回後、土俵の縁に到達するまでの直進距離
     static constexpr int SUMO_RING_DIAMETER_MM = 500;       // [mm] 土俵の直径。ボトルを押し出す距離として使う
-    // 往路（LAPゲート→土俵）・復路（土俵→LAPゲート）の速度
+    // ─ 往路・復路の速度 ─
+    // LAPゲート→土俵、土俵→LAPゲート
     static constexpr int SUMO_APPROACH_TURN_SPEED_DEG_PER_SEC = 300;   // 土俵方向へ旋回する速度[°/秒]
     static constexpr int SUMO_APPROACH_DRIVE_SPEED_DEG_PER_SEC = 400;  // 土俵の縁まで直進する速度[°/秒]
     static constexpr int SUMO_RETURN_TURN_SPEED_DEG_PER_SEC = 300;     // 復路の旋回速度[°/秒]（原点方向への旋回・最初の向きへの復帰の両方に使う）
     static constexpr int SUMO_RETURN_DRIVE_SPEED_DEG_PER_SEC = 400;    // 復路の直進速度[°/秒]
-    // ボトル探索
+    // ─ ボトル探索 ─
     static constexpr float SUMO_SEARCH_MAX_ANGLE_DEG = 90.0f;   // [°] 土俵の正面を0°として、探索する走行範囲(±この角度)
     static constexpr int SUMO_SEARCH_SPEED_DEG_PER_SEC = 80;    // 探索時の旋回速度の上限[°/秒]
     static constexpr int SUMO_BOTTLE_DETECT_DISTANCE_MM = 600;  // [mm] 超音波センサの距離がこれ未満ならボトルを検知したとみなす（要実測。壁などで誤検知しない値でなければ要確認）
@@ -163,12 +174,14 @@ public:
     static constexpr int SUMO_SEARCH_MAX_ATTEMPTS = 4;                 // 探索（走査+前進）の最大試行回数
     static constexpr int SUMO_SEARCH_ADVANCE_MM = 100;                 // [mm] 1回見つからなかった場合に前進する距離
     static constexpr int SUMO_SEARCH_ADVANCE_SPEED_DEG_PER_SEC = 300;  // 探索中に前進する速度[°/秒]
-    // 押し出し
+    // ─ 押し出し ─
     static constexpr int SUMO_PUSH_SPEED_DEG_PER_SEC = 200;  // ボトルを押し出す際の直進速度[°/秒]
-    // 押し出し後、前方のボトルを倒さないよう旋回前に後退する
+    // ─ 押し出し後の後退 ─
+    // 前方のボトルを倒さないよう旋回前に後退する
     static constexpr int SUMO_RETREAT_AFTER_PUSH_MM = 100;                 // [mm] 押し出し後に後退する距離
     static constexpr int SUMO_RETREAT_AFTER_PUSH_SPEED_DEG_PER_SEC = 300;  // 後退速度[°/秒]
-    // 移動間の整定待ち（旋回・直進の直後は慣性が残るため、次の指令・センサー読み取りの前に少し待つ）
+    // ─ 移動間の整定待ち ─
+    // 旋回・直進の直後は慣性が残るため、次の指令・センサー読み取りの前に少し待つ
     static constexpr int SUMO_MOVE_SETTLE_US = 200 * 1000;  // [us] 各moveの後の整定待ち時間
 
 private:
