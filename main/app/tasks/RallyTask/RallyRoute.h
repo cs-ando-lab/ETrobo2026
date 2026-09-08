@@ -19,7 +19,8 @@ private:
 
     /* ゲート情報 */
     static constexpr size_t GATE_COUNT = 3;                     // ゲートの種数
-    static const std::array<Gate, GATE_COUNT> GATES;            // ゲートの配置
+    static const std::array<Gate, GATE_COUNT> GATES_L;          // ゲートの配置
+    static const std::array<Gate, GATE_COUNT> GATES_R;          // ゲートの配置
     static const std::array<GateColor, GATE_COUNT> GATE_CYCLE;  // ゲートの通過順
     struct GatePassingEdge {
         GateColor color;
@@ -88,7 +89,7 @@ private:
         const std::vector<Node>& path);                                  // 入力するNode列のNodeの前後は隣接している必要がある。
 
 public:
-    explicit RallyRoute(Node initNode);
+    explicit RallyRoute(Node initNode, bool isLeftCourse);
     std::vector<Segment> calculateRoute(int lapCount);  // lapCount(1 ~ 3)周のETラリーを行うためのルートをSegment列で返す。
 };
 
