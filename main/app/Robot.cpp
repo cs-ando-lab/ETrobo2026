@@ -388,7 +388,7 @@ void Robot::runWavingUntilColors(const ColorJudge::Color* colors, int colorCount
 
 void Robot::raiseArm() {
     armMotor.resetCount();
-    armMotor.setSpeed(Config::ARM_RAISE_PWM);
+    armMotor.setSpeed(Config::ARM_RAISE_SPEED_DEG_PER_SEC);
 
     while(std::abs(armMotor.getCount()) < Config::ARM_RAISE_DEG) {
         if(isCenterButtonPressed())
@@ -400,7 +400,7 @@ void Robot::raiseArm() {
 
 void Robot::lowerArm() {
     armMotor.resetCount();
-    armMotor.setSpeed(Config::ARM_LOWER_PWM);
+    armMotor.setSpeed(Config::ARM_LOWER_SPEED_DEG_PER_SEC);
 
     while(std::abs(armMotor.getCount()) < Config::ARM_LOWER_DEG) {
         if(isCenterButtonPressed())
