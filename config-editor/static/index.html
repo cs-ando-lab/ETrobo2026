@@ -41,8 +41,13 @@
             <section class="preview-panel">
                 <div class="preview-copy">
                     <p class="section-label">ET-RALLY FIELD</p>
-                    <h2>ゲート配置（Lコース）</h2>
+                    <h2 id="gate-preview-title">ゲート配置（Lコース）</h2>
                     <p>ゲートを選び、配置したいマスをクリックしてください。赤・黄は横向き、青は縦向きです。</p>
+                    <div class="course-picker" aria-label="編集するコース">
+                        <button class="course-choice active" type="button" data-course="L" aria-pressed="true">Lコース</button>
+                        <button class="course-choice" type="button" data-course="R" aria-pressed="false">Rコース</button>
+                    </div>
+                    <p id="coordinate-hint" class="coordinate-hint">左→右: X=1→5 ／ 上→下: Y=1→5</p>
                     <div class="gate-picker" aria-label="配置するゲート">
                         <button class="gate-choice red active" type="button" data-gate="red">
                             <span></span>赤
@@ -54,7 +59,7 @@
                             <span></span>黄
                         </button>
                     </div>
-                    <p id="placement-hint" class="placement-hint">赤ゲートを横向きに配置します</p>
+                    <p id="placement-hint" class="placement-hint">Lコースの赤ゲートを横向きに配置します</p>
                 </div>
                 <div id="field-grid" class="field-grid" aria-label="ゲート配置ゾーン"></div>
             </section>
