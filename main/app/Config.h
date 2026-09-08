@@ -108,10 +108,12 @@ public:
     static constexpr int DELIVERY_TARGET_DISTANCE_MM = 110;  // ボトル手前で停止する目標距離[mm]
 
     // ── Arm (アーム制御) ───────────────────────────────────
-    static constexpr int ARM_RAISE_DEG = 155;   // アームを上げる角度
-    static constexpr int ARM_LOWER_DEG = 160;   // アームを下げる角度
-    static constexpr int ARM_RAISE_PWM = -100;  // アームを上げる速度
-    static constexpr int ARM_LOWER_PWM = 100;   // アームを下げる速度
+    static constexpr int ARM_RAISE_DEG = 155;  // アームを上げる角度[°]
+    static constexpr int ARM_LOWER_DEG = 160;  // アームを下げる角度[°]
+    // Motor::setSpeed()に渡す値なのでPWMではない。ARM_RAISE_PWM=-100という名前で100を入れていた頃は
+    // 「毎秒100度」と解釈され、155度上げるのに1.55秒かかっていた
+    static constexpr int ARM_RAISE_SPEED_DEG_PER_SEC = -600;  // アームを上げる速度[°/秒]（負が上げる向き）
+    static constexpr int ARM_LOWER_SPEED_DEG_PER_SEC = 600;   // アームを下げる速度[°/秒]
 
     // ── ET-Rally（課題）───────────────────────────────────
 
