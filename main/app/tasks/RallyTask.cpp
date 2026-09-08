@@ -48,7 +48,7 @@ void RallyTask::run() {
     // [3-1] - ルート算出フェーズ
     /* 格子上のルートを求める */
     RallyTypes::Node initNode = { Config::ETRALLY_INIT_NODE_X, Config::ETRALLY_INIT_NODE_Y };
-    RallyRoute rallyRoute(initNode);
+    RallyRoute rallyRoute(initNode, CourseConfig::isLeftCourse());
     std::vector<RallyTypes::Segment> segments = rallyRoute.calculateRoute(Config::ETRALLY_LAP_COUNT);
 
     // [3-2] - ゲート通過フェーズ
