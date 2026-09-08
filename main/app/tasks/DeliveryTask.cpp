@@ -10,7 +10,7 @@ namespace {
     // ── ライントレース速度 ──────────────────────────────
     constexpr int kApproachPwm = 40;         // ボトル接近中。Config::DELIVERY_TRACER_PWM(30)だとカーブ減速でほぼ動けなくなる
     constexpr int kReacquireLinePwm = 50;    // ライン復帰直後。ラインに対するズレが大きくカーブ減速が効きやすいので高め
-    constexpr int kPostSlowTracePwm = 65;    // ステップ8以降。Config::TRACER_PWM(80)は実機では速すぎた
+    constexpr int kPostSlowTracePwm = 65;    // ステップ8以降。Config::TRACER_PWM(現在90)は実機では速すぎた
     constexpr int kOnFirstBlueLinePwm = 50;  // 青1本目に乗っている間だけ落とす速度
 
     // ── アームを下げた直後の直進（これだけでラインへ復帰させる）──
@@ -26,11 +26,13 @@ namespace {
     constexpr int kBlueFinalEntryConfirmMs = 50;
 
     // ── 直角コーナー対策 ───────────────────────────────
-    // Tracerのカーブ減速はEMA(時定数約290ms)でステップ状の変化に間に合わないため、
-    // 白の連続で「線を見失った」を検知し、ピボット旋回で曲がり直す
+    // Tracerのカーブ減速はEMA(TRACER_CURVE_TURN_FILTER_ALPHA=0.05 → 時定数約200ms)で
+    // ステップ状の変化には間に合わないため、白の連続で「線を見失った」を検知しピボット旋回で曲がり直す
     constexpr int kCornerWhiteReflection = 85;       // これ以上を白とみなす（実測の白は約99）
     constexpr int kCornerBlackReflection = 35;       // これ以下を黒（実測 黒15/青37）。45では境目のグラデーション(43〜55)を誤検知した
-    constexpr int kCornerWhiteRunCount = 12;         // 直線部でも白は6〜7回連続する。12ならマージン5サンプル
+    // 直線部でも白は6〜7回連続する（TRACER_PWM=80・旧PIDでの実測）。12ならマージン5サンプル。
+    // 速度とPIDが変わるとエッジの揺れ幅も変わるので、Tracerの設定を触ったら測り直すこと
+    constexpr int kCornerWhiteRunCount = 12;
     constexpr int kCornerDetectStartDelayMs = 1000;  // 80度旋回直後は姿勢が乱れて誤検知するため判定を止める時間
 
     constexpr int kCornerPivotOuterPwm = 57;      // 両輪逆転は回転ジャークでボトルを落とすため片輪駆動。強すぎると線を踏み抜く
