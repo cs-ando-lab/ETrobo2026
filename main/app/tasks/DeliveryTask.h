@@ -57,13 +57,23 @@ private:
         // 検知を成立させた白連続の中で最も暗かった反射率。しきい値ぎりぎり(85〜92)の連続で
         // 発火したのか、完全に線を外した白(98〜99)だったのかを切り分ける
         int minReflectionInWhiteRun = 101;
+        // 診断専用。判定の準備を始めた時点（コーナー手前のトレース開始）。コーナーまでの時間と距離を測り、
+        // 手前で減速する位置を決めるため。-1なら未設定
+        int armedMs = -1;
+        int armedMm = 0;
     };
+
+    // 左右の車輪の平均走行距離[mm]。診断用（区間の距離を差で求める）
+    int wheelDistanceMm() const;
 
     // ボトルの色判定。ColorJudge::judge()の暗所ガードが離れたボトルには合わないため、彩度とHueだけで判定する
     ColorJudge::Color judgeBottleColor() const;
 
-    // 上記を連続一致で確定させる。決まらなければUNKNOWN（呼び出し側で走行を打ち切る）
+    // 上記を連続一致で確定させる。決まらなければUNKNOWN
     ColorJudge::Color confirmBottleColor();
+
+    // アームを上げた直後に色を読む一式（整定待ち・診断ログ・確定）
+    ColorJudge::Color readBottleColorAfterRaise();
 
     // 確定後にまとめてログへ出すための、最後に読んだボトルの生値
     mutable ColorJudge::Reading lastBottleReading{};

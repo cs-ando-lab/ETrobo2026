@@ -3,6 +3,118 @@
 #include <cstdlib>
 #include <cmath>
 #include <t_syslog.h>  // タイムアウト時の警告ログ出力に使用
+extern "C" {
+#include <pbio/control.h>  // アームの位置制御に使用（spikeapi::Motorに位置制御が無いため、pbioを直接呼ぶ）
+}
+
+namespace {
+    // アームの上げの間だけモーターの加減速度を変えるので、元の設定を退避しておく
+    struct ArmLimits {
+        int32_t speed;
+        int32_t acceleration;
+        int32_t deceleration;
+        int32_t actuation;
+    };
+
+    // 位置制御でアームを上げ始める（完了は待たない）。失敗したらfalseを返し、設定は元に戻っている。
+    // 成功した場合は、加減速度の変更がこのモーターの以降の全動作に効くので、必ずfinishArmRaise()で戻すこと
+    bool startArmRaise(const Motor& arm, pbio_servo_t*& srv, ArmLimits& saved, int targetDeg) {
+        // pup_motor_get_device()は呼ぶたびに初期化し直すため使わず、初期化なしで取得できるこちらを使う
+        srv = nullptr;
+        if(pbio_servo_get_servo(PBIO_PORT_ID_C, &srv) != PBIO_SUCCESS || srv == nullptr) {
+            return false;
+        }
+
+        arm.resetCount();
+        pbio_control_settings_get_limits(&srv->control.settings, &saved.speed, &saved.acceleration, &saved.deceleration, &saved.actuation);
+        if(pbio_control_settings_set_limits(&srv->control.settings, saved.speed, Config::ARM_RAISE_ACCELERATION_DEG_PER_SEC2, Config::ARM_RAISE_DECELERATION_DEG_PER_SEC2, saved.actuation) != PBIO_SUCCESS) {
+            return false;
+        }
+
+        const int direction = (Config::ARM_RAISE_SPEED_DEG_PER_SEC >= 0) ? 1 : -1;
+        if(pbio_servo_run_target(srv, std::abs(Config::ARM_RAISE_SPEED_DEG_PER_SEC), direction * targetDeg, PBIO_CONTROL_ON_COMPLETION_HOLD) != PBIO_SUCCESS) {
+            pbio_control_settings_set_limits(&srv->control.settings, saved.speed, saved.acceleration, saved.deceleration, saved.actuation);
+            return false;
+        }
+        return true;
+    }
+
+    // 上げ切るのを待ち、加減速度を元に戻す。止まった角度をログに出す
+    void finishArmRaise(Robot& robot, const Motor& arm, pbio_servo_t* srv, const ArmLimits& saved, int targetDeg) {
+        const int timeoutLoopCount = (Config::ARM_TIMEOUT_MS * 1000) / Config::MOTION_POLL_INTERVAL_US;
+        bool reached = false;
+        const char* exitReason = "timeout";
+        for(int i = 0; i < timeoutLoopCount; i++) {
+            if(pbio_control_is_done(&srv->control)) {
+                reached = true;
+                exitReason = "reached";
+                break;
+            }
+            if(robot.isCenterButtonPressed()) {
+                exitReason = "button";
+                break;
+            }
+            dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+        }
+        if(!reached) {
+            // タイムアウトやボタンで打ち切ったときも、自重で落ちないようその場で保持する
+            arm.stop();
+            arm.hold();
+        }
+        pbio_control_settings_set_limits(&srv->control.settings, saved.speed, saved.acceleration, saved.deceleration, saved.actuation);
+        syslog(LOG_NOTICE, "Arm raise: settled at %d deg (target %d, %s)", std::abs(arm.getCount()), targetDeg, exitReason);
+    }
+
+    // setSpeed()で回し、残り角度に比例して減速しながら目標角で止める。
+    // 下げと、位置制御が使えなかったときの上げで使う。holdAtEndがfalseなら止めた後は保持しない
+    void moveArm(const Motor& arm, Robot& robot, int speedDegPerSec, int targetDeg, bool holdAtEnd, const char* label) {
+        const int direction = (speedDegPerSec >= 0) ? 1 : -1;
+        const int maxSpeed = std::abs(speedDegPerSec);
+        const int timeoutLoopCount = (Config::ARM_TIMEOUT_MS * 1000) / Config::MOTION_POLL_INTERVAL_US;
+
+        arm.resetCount();
+        int commandedSpeed = 0;
+        const char* exitReason = "timeout";
+        for(int i = 0; i < timeoutLoopCount; i++) {
+            if(robot.isCenterButtonPressed()) {
+                exitReason = "button";
+                break;
+            }
+            int remainingDeg = targetDeg - std::abs(arm.getCount());
+            if(remainingDeg <= 0) {
+                exitReason = "reached";
+                break;
+            }
+
+            // 終点で低速になっていれば、止めた後の惰性による行き過ぎが小さい
+            int speed = maxSpeed;
+            if(remainingDeg < Config::ARM_DECEL_ANGLE_DEG) {
+                speed = maxSpeed * remainingDeg / Config::ARM_DECEL_ANGLE_DEG;
+                if(speed < Config::ARM_MIN_SPEED_DEG_PER_SEC) {
+                    speed = Config::ARM_MIN_SPEED_DEG_PER_SEC;
+                }
+            }
+            // 同じ値を毎周期指令し直すと軌道が作り直されるので、変わったときだけ送る
+            if(speed != commandedSpeed) {
+                arm.setSpeed(speed * direction);
+                commandedSpeed = speed;
+            }
+            dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+        }
+
+        // ログ用に、止めると決めた瞬間の角度を取っておく（その後の惰性によるずれはgetArmCount()で見る）
+        int stoppedDeg = std::abs(arm.getCount());
+        if(holdAtEnd) {
+            // 回している最中にhold()を呼ぶと、実際の位置より先（制御の目標位置）で保持してしまう（pbio servo.c）。
+            // 先にstop()で制御を切ると、hold()は実際の位置で保持する
+            arm.stop();
+            arm.hold();
+        } else {
+            arm.stop();
+        }
+        syslog(LOG_NOTICE, "Arm %s: stopped at %d deg (target %d, %s)", label, stoppedDeg, targetDeg, exitReason);
+    }
+}  // namespace
 
 Robot::Robot()
     : leftMotor(EPort::PORT_B, Motor::EDirection::COUNTERCLOCKWISE, true),
@@ -386,28 +498,39 @@ void Robot::runWavingUntilColors(const ColorJudge::Color* colors, int colorCount
     stop();
 }
 
-void Robot::raiseArm() {
-    armMotor.resetCount();
-    armMotor.setSpeed(Config::ARM_RAISE_SPEED_DEG_PER_SEC);
-
-    while(std::abs(armMotor.getCount()) < Config::ARM_RAISE_DEG) {
-        if(isCenterButtonPressed())
-            break;
-        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+void Robot::raiseArm(int extraDeg) {
+    // 上げた角度でボトルの色を読むので、止まる位置の精度が要る。setSpeed()で回して角度を見て止める方式は、
+    // 10ms周期の止め遅れと惰性のぶん目標を越える。位置制御ならモーター側が減速を計画して目標角で止まり、そのまま保持する
+    pbio_servo_t* srv = nullptr;
+    ArmLimits saved{};
+    const int targetDeg = Config::ARM_RAISE_DEG + extraDeg;
+    if(!startArmRaise(armMotor, srv, saved, targetDeg)) {
+        syslog(LOG_NOTICE, "Arm raise: position control unavailable, falling back to speed control");
+        moveArm(armMotor, *this, Config::ARM_RAISE_SPEED_DEG_PER_SEC, targetDeg, true, "raise");
+        return;
     }
-    armMotor.stop();
+    finishArmRaise(*this, armMotor, srv, saved, targetDeg);
 }
 
-void Robot::lowerArm() {
-    armMotor.resetCount();
-    armMotor.setSpeed(Config::ARM_LOWER_SPEED_DEG_PER_SEC);
-
-    while(std::abs(armMotor.getCount()) < Config::ARM_LOWER_DEG) {
-        if(isCenterButtonPressed())
-            break;
-        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+void Robot::raiseArmWhileDriving(int distanceMm, int speedDegPerSec, int extraDeg) {
+    pbio_servo_t* srv = nullptr;
+    ArmLimits saved{};
+    const int targetDeg = Config::ARM_RAISE_DEG + extraDeg;
+    if(!startArmRaise(armMotor, srv, saved, targetDeg)) {
+        // 位置制御が使えないと同時に動かせないので、進んでから上げる
+        syslog(LOG_NOTICE, "Arm raise: position control unavailable, driving then raising");
+        driveStraight(distanceMm, speedDegPerSec);
+        moveArm(armMotor, *this, Config::ARM_RAISE_SPEED_DEG_PER_SEC, targetDeg, true, "raise");
+        return;
     }
-    armMotor.stop();
+    // アームはモーター側の位置制御で上がっていくので、その間に走行できる
+    driveStraight(distanceMm, speedDegPerSec);
+    finishArmRaise(*this, armMotor, srv, saved, targetDeg);
+}
+
+void Robot::lowerArm(int extraDeg) {
+    // 下げた後は保持しない（従来どおり。走行中にアームを保持し続けないため）
+    moveArm(armMotor, *this, Config::ARM_LOWER_SPEED_DEG_PER_SEC, Config::ARM_LOWER_DEG + extraDeg, false, "lower");
 }
 
 bool Robot::isOnColor(ColorJudge::Color color, int& matchedCount, int stableCount) const {
@@ -543,4 +666,8 @@ int Robot::getLeftMotorCount() const {
 
 int Robot::getRightMotorCount() const {
     return rightMotor.getCount();
+}
+
+int Robot::getArmCount() const {
+    return armMotor.getCount();
 }

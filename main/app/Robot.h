@@ -76,9 +76,13 @@ public:
     // 左右のモーターパワーを直接指定する（Tracerが使う）
     void setMotorPower(int left, int right);
 
-    // アームの上げ下げ
-    void raiseArm();
-    void lowerArm();
+    // アームの上げ下げ。上げはモーターの位置制御で目標角に止めて保持し、下げは止めた後に保持しない。
+    // extraDegはConfig::ARM_RAISE_DEG / ARM_LOWER_DEGへの上乗せ分[°]。上げで足した分は、下げでも同じだけ足すこと
+    void raiseArm(int extraDeg = 0);
+    void lowerArm(int extraDeg = 0);
+    // アームを上げながら直進する（上げはモーター側で進むので、その間に走れる）。
+    // distanceMmが負なら後退。走り終えても、上げ切るまでは戻らない
+    void raiseArmWhileDriving(int distanceMm, int speedDegPerSec, int extraDeg = 0);
 
     // モーターを停止する
     void stop();
@@ -124,6 +128,7 @@ public:
     void resetMotorCounts();         // カウントをリセット
     int getLeftMotorCount() const;   // 左モーターの回転量 [degree]
     int getRightMotorCount() const;  // 右モーターの回転量 [degree]
+    int getArmCount() const;         // アームの回転量 [degree]（直前のraiseArm/lowerArmの開始時を0とする）
 
     // ── デバッグログ用（BLE Monitorへのセンサー値送信にのみ使用）─────
     const ColorSensor& getColorSensor() const { return colorSensor; }
