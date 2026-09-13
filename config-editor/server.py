@@ -47,11 +47,8 @@ INTEGER_RANGES = {
     "int32_t": (-2_147_483_648, 2_147_483_647),
     "uint32_t": (0, 4_294_967_295),
 }
-GATE_PREFIXES = {
-    "red": "ETRALLY_RED_GATE",
-    "blue": "ETRALLY_BLUE_GATE",
-    "yellow": "ETRALLY_YELLOW_GATE",
-}
+COURSES = {"L": "Lコース", "R": "Rコース"}
+GATE_COLORS = ("red", "blue", "yellow")
 GATE_LABELS = {"red": "赤ゲート", "blue": "青ゲート", "yellow": "黄ゲート"}
 GATE_ORIENTATIONS = {"red": "horizontal", "blue": "vertical", "yellow": "horizontal"}
 
@@ -247,31 +244,39 @@ def validate_values(values: object, schema: list[dict] | None = None) -> dict:
 
 
 def validate_gates(values: dict[str, int | float]) -> None:
-    occupied: dict[tuple[int | float, int | float], str] = {}
-    for color, prefix in GATE_PREFIXES.items():
-        coordinates = {
-            side: {
-                axis: values[f"{prefix}_{side.upper()}_{axis.upper()}"]
-                for axis in ("x", "y")
+    for course, course_label in COURSES.items():
+        occupied: dict[tuple[int | float, int | float], str] = {}
+        for color in GATE_COLORS:
+            prefix = f"ETRALLY_{course}_{color.upper()}_GATE"
+            coordinates = {
+                side: {
+                    axis: values[f"{prefix}_{side.upper()}_{axis.upper()}"]
+                    for axis in ("x", "y")
+                }
+                for side in ("left", "right")
             }
-            for side in ("left", "right")
-        }
-        for point in coordinates.values():
-            if not 1 <= point["x"] <= 5 or not 1 <= point["y"] <= 5:
-                raise ValueError(f"{GATE_LABELS[color]}のXとYは1〜5で指定してください")
-            position = (point["x"], point["y"])
-            if position in occupied:
-                x, y = position
-                raise ValueError(f"X={x}, Y={y}でゲート同士が重なっています")
-            occupied[position] = color
-        left, right = coordinates["left"], coordinates["right"]
-        distance = abs(left["x"] - right["x"]) + abs(left["y"] - right["y"])
-        if distance != 1:
-            raise ValueError(f"{GATE_LABELS[color]}の脚は隣り合うマスに配置してください")
-        if GATE_ORIENTATIONS[color] == "horizontal" and left["y"] != right["y"]:
-            raise ValueError(f"{GATE_LABELS[color]}は横向きに配置してください")
-        if GATE_ORIENTATIONS[color] == "vertical" and left["x"] != right["x"]:
-            raise ValueError(f"{GATE_LABELS[color]}は縦向きに配置してください")
+            for point in coordinates.values():
+                if not 1 <= point["x"] <= 5 or not 1 <= point["y"] <= 5:
+                    raise ValueError(
+                        f"{course_label}の{GATE_LABELS[color]}のXとYは1〜5で指定してください"
+                    )
+                position = (point["x"], point["y"])
+                if position in occupied:
+                    x, y = position
+                    raise ValueError(
+                        f"{course_label}のX={x}, Y={y}でゲート同士が重なっています"
+                    )
+                occupied[position] = color
+            left, right = coordinates["left"], coordinates["right"]
+            distance = abs(left["x"] - right["x"]) + abs(left["y"] - right["y"])
+            if distance != 1:
+                raise ValueError(
+                    f"{course_label}の{GATE_LABELS[color]}の脚は隣り合うマスに配置してください"
+                )
+            if GATE_ORIENTATIONS[color] == "horizontal" and left["y"] != right["y"]:
+                raise ValueError(f"{course_label}の{GATE_LABELS[color]}は横向きに配置してください")
+            if GATE_ORIENTATIONS[color] == "vertical" and left["x"] != right["x"]:
+                raise ValueError(f"{course_label}の{GATE_LABELS[color]}は縦向きに配置してください")
 
 
 def format_cpp_value(cpp_type: str, value: int | float) -> str:

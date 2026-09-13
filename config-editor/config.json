@@ -212,7 +212,7 @@
     {
       "name": "TRACER_KP",
       "type": "float",
-      "value": 0.35,
+      "value": 0.38,
       "category": "Tracer（ライントレース）",
       "subcategory": "その他",
       "description": "反射率PID制御の比例ゲイン"
@@ -228,7 +228,7 @@
     {
       "name": "TRACER_KD",
       "type": "float",
-      "value": 0.03,
+      "value": 0.02,
       "category": "Tracer（ライントレース）",
       "subcategory": "その他",
       "description": "反射率PID制御の微分ゲイン"
@@ -244,7 +244,7 @@
     {
       "name": "TRACER_PWM",
       "type": "int8_t",
-      "value": 80,
+      "value": 90,
       "category": "Tracer（ライントレース）",
       "subcategory": "その他",
       "description": "基準パワー（直線区間での上限速度。カーブではここから動的に減速する）"
@@ -252,7 +252,7 @@
     {
       "name": "TRACER_CURVE_DECEL_GAIN",
       "type": "float",
-      "value": 2.0,
+      "value": 2.3,
       "category": "Tracer（ライントレース）",
       "subcategory": "カーブ減速",
       "description": "|turn|1あたりの減速量[PWM]。turnとbasePwmは同スケール"
@@ -268,7 +268,7 @@
     {
       "name": "TRACER_CURVE_TURN_FILTER_ALPHA",
       "type": "float",
-      "value": 0.035,
+      "value": 0.05,
       "category": "Tracer（ライントレース）",
       "subcategory": "カーブ減速",
       "description": ""
@@ -276,7 +276,7 @@
     {
       "name": "COLOR_CHROMATIC_MIN_SATURATION",
       "type": "uint8_t",
-      "value": 36,
+      "value": 40,
       "category": "ColorJudge（色判定）",
       "subcategory": "その他",
       "description": ""
@@ -285,6 +285,22 @@
       "name": "COLOR_ACHROMATIC_REFLECTION_THRESHOLD",
       "type": "int",
       "value": 60,
+      "category": "ColorJudge（色判定）",
+      "subcategory": "その他",
+      "description": ""
+    },
+    {
+      "name": "COLOR_DARK_REFLECTION_THRESHOLD",
+      "type": "int",
+      "value": 20,
+      "category": "ColorJudge（色判定）",
+      "subcategory": "その他",
+      "description": ""
+    },
+    {
+      "name": "COLOR_DARK_VALUE_THRESHOLD",
+      "type": "int",
+      "value": 30,
       "category": "ColorJudge（色判定）",
       "subcategory": "その他",
       "description": ""
@@ -348,7 +364,7 @@
     {
       "name": "PID_DERIVATIVE_FILTER_ALPHA",
       "type": "float",
-      "value": 0.15,
+      "value": 0.1,
       "category": "Pid（PID制御共通）",
       "subcategory": "その他",
       "description": ""
@@ -376,6 +392,14 @@
       "category": "Calibrator（起動準備）",
       "subcategory": "その他",
       "description": "起動ビープの再生時間[ms]"
+    },
+    {
+      "name": "CALIBRATOR_DISPLAY_TOGGLE_CYCLES",
+      "type": "int",
+      "value": 10,
+      "category": "Calibrator（起動準備）",
+      "subcategory": "その他",
+      "description": ""
     },
     {
       "name": "LINE_TRACE_POLL_INTERVAL_US",
@@ -458,99 +482,195 @@
       "description": ""
     },
     {
-      "name": "ETRALLY_RED_GATE_LEFT_X",
+      "name": "ETRALLY_L_RED_GATE_LEFT_X",
       "type": "int",
       "value": 2,
       "category": "ET-Rally（課題）",
-      "subcategory": "赤ゲート",
+      "subcategory": "赤ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_RED_GATE_LEFT_Y",
+      "name": "ETRALLY_L_RED_GATE_LEFT_Y",
       "type": "int",
       "value": 5,
       "category": "ET-Rally（課題）",
-      "subcategory": "赤ゲート",
+      "subcategory": "赤ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_RED_GATE_RIGHT_X",
+      "name": "ETRALLY_L_RED_GATE_RIGHT_X",
       "type": "int",
       "value": 3,
       "category": "ET-Rally（課題）",
-      "subcategory": "赤ゲート",
+      "subcategory": "赤ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_RED_GATE_RIGHT_Y",
+      "name": "ETRALLY_L_RED_GATE_RIGHT_Y",
       "type": "int",
       "value": 5,
       "category": "ET-Rally（課題）",
-      "subcategory": "赤ゲート",
+      "subcategory": "赤ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_BLUE_GATE_LEFT_X",
+      "name": "ETRALLY_L_BLUE_GATE_LEFT_X",
       "type": "int",
       "value": 5,
       "category": "ET-Rally（課題）",
-      "subcategory": "青ゲート",
+      "subcategory": "青ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_BLUE_GATE_LEFT_Y",
+      "name": "ETRALLY_L_BLUE_GATE_LEFT_Y",
       "type": "int",
       "value": 3,
       "category": "ET-Rally（課題）",
-      "subcategory": "青ゲート",
+      "subcategory": "青ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_BLUE_GATE_RIGHT_X",
+      "name": "ETRALLY_L_BLUE_GATE_RIGHT_X",
       "type": "int",
       "value": 5,
       "category": "ET-Rally（課題）",
-      "subcategory": "青ゲート",
+      "subcategory": "青ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_BLUE_GATE_RIGHT_Y",
+      "name": "ETRALLY_L_BLUE_GATE_RIGHT_Y",
       "type": "int",
       "value": 4,
       "category": "ET-Rally（課題）",
-      "subcategory": "青ゲート",
+      "subcategory": "青ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_YELLOW_GATE_LEFT_X",
+      "name": "ETRALLY_L_YELLOW_GATE_LEFT_X",
       "type": "int",
       "value": 1,
       "category": "ET-Rally（課題）",
-      "subcategory": "黄ゲート",
+      "subcategory": "黄ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_YELLOW_GATE_LEFT_Y",
+      "name": "ETRALLY_L_YELLOW_GATE_LEFT_Y",
       "type": "int",
       "value": 2,
       "category": "ET-Rally（課題）",
-      "subcategory": "黄ゲート",
+      "subcategory": "黄ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_YELLOW_GATE_RIGHT_X",
+      "name": "ETRALLY_L_YELLOW_GATE_RIGHT_X",
       "type": "int",
       "value": 2,
       "category": "ET-Rally（課題）",
-      "subcategory": "黄ゲート",
+      "subcategory": "黄ゲート(Lコース)",
       "description": ""
     },
     {
-      "name": "ETRALLY_YELLOW_GATE_RIGHT_Y",
+      "name": "ETRALLY_L_YELLOW_GATE_RIGHT_Y",
       "type": "int",
       "value": 2,
       "category": "ET-Rally（課題）",
-      "subcategory": "黄ゲート",
+      "subcategory": "黄ゲート(Lコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_RED_GATE_LEFT_X",
+      "type": "int",
+      "value": 2,
+      "category": "ET-Rally（課題）",
+      "subcategory": "赤ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_RED_GATE_LEFT_Y",
+      "type": "int",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "subcategory": "赤ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_RED_GATE_RIGHT_X",
+      "type": "int",
+      "value": 3,
+      "category": "ET-Rally（課題）",
+      "subcategory": "赤ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_RED_GATE_RIGHT_Y",
+      "type": "int",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "subcategory": "赤ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_BLUE_GATE_LEFT_X",
+      "type": "int",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "subcategory": "青ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_BLUE_GATE_LEFT_Y",
+      "type": "int",
+      "value": 3,
+      "category": "ET-Rally（課題）",
+      "subcategory": "青ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_BLUE_GATE_RIGHT_X",
+      "type": "int",
+      "value": 5,
+      "category": "ET-Rally（課題）",
+      "subcategory": "青ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_BLUE_GATE_RIGHT_Y",
+      "type": "int",
+      "value": 4,
+      "category": "ET-Rally（課題）",
+      "subcategory": "青ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_YELLOW_GATE_LEFT_X",
+      "type": "int",
+      "value": 1,
+      "category": "ET-Rally（課題）",
+      "subcategory": "黄ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_YELLOW_GATE_LEFT_Y",
+      "type": "int",
+      "value": 2,
+      "category": "ET-Rally（課題）",
+      "subcategory": "黄ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_YELLOW_GATE_RIGHT_X",
+      "type": "int",
+      "value": 2,
+      "category": "ET-Rally（課題）",
+      "subcategory": "黄ゲート(Rコース)",
+      "description": ""
+    },
+    {
+      "name": "ETRALLY_R_YELLOW_GATE_RIGHT_Y",
+      "type": "int",
+      "value": 2,
+      "category": "ET-Rally（課題）",
+      "subcategory": "黄ゲート(Rコース)",
       "description": ""
     },
     {

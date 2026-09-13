@@ -6,21 +6,38 @@
 #include <utility>
 
 const std::array<RallyTypes::Gate, RallyRoute::GATE_COUNT>
-    RallyRoute::GATES = { { { RallyTypes::GateColor::RED,
-                              { Config::ETRALLY_RED_GATE_LEFT_X,
-                                Config::ETRALLY_RED_GATE_LEFT_Y },
-                              { Config::ETRALLY_RED_GATE_RIGHT_X,
-                                Config::ETRALLY_RED_GATE_RIGHT_Y } },
-                            { RallyTypes::GateColor::BLUE,
-                              { Config::ETRALLY_BLUE_GATE_LEFT_X,
-                                Config::ETRALLY_BLUE_GATE_LEFT_Y },
-                              { Config::ETRALLY_BLUE_GATE_RIGHT_X,
-                                Config::ETRALLY_BLUE_GATE_RIGHT_Y } },
-                            { RallyTypes::GateColor::YELLOW,
-                              { Config::ETRALLY_YELLOW_GATE_LEFT_X,
-                                Config::ETRALLY_YELLOW_GATE_LEFT_Y },
-                              { Config::ETRALLY_YELLOW_GATE_RIGHT_X,
-                                Config::ETRALLY_YELLOW_GATE_RIGHT_Y } } } };
+    RallyRoute::GATES_L = { { { RallyTypes::GateColor::RED,
+                                { Config::ETRALLY_L_RED_GATE_LEFT_X,
+                                  Config::ETRALLY_L_RED_GATE_LEFT_Y },
+                                { Config::ETRALLY_L_RED_GATE_RIGHT_X,
+                                  Config::ETRALLY_L_RED_GATE_RIGHT_Y } },
+                              { RallyTypes::GateColor::BLUE,
+                                { Config::ETRALLY_L_BLUE_GATE_LEFT_X,
+                                  Config::ETRALLY_L_BLUE_GATE_LEFT_Y },
+                                { Config::ETRALLY_L_BLUE_GATE_RIGHT_X,
+                                  Config::ETRALLY_L_BLUE_GATE_RIGHT_Y } },
+                              { RallyTypes::GateColor::YELLOW,
+                                { Config::ETRALLY_L_YELLOW_GATE_LEFT_X,
+                                  Config::ETRALLY_L_YELLOW_GATE_LEFT_Y },
+                                { Config::ETRALLY_L_YELLOW_GATE_RIGHT_X,
+                                  Config::ETRALLY_L_YELLOW_GATE_RIGHT_Y } } } };
+
+const std::array<RallyTypes::Gate, RallyRoute::GATE_COUNT>
+    RallyRoute::GATES_R = { { { RallyTypes::GateColor::RED,
+                                { Config::ETRALLY_R_RED_GATE_LEFT_X,
+                                  Config::ETRALLY_R_RED_GATE_LEFT_Y },
+                                { Config::ETRALLY_R_RED_GATE_RIGHT_X,
+                                  Config::ETRALLY_R_RED_GATE_RIGHT_Y } },
+                              { RallyTypes::GateColor::BLUE,
+                                { Config::ETRALLY_R_BLUE_GATE_LEFT_X,
+                                  Config::ETRALLY_R_BLUE_GATE_LEFT_Y },
+                                { Config::ETRALLY_R_BLUE_GATE_RIGHT_X,
+                                  Config::ETRALLY_R_BLUE_GATE_RIGHT_Y } },
+                              { RallyTypes::GateColor::YELLOW,
+                                { Config::ETRALLY_R_YELLOW_GATE_LEFT_X,
+                                  Config::ETRALLY_R_YELLOW_GATE_LEFT_Y },
+                                { Config::ETRALLY_R_YELLOW_GATE_RIGHT_X,
+                                  Config::ETRALLY_R_YELLOW_GATE_RIGHT_Y } } } };
 
 const std::array<RallyTypes::GateColor, RallyRoute::GATE_COUNT>
     RallyRoute::GATE_CYCLE = { { RallyTypes::GateColor::RED,
@@ -32,7 +49,8 @@ const std::array<int, RallyRoute::DIRECTION_COUNT>
 const std::array<int, RallyRoute::DIRECTION_COUNT>
     RallyRoute::DY = { -1, 0, 1, 0 };  // 北、東、南、西
 
-RallyRoute::RallyRoute(RallyTypes::Node initNode) {
+RallyRoute::RallyRoute(RallyTypes::Node initNode, bool isLeftCourse) {
+    const std::array<Gate, GATE_COUNT>& GATES = isLeftCourse ? GATES_L : GATES_R;
     initNode_ = initNode;
     for(size_t i = 0; i < GATE_COUNT; i++) {
         gatePassingEdges_[i] = {

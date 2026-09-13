@@ -1,17 +1,18 @@
 const GATES = {
   red: {
-    prefix: "ETRALLY_RED_GATE", css: "red", short: "R",
+    css: "red", short: "R",
     label: "赤ゲート", orientation: "horizontal",
   },
   blue: {
-    prefix: "ETRALLY_BLUE_GATE", css: "blue", short: "B",
+    css: "blue", short: "B",
     label: "青ゲート", orientation: "vertical",
   },
   yellow: {
-    prefix: "ETRALLY_YELLOW_GATE", css: "yellow", short: "Y",
+    css: "yellow", short: "Y",
     label: "黄ゲート", orientation: "horizontal",
   },
 };
+const COURSES = { L: "Lコース", R: "Rコース" };
 
 const form = document.querySelector("#config-form");
 const settingsRoot = document.querySelector("#settings");
@@ -32,6 +33,7 @@ let config;
 let savedValues;
 let historySnapshots = [];
 let selectedGate = "red";
+let selectedCourse = "L";
 let selectedCategoryIndex = 0;
 
 function valuesFromConfig() {
@@ -124,14 +126,29 @@ function renderSettings() {
     </section>`).join("");
 }
 
-function gateCoordinates(values) {
+function gateSettingName(course, color, side, axis) {
+  const coordinate = axis === "row" ? "Y" : "X";
+  return `ETRALLY_${course}_${color.toUpperCase()}_GATE_${side.toUpperCase()}_${coordinate}`;
+}
+
+function xToVisualColumn(x, course = selectedCourse) {
+  return course === "R" ? 6 - x : x;
+}
+
+function visualColumnToX(column, course = selectedCourse) {
+  return course === "R" ? 6 - column : column;
+}
+
+function gateCoordinates(values, course = selectedCourse) {
   return Object.fromEntries(Object.entries(GATES).map(([color, gate]) => [
     color,
     Object.fromEntries(["left", "right"].map(side => [
       side,
       Object.fromEntries(["row", "col"].map(axis => [
         axis,
-        values[`${gate.prefix}_${side.toUpperCase()}_${axis === "row" ? "Y" : "X"}`],
+        axis === "col"
+          ? xToVisualColumn(values[gateSettingName(course, color, side, axis)], course)
+          : values[gateSettingName(course, color, side, axis)],
       ])),
     ])),
   ]));
@@ -159,7 +176,8 @@ function renderGrid(values) {
       cell.dataset.col = col;
       cell.style.setProperty("--point-x", `${((40 + (col - 1) * 118) / 552) * 100}%`);
       cell.style.setProperty("--point-y", `${((40 + (row - 1) * 118) / 552) * 100}%`);
-      cell.setAttribute("aria-label", `row ${row}, col ${col}の灰色点に配置`);
+      const x = visualColumnToX(col);
+      cell.setAttribute("aria-label", `X=${x}, Y=${row}の灰色点に配置`);
       (occupied.get(`${row}-${col}`) || []).forEach(({ color, side }) => {
         const marker = document.createElement("span");
         marker.className = `marker ${GATES[color].css}`;
@@ -190,13 +208,13 @@ function placementAt(row, col) {
 }
 
 function placeGate(row, col) {
-  const gate = GATES[selectedGate];
   const coordinates = placementAt(row, col);
   ["left", "right"].forEach(side => {
     ["row", "col"].forEach(axis => {
-      const suffix = axis === "row" ? "Y" : "X";
-      settingInput(`${gate.prefix}_${side.toUpperCase()}_${suffix}`).value =
-        coordinates[side][axis];
+      settingInput(gateSettingName(selectedCourse, selectedGate, side, axis)).value =
+        axis === "col"
+          ? visualColumnToX(coordinates[side][axis])
+          : coordinates[side][axis];
     });
   });
   updateState();
@@ -223,34 +241,54 @@ function selectGate(gate) {
   });
   const direction = GATES[selectedGate].orientation === "horizontal" ? "横向き" : "縦向き";
   document.querySelector("#placement-hint").textContent =
-    `${GATES[selectedGate].label}を${direction}に配置します`;
+    `${COURSES[selectedCourse]}の${GATES[selectedGate].label}を${direction}に配置します`;
+}
+
+function selectCourse(course) {
+  if (!config) return;
+  selectedCourse = course;
+  document.querySelectorAll(".course-choice").forEach(button => {
+    const selected = button.dataset.course === selectedCourse;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  document.querySelector("#gate-preview-title").textContent =
+    `ゲート配置（${COURSES[selectedCourse]}${selectedCourse === "R" ? "・左右反転" : ""}）`;
+  document.querySelector("#coordinate-hint").textContent = selectedCourse === "R"
+    ? "左→右: X=5→1 ／ 上→下: Y=1→5"
+    : "左→右: X=1→5 ／ 上→下: Y=1→5";
+  grid.classList.toggle("course-r", selectedCourse === "R");
+  renderGrid(readValues());
+  selectGate(selectedGate);
 }
 
 function validate(values) {
-  const occupied = new Map();
-  for (const [color, gate] of Object.entries(gateCoordinates(values))) {
-    for (const point of Object.values(gate)) {
-      if (point.row < 1 || point.row > 5 || point.col < 1 || point.col > 5) {
-        return `${GATES[color].label}のrowとcolは1〜5で指定してください。`;
+  for (const [course, courseLabel] of Object.entries(COURSES)) {
+    const occupied = new Map();
+    for (const [color, gate] of Object.entries(gateCoordinates(values, course))) {
+      for (const point of Object.values(gate)) {
+        if (point.row < 1 || point.row > 5 || point.col < 1 || point.col > 5) {
+          return `${courseLabel}の${GATES[color].label}のrowとcolは1〜5で指定してください。`;
+        }
+        const key = `${point.row}-${point.col}`;
+        if (occupied.has(key)) {
+          return `${courseLabel}の${key.replace("-", "行・")}列でゲート同士が重なっています。`;
+        }
+        occupied.set(key, color);
       }
-      const key = `${point.row}-${point.col}`;
-      if (occupied.has(key)) {
-        return `${key.replace("-", "行・")}列でゲート同士が重なっています。`;
+      const distance =
+        Math.abs(gate.left.row - gate.right.row) +
+        Math.abs(gate.left.col - gate.right.col);
+      if (distance !== 1) {
+        return `${courseLabel}の${GATES[color].label}の左右の脚は隣り合うマスに配置してください。`;
       }
-      occupied.set(key, color);
-    }
-    const distance =
-      Math.abs(gate.left.row - gate.right.row) +
-      Math.abs(gate.left.col - gate.right.col);
-    if (distance !== 1) {
-      return `${GATES[color].label}の左右の脚は隣り合うマスに配置してください。`;
-    }
-    const shouldBeHorizontal = GATES[color].orientation === "horizontal";
-    if (shouldBeHorizontal && gate.left.row !== gate.right.row) {
-      return `${GATES[color].label}は横向きに配置してください。`;
-    }
-    if (!shouldBeHorizontal && gate.left.col !== gate.right.col) {
-      return `${GATES[color].label}は縦向きに配置してください。`;
+      const shouldBeHorizontal = GATES[color].orientation === "horizontal";
+      if (shouldBeHorizontal && gate.left.row !== gate.right.row) {
+        return `${courseLabel}の${GATES[color].label}は横向きに配置してください。`;
+      }
+      if (!shouldBeHorizontal && gate.left.col !== gate.right.col) {
+        return `${courseLabel}の${GATES[color].label}は縦向きに配置してください。`;
+      }
     }
   }
   const invalidInput = settingsRoot.querySelector("input:invalid");
@@ -484,6 +522,9 @@ grid.addEventListener("focusout", event => {
 });
 document.querySelectorAll(".gate-choice").forEach(button => {
   button.addEventListener("click", () => selectGate(button.dataset.gate));
+});
+document.querySelectorAll(".course-choice").forEach(button => {
+  button.addEventListener("click", () => selectCourse(button.dataset.course));
 });
 
 form.addEventListener("submit", event => {
