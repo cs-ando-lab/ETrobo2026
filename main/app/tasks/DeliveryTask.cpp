@@ -45,7 +45,7 @@ namespace {
     // 確定はサンプル数ではなくms基準にする。制御周期が変わっても意図した時間幅を保つため
     // 実測: コーナー後の青は条件を満たす最大連続が12〜20サンプルしかない。100ms(10サンプル)だと
     // マージンが2〜3しか残らないため70msまで詰める。誤検知は彩度ゲート(kBlueLineMinSaturation)で切る
-    constexpr int kBlueEntryConfirmMs = 70;   // 青に乗ったと確定するまでの時間
+    constexpr int kBlueEntryConfirmMs = 70;    // 青に乗ったと確定するまでの時間
     constexpr int kBluePassedConfirmMs = 400;  // 青を通過した（完全に降りた）と確定するまでの時間
     // エリアへ向かう最後の1本だけ短くする。300msだと確定までに約60mm進み、入口ではなく出口で抜けてしまうため
     constexpr int kBlueFinalEntryConfirmMs = 50;
@@ -74,7 +74,7 @@ namespace {
     // ── 行きの90度コーナー手前の減速 ─────────────────────────
     // TRACER_PWM(90)のままピボットに入るとボトルを落とす。トレース開始からコーナー検知までは
     // 1194〜1226mm（3回）と安定しているので、距離で手前から落とす。検知は線の終わりの約40mm先
-    constexpr int kCornerTracePwm = 100;  // 手前で減速する前提なので、そこまでは速く走る
+    constexpr int kCornerTracePwm = 100;         // 手前で減速する前提なので、そこまでは速く走る
     constexpr int kCornerSlowdownStartMm = 950;  // 実機調整。線の終わりの約210mm手前
     // 踏み越え時は80度旋回の後から測るので、起点が通常時とずれる。通常時より早めに落とす
     constexpr int kCornerSlowdownStartMmAfterOvershoot = 800;
@@ -88,7 +88,7 @@ namespace {
     // ── 帰りの90度コーナーの手前 ──────────────────────────
     // 帰りのトレース開始からコーナー検知までは 黄467〜473 / 青777 / 赤1064〜1089mm で、色が1つ変わるごとに約305mm。
     // 時間で判定を始めるとエリア付近のトレースの揺れで白が9回続き、黄では356mmで誤検知したので、距離で始める
-    constexpr int kReturnCornerDetectStartMmYellow = 400;  // 誤検知した356mmより後ろ、線の終わり(約430mm)より手前
+    constexpr int kReturnCornerDetectStartMmYellow = 400;    // 誤検知した356mmより後ろ、線の終わり(約430mm)より手前
     constexpr int kReturnCornerSlowdownStartMmYellow = 270;  // 実機調整。線の終わりの約160mm手前
     constexpr int kReturnCornerColorStepMm = 305;            // 黄→青→赤で1段ずつ遠くなる
     constexpr int kReturnTracePwm = 100;                     // 減速位置まで。手前で減速する前提なので速く走る
@@ -103,15 +103,15 @@ namespace {
     // ── 直角コーナー対策 ───────────────────────────────
     // Tracerのカーブ減速はEMA(TRACER_CURVE_TURN_FILTER_ALPHA=0.05 → 時定数約200ms)で
     // ステップ状の変化には間に合わないため、白の連続で「線を見失った」を検知しピボット旋回で曲がり直す
-    constexpr int kCornerWhiteReflection = 85;       // これ以上を白とみなす（実測の白は約99）
-    constexpr int kCornerBlackReflection = 35;       // これ以下を黒（実測 黒15/青37）。45では境目のグラデーション(43〜55)を誤検知した
+    constexpr int kCornerWhiteReflection = 85;  // これ以上を白とみなす（実測の白は約99）
+    constexpr int kCornerBlackReflection = 35;  // これ以下を黒（実測 黒15/青37）。45では境目のグラデーション(43〜55)を誤検知した
     // 直線部でも白は6〜7回連続する（TRACER_PWM=80・旧PIDでの実測）。10では帰りの手前で9まで来て誤検知もしたので12。
     // コーナー手前で減速するので、検知が2サンプル遅れても行き過ぎは小さい。Tracerの設定を触ったら測り直すこと
     constexpr int kCornerWhiteRunCount = 12;
     constexpr int kCornerDetectStartDelayMs = 1000;  // 青1本目の後の移動・旋回直後は姿勢が乱れて誤検知するため判定を止める時間
 
-    constexpr int kCornerPivotOuterPwm = 57;      // 両輪逆転は回転ジャークでボトルを落とすため片輪駆動。強すぎると線を踏み抜く
-    constexpr int kCornerPivotInnerPwm = 0;       // 0で片輪旋回。負にすると半径は縮むがボトルへの負荷が増える
+    constexpr int kCornerPivotOuterPwm = 57;       // 両輪逆転は回転ジャークでボトルを落とすため片輪駆動。強すぎると線を踏み抜く
+    constexpr int kCornerPivotInnerPwm = 0;        // 0で片輪旋回。負にすると半径は縮むがボトルへの負荷が増える
     constexpr int kCornerPivotRampLoopCount = 15;  // 立ち上がりでボトルを振らないよう150msかけて上げる
     constexpr int kCornerPivotBlackRunCount = 3;   // 1サンプルのノイズで抜けないための連続回数
     // 行き過ぎた直後は元の線の方が近く先に当たる。元の線だと18度で終わるが正解時は72〜86度なので40度で分離できる
@@ -127,15 +127,15 @@ namespace {
     constexpr float kCornerDoneTurnDeg = 70.0f;        // これだけ回って復帰できたら曲がりきったとみなし、以降の判定を止める
     constexpr float kCornerPivotMaxTurnDeg = 120.0f;   // 暴走を止める保険
     constexpr int kCornerPivotTimeoutLoopCount = 300;  // 保険その2（10ms周期なので3秒）
-    constexpr int kCornerSuppressAfterBlueMs = 600;   // 青を跨ぐとき脇の白を踏むため、青の上と直後は判定を止める
-    constexpr int kCornerRetryAfterFailMs = 1500;     // 線を見つけられなかったときに次の検知まで置く間隔
-    constexpr int kCornerConfirmTimeoutMs = 1500;     // 線に復帰した後、Tracerが曲がりきるのを待つ上限
+    constexpr int kCornerSuppressAfterBlueMs = 600;    // 青を跨ぐとき脇の白を踏むため、青の上と直後は判定を止める
+    constexpr int kCornerRetryAfterFailMs = 1500;      // 線を見つけられなかったときに次の検知まで置く間隔
+    constexpr int kCornerConfirmTimeoutMs = 1500;      // 線に復帰した後、Tracerが曲がりきるのを待つ上限
     constexpr int kCornerSuppressAfterBlueCount = (kCornerSuppressAfterBlueMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
     constexpr int kCornerRetryAfterFailCount = (kCornerRetryAfterFailMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
     constexpr int kCornerConfirmTimeoutCount = (kCornerConfirmTimeoutMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
 
     // ── エリア配置 ────────────────────────────────────
-    constexpr int kDiagonalPwmHigh = 85;       // 斜め移動の外輪PWM
+    constexpr int kDiagonalPwmHigh = 85;  // 斜め移動の外輪PWM
     // 内輪PWM。旋回半径 R = TREAD/2 * (外輪+内輪)/(外輪-内輪) なので、上げるほど弧が大きくなり
     // 同じ回頭量でも進む距離が伸びる。回頭量を3等分して段階的に切り替える
     constexpr int kAreaDiagonalInnerPwms[] = { 5, 10, 55 };
@@ -167,9 +167,9 @@ namespace {
     // 同値のため、ライントレース中の白黒判定が最も不安定になるため）
     constexpr int kSearchReflectionThreshold = 55;
     constexpr int kSearchPwm = 65;
-    constexpr float kSearchMaxTurnDeg = 180.0f;      // これ以上回っても線から離れるだけなので打ち切る
-    constexpr int kSearchTimeoutLoopCount = 500;     // 保険（10ms周期なので5秒）
-    constexpr int kSearchFoundPwmLeft = 30;          // 線を見つけた瞬間に踏み込む左右PWM
+    constexpr float kSearchMaxTurnDeg = 180.0f;   // これ以上回っても線から離れるだけなので打ち切る
+    constexpr int kSearchTimeoutLoopCount = 500;  // 保険（10ms周期なので5秒）
+    constexpr int kSearchFoundPwmLeft = 30;       // 線を見つけた瞬間に踏み込む左右PWM
     constexpr int kSearchFoundPwmRight = 90;
     constexpr float kSearchFoundSec = 0.10f;
 
@@ -517,14 +517,14 @@ bool DeliveryTask::pivotUntilLineFound(bool isLeftTurn, int outerPwm, int innerP
         if(seenWhiteAfterGate && blackRun >= kCornerPivotBlackRunCount) {
             robot.stop();
             syslog(LOG_NOTICE, "Pivot done: line found (reflection %d, turned %d deg)", reflection, (int)turnedDeg);
-        syslog(LOG_NOTICE, "Pivot stats: firstWhite %d deg, firstBlack %d deg, minRefl %d @ %d deg, maxBlackRun %d", firstWhiteAfterGateDeg, firstBlackAfterGateDeg, minReflectionAfterGate, minReflectionAtDeg, maxBlackRun);
+            syslog(LOG_NOTICE, "Pivot stats: firstWhite %d deg, firstBlack %d deg, minRefl %d @ %d deg, maxBlackRun %d", firstWhiteAfterGateDeg, firstBlackAfterGateDeg, minReflectionAfterGate, minReflectionAtDeg, maxBlackRun);
             return true;
         }
 
         if(turnedDeg >= maxTurnDeg) {
             robot.stop();
             syslog(LOG_NOTICE, "STOP[pivotUntilLineFound]: MAX_TURN (reflection %d)", reflection);
-        syslog(LOG_NOTICE, "Pivot stats: firstWhite %d deg, firstBlack %d deg, minRefl %d @ %d deg, maxBlackRun %d", firstWhiteAfterGateDeg, firstBlackAfterGateDeg, minReflectionAfterGate, minReflectionAtDeg, maxBlackRun);
+            syslog(LOG_NOTICE, "Pivot stats: firstWhite %d deg, firstBlack %d deg, minRefl %d @ %d deg, maxBlackRun %d", firstWhiteAfterGateDeg, firstBlackAfterGateDeg, minReflectionAfterGate, minReflectionAtDeg, maxBlackRun);
             return false;
         }
 
@@ -1109,7 +1109,8 @@ void DeliveryTask::run() {
     // 判定の開始と減速は、トレース開始からの距離で行う（位置はボトル色で決まる）
     returnCorner.armedMs = nowMs();
     returnCorner.armedMm = wheelDistanceMm();
-    const int returnColorSteps = (bottleColor == ColorJudge::Color::RED) ? 2 : (bottleColor == ColorJudge::Color::BLUE) ? 1 : 0;
+    const int returnColorSteps = (bottleColor == ColorJudge::Color::RED) ? 2 : (bottleColor == ColorJudge::Color::BLUE) ? 1
+                                                                                                                        : 0;
     const int returnCornerDetectStartMm = kReturnCornerDetectStartMmYellow + kReturnCornerColorStepMm * returnColorSteps;
     const int returnCornerSlowdownStartMm = kReturnCornerSlowdownStartMmYellow + kReturnCornerColorStepMm * returnColorSteps;
     bool isReturnCornerDetectStartPending = true;
