@@ -73,6 +73,7 @@ Calibrator（L/Rコース選択・フォースセンサーでスタート）
   - IMU（ジャイロ）を併用する系: `driveStraightByImu`（目標heading維持＋停止前減速）/ `turnByImu`（最短角で旋回し実測角を返す）/ `turnByImuUntilUltrasonic`（旋回しながら超音波で対象を探索）
   - 色で停止する走行: `runStraightUntilColor(s)`（直進）/ `runWavingUntilColor(s)`（蛇行探索）
   - 判定ヘルパ: `isOnColor(s)`（連続一致回数を呼び出し側で持つ方式）
+  - アーム: `raiseArm`（モーターの位置制御で目標角に止めて保持。spikeapiに無いのでpbioを直接呼ぶ）/ `lowerArm` / `raiseArmWhileDriving`（上げながら直進）。角度はギア1段を挟んだモーター軸の値
 - **`Tracer`**（[main/app/Tracer.h](main/app/Tracer.h)）: `Pid`を使った反射率ベースのライントレース。1個のカラーセンサーで黒/白の境界（エッジ）を追従する。`|turn|`のEMAに応じて基準PWMから減速するカーブ減速機能を内蔵。`setEdge()`で追従エッジ（LEFT/RIGHT）を切り替えられる（既定はRIGHT）。モーターへは`setPower()`（オープンループのPWM）で出力する。
 - **`Pid`**（[main/app/Pid.h](main/app/Pid.h)）: 汎用PIDクラス。積分項クランプ・微分項ローパスフィルタ内蔵で、Tracer以外の制御にも使い回せる。`calculate()`には前回からの経過時間`deltaSec`を渡す。
 - **`ColorJudge`**（[main/app/ColorJudge.h](main/app/ColorJudge.h)）: RGB/HSV/反射率から色（黒/白/赤/緑/青/黄）を判定する処理を集約。彩度が閾値未満なら無彩色として反射率で黒/白を分け、それ以外はHueが最も近い色を選ぶ。閾値は全て`Config`に定義。

@@ -108,12 +108,21 @@ public:
     static constexpr int DELIVERY_TARGET_DISTANCE_MM = 110;  // ボトル手前で停止する目標距離[mm]
 
     // ── Arm (アーム制御) ───────────────────────────────────
-    static constexpr int ARM_RAISE_DEG = 155;  // アームを上げる角度[°]
-    static constexpr int ARM_LOWER_DEG = 160;  // アームを下げる角度[°]
-    // Motor::setSpeed()に渡す値なのでPWMではない。ARM_RAISE_PWM=-100という名前で100を入れていた頃は
-    // 「毎秒100度」と解釈され、155度上げるのに1.55秒かかっていた
-    static constexpr int ARM_RAISE_SPEED_DEG_PER_SEC = -600;  // アームを上げる速度[°/秒]（負が上げる向き）
-    static constexpr int ARM_LOWER_SPEED_DEG_PER_SEC = 600;   // アームを下げる速度[°/秒]
+    // 角度はすべてモーター軸の値。アームとの間にギアが1段あるため、アームの実角度とは一致しない
+    static constexpr int ARM_RAISE_DEG = 170;  // アームを上げる角度[°]
+    static constexpr int ARM_LOWER_DEG = 170;  // アームを下げる角度[°]
+    // 速度はMotor::setSpeed()と同じ単位（PWMではない）
+    static constexpr int ARM_RAISE_SPEED_DEG_PER_SEC = -1000;  // アームを上げる速度[°/秒]（負が上げる向き。モーターの上限で頭打ちになる）
+    static constexpr int ARM_LOWER_SPEED_DEG_PER_SEC = 600;    // アームを下げる速度[°/秒]
+    // 下げの止め方（上げはモーターの位置制御で止めるので使わない）。等速のまま止めると惰性で行き過ぎるため、
+    // 残り角度に比例して減速し、終点の手前で最低速度まで落としておく
+    static constexpr int ARM_DECEL_ANGLE_DEG = 60;        // 減速を始める残り角度[°]
+    static constexpr int ARM_MIN_SPEED_DEG_PER_SEC = 60;  // 減速中の最低速度[°/秒]
+    static constexpr int ARM_TIMEOUT_MS = 2000;           // 目標角に届かない場合の打ち切り[ms]
+    // 上げの位置制御の加減速度。モーターの既定値(1500〜2000)では、170度の間に最高速度まで届かない。
+    // 減速を加速より緩くして、止まり際の跳ね（止まる角度のばらつき）を抑える
+    static constexpr int ARM_RAISE_ACCELERATION_DEG_PER_SEC2 = 6000;  // 上げの加速度[°/秒²]
+    static constexpr int ARM_RAISE_DECELERATION_DEG_PER_SEC2 = 3000;  // 上げの減速度[°/秒²]
 
     // ── ET-Rally（課題）───────────────────────────────────
 
