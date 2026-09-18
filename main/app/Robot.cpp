@@ -581,10 +581,10 @@ void Robot::brake() {
     // 両モーターが完全に停止するまで待機。
     int stableCount = 0;
 
-    while(stableCount < Config::TURN_STABLE_COUNT) {
+    while(stableCount < Config::BRAKE_STABLE_COUNT) {
         dly_tsk(10 * 1000);  // 10ms待つ
 
-        if(std::abs(leftMotor.getSpeed()) <= Config::TURN_STOP_SPEED && std::abs(rightMotor.getSpeed()) <= Config::TURN_STOP_SPEED) {
+        if(std::abs(leftMotor.getSpeed()) <= Config::BRAKE_STOP_SPEED && std::abs(rightMotor.getSpeed()) <= Config::BRAKE_STOP_SPEED) {
             stableCount++;
         } else {
             stableCount = 0;
