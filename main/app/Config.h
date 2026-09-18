@@ -37,13 +37,15 @@ public:
     static constexpr float TURN_IMU_STOP_TOLERANCE_DEG = 0.3f;  // IMU旋回の停止許容誤差[°]
     static constexpr float TURN_IMU_KP = 10.0f;                 // IMU旋回の比例ゲイン
     static constexpr int TURN_IMU_MIN_SPEED_DEG_PER_SEC = 80;   // IMU旋回の最低速度[°/秒]
-    static constexpr int TURN_STABLE_COUNT = 3;                 // 旋回後、モータが停止したと判断するための観測回数 [回]
-    static constexpr int TURN_STOP_SPEED = 5;                   // 旋回後、モータが停止したと判断するための回転速度 [°/秒]
     // ─ runUntilColor ─
     static constexpr int RUC_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 既定速度[°/秒]
     static constexpr int RUC_SWING_MAX_COUNT = 50;             // 蛇行/最大旋回回数
     static constexpr float RUC_SWING_DEFAULT_DEG = 50.0f;      // 蛇行/1旋回における旋回角度[°]
     static constexpr int RUC_SWING_TIMEOUT_LOOP_COUNT = 500;   // 蛇行/1旋回におけるタイムアウト(周期の回数)
+    // ─ brake ─
+    static constexpr int BRAKE_STABLE_COUNT = 5;  // 旋回後、モータが停止したと判断するための観測回数 [回]
+    static constexpr int BRAKE_STOP_SPEED = 5;    // 旋回後、モータが停止したと判断するための回転速度 [°/秒]
+
     // ─ 共通 ─
     static constexpr int MOTION_POLL_INTERVAL_US = 10 * 1000;  // 直進・旋回・蛇行中のエンコーダー確認周期[us]
 
