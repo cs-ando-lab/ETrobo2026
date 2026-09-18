@@ -35,8 +35,10 @@ public:
     static constexpr int TURN_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 旋回の既定速度[°/秒]
     static constexpr int TURN_TIMEOUT_LOOP_COUNT = 500;         // 旋回のタイムアウト(周期の回数)
     static constexpr float TURN_IMU_STOP_TOLERANCE_DEG = 0.3f;  // IMU旋回の停止許容誤差[°]
-    static constexpr float TURN_IMU_KP = 4.0f;                  // IMU旋回の比例ゲイン
+    static constexpr float TURN_IMU_KP = 10.0f;                 // IMU旋回の比例ゲイン
     static constexpr int TURN_IMU_MIN_SPEED_DEG_PER_SEC = 80;   // IMU旋回の最低速度[°/秒]
+    static constexpr int TURN_STABLE_COUNT = 3;                 // 旋回後、モータが停止したと判断するための観測回数 [回]
+    static constexpr int TURN_STOP_SPEED = 5;                   // 旋回後、モータが停止したと判断するための回転速度 [°/秒]
     // ─ runUntilColor ─
     static constexpr int RUC_DEFAULT_SPEED_DEG_PER_SEC = 300;  // 既定速度[°/秒]
     static constexpr int RUC_SWING_MAX_COUNT = 50;             // 蛇行/最大旋回回数
