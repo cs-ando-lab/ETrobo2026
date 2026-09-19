@@ -183,9 +183,11 @@ public:
     static constexpr size_t ETRALLY_HEADING_CALIBRATION_BUFFER_SIZE = ETRALLY_HEADING_CALIBRATION_SAMPLE_COUNT + ETRALLY_HEADING_CALIBRATION_EXCLUSION_COUNT;
 
     // ─ ETラリー走行 ─
-    static constexpr int ETRALLY_LAP_COUNT = 1;
-    static constexpr int ETRALLY_SLOW_DRIVE_SPEED = 150;
-    static constexpr int ETRALLY_DEFAULT_DRIVE_SPEED = 500;
+    static constexpr int ETRALLY_LAP_COUNT = 2;
+    static constexpr int ETRALLY_SLOW_DRIVE_SPEED = 300;
+    static constexpr int ETRALLY_DEFAULT_DRIVE_SPEED = 800;
+    static constexpr int ETRALLY_SLOW_TURN_SPEED = 300;
+    static constexpr int ETRALLY_DEFAULT_TURN_SPEED = 900;
 
     // ── ET-Sumo（課題）────────────────────────────────────
     // ─ コースの寸法 ─
