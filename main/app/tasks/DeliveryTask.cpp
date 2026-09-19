@@ -74,14 +74,17 @@ namespace {
     // ── 行きの90度コーナー手前の減速 ─────────────────────────
     // TRACER_PWM(90)のままピボットに入るとボトルを落とす。トレース開始からコーナー検知までは
     // 1194〜1226mm（3回）と安定しているので、距離で手前から落とす。検知は線の終わりの約40mm先
-    constexpr int kCornerTracePwm = 100;         // 手前で減速する前提なので、そこまでは速く走る
+    // 直線でのPWMは93が最良だった（実測の平均速度/平均誤差: 100で615〜635/27、95で818〜865/9〜10だが1本だけ638/18、
+    // 93で788〜831/5〜6、97で604〜623/23）。100や97では「基準PWM±操舵量」の余裕がなくなり、
+    // 狙った左右差が出ない分だけ蛇行する。93は2本とも白黒の端に一度も張り付かなかった
+    constexpr int kCornerTracePwm = 93;          // 手前で減速する前提なので、そこまでは速く走る
     constexpr int kCornerSlowdownStartMm = 950;  // 実機調整。線の終わりの約210mm手前
     // 踏み越え時は80度旋回の後から測るので、起点が通常時とずれる。通常時より早めに落とす
     constexpr int kCornerSlowdownStartMmAfterOvershoot = 800;
     constexpr int kCornerApproachPwm = 65;  // 行き・帰りのコーナー手前の減速後の速度
 
     // ── 帰りの90度コーナーの後 ────────────────────────────
-    constexpr int kReturnAfterCornerFastPwm = 100;
+    constexpr int kReturnAfterCornerFastPwm = 93;
     constexpr int kReturnFinishAfterCornerMm = 900;  // 曲がりきってからこの距離を走ったら終了し、ラリーへ引き渡す
 
     // ── 帰りの90度コーナーの手前 ──────────────────────────
@@ -90,7 +93,7 @@ namespace {
     constexpr int kReturnCornerDetectStartMmYellow = 400;    // 誤検知した356mmより後ろ、線の終わり(約430mm)より手前
     constexpr int kReturnCornerSlowdownStartMmYellow = 270;  // 実機調整。線の終わりの約160mm手前
     constexpr int kReturnCornerColorStepMm = 305;            // 黄→青→赤で1段ずつ遠くなる
-    constexpr int kReturnTracePwm = 100;                     // 減速位置まで。手前で減速する前提なので速く走る
+    constexpr int kReturnTracePwm = 93;                      // 減速位置まで。手前で減速する前提なので速く走る
 
     // ── エリアに入る青の手前 ─────────────────────────────
     // 速いまま斜め移動に入るとボトルを落とす。行きのコーナーを曲がりきってからエリアに入る青までは
