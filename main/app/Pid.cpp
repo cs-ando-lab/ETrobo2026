@@ -17,6 +17,10 @@ void Pid::setTarget(float newTarget) {
     target = newTarget;
 }
 
+void Pid::resetIntegral() {
+    integral = 0.0f;
+}
+
 void Pid::reset() {
     prevDeviation = 0.0f;
     integral = 0.0f;
@@ -45,5 +49,9 @@ float Pid::calculate(float currentValue, float deltaSec) {
 
     prevDeviation = deviation;
 
-    return (kp * deviation) + (ki * integral) + (kd * filteredDerivative);
+    lastP = kp * deviation;
+    lastI = ki * integral;
+    lastD = kd * filteredDerivative;
+
+    return lastP + lastI + lastD;
 }

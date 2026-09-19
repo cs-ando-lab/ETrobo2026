@@ -74,8 +74,10 @@ Calibrator（L/Rコース選択・フォースセンサーでスタート）
   - 色で停止する走行: `runStraightUntilColor(s)`（直進）/ `runWavingUntilColor(s)`（蛇行探索）
   - 判定ヘルパ: `isOnColor(s)`（連続一致回数を呼び出し側で持つ方式）
   - アーム: `raiseArm`（モーターの位置制御で目標角に止めて保持。spikeapiに無いのでpbioを直接呼ぶ）/ `lowerArm` / `raiseArmWhileDriving`（上げながら直進）。角度はギア1段を挟んだモーター軸の値
-- **`Tracer`**（[main/app/Tracer.h](main/app/Tracer.h)）: `Pid`を使った反射率ベースのライントレース。1個のカラーセンサーで黒/白の境界（エッジ）を追従する。`|turn|`のEMAに応じて基準PWMから減速するカーブ減速機能を内蔵。`setEdge()`で追従エッジ（LEFT/RIGHT）を切り替えられる（既定はRIGHT）。モーターへは`setPower()`（オープンループのPWM）で出力する。
-- **`Pid`**（[main/app/Pid.h](main/app/Pid.h)）: 汎用PIDクラス。積分項クランプ・微分項ローパスフィルタ内蔵で、Tracer以外の制御にも使い回せる。`calculate()`には前回からの経過時間`deltaSec`を渡す。
+  - アーム（Delivery専用）: `positionDeliveryArm`。`raiseArm`/`lowerArm`と違いエンコーダ原点を変えないので、上げ直しでも同じ位置へ戻せる。移動中の角度・速度・出力を`[ArmSample]`として後からまとめて出す
+  - 診断用の取得系（制御には使わない）: `getImuAcceleration` / `getImuAngularVelocity` / `isImuStationary` / `getArmPower` / `isArmStalled`
+- **`Tracer`**（[main/app/Tracer.h](main/app/Tracer.h)）: `Pid`を使った反射率ベースのライントレース。1個のカラーセンサーで黒/白の境界（エッジ）を追従する。`|turn|`のEMAに応じて基準PWMから減速するカーブ減速機能を内蔵。`setEdge()`で追従エッジ（LEFT/RIGHT）を切り替えられる（既定はRIGHT）。モーターへは`setPower()`（オープンループのPWM）で出力する。カーブ減速の強さは`setCurveDecelGain()`で変えられ、`getLastLeftPwm()`/`getLastRightPwm()`（±100に丸められる前の値）と`getLastP/I/D()`で制御の内訳を外から読める。既定値は`Config`のままなので、呼ばなければ従来どおり。
+- **`Pid`**（[main/app/Pid.h](main/app/Pid.h)）: 汎用PIDクラス。積分項クランプ・微分項ローパスフィルタ内蔵で、Tracer以外の制御にも使い回せる。`calculate()`には前回からの経過時間`deltaSec`を渡す。`reset()`は微分の履歴まで消すため、積分の持ち越しだけを断ちたいときは`resetIntegral()`を使う。`getLastP/I/D()`で直近の内訳を取れる。
 - **`ColorJudge`**（[main/app/ColorJudge.h](main/app/ColorJudge.h)）: RGB/HSV/反射率から色（黒/白/赤/緑/青/黄）を判定する処理を集約。彩度が閾値未満なら無彩色として反射率で黒/白を分け、それ以外はHueが最も近い色を選ぶ。閾値は全て`Config`に定義。
 - **`CourseConfig`**（[main/app/CourseConfig.h](main/app/CourseConfig.h)）: L/Rコース選択状態を保持するstaticクラス。`CourseConfig::sign()`で旋回方向をコースに応じて反転できる。
 - **`Odometry`**（[main/app/Odometry.h](main/app/Odometry.h)）: 旋回・直進の実測値を積算し自己位置(x, y, 向き)を追跡するクラス。現在は`SumoTask`専用で、他からは使われていない。

@@ -79,6 +79,9 @@ public:
     // アームの上げ下げ。上げはモーターの位置制御で目標角に止めて保持し、下げは止めた後に保持しない。
     // extraDegはConfig::ARM_RAISE_DEG / ARM_LOWER_DEGへの上乗せ分[°]。上げで足した分は、下げでも同じだけ足すこと
     void raiseArm(int extraDeg = 0);
+    // Delivery専用。エンコーダー原点を変えず、同じ目標位置へ移動する。
+    // 出力上限は既存値のまま。未達・失速・中断はfalse。
+    bool positionDeliveryArm(int targetCount, int speedDegPerSec, const char* label);
     void lowerArm(int extraDeg = 0);
     // アームを上げながら直進する（上げはモーター側で進むので、その間に走れる）。
     // distanceMmが負なら後退。走り終えても、上げ切るまでは戻らない
@@ -107,6 +110,14 @@ public:
     // フォースセンサーが押されているかどうかを返す
     bool isForceSensorPressed() const;
 
+    // IMUの加速度[mm/s^2]。静止していれば重力の分解になるので、車体の傾き（ピッチ）が分かる。
+    // アームを上げる瞬間に車体が煽られていないかを見る診断用
+    IMU::Acceleration getImuAcceleration();
+    // IMUの角速度[°/s]。上と同じ用途
+    IMU::AngularVelocity getImuAngularVelocity();
+    // IMUが静止していると判断しているか
+    bool isImuStationary() const;
+
     // IMU関連
     float getAngularVelocityZ();  // IMUのz軸における角速度(符号反転)を取得する
     float getHeading() const;     // IMUの方位角を取得する
@@ -129,6 +140,11 @@ public:
     int getLeftMotorCount() const;   // 左モーターの回転量 [degree]
     int getRightMotorCount() const;  // 右モーターの回転量 [degree]
     int getArmCount() const;         // アームの回転量 [degree]（直前のraiseArm/lowerArmの開始時を0とする）
+
+    // アームモーターの出力[%]。保持中は速度がほぼ0なので、そのままトルクの目安になる
+    int getArmPower() const;
+    // アームモーターが失速しているか（出力を出しているのに回っていない）
+    bool isArmStalled() const;
 
     // ── デバッグログ用（BLE Monitorへのセンサー値送信にのみ使用）─────
     const ColorSensor& getColorSensor() const { return colorSensor; }

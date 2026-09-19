@@ -26,6 +26,16 @@ public:
     // 積分値・微分値の内部状態をリセットする（目標値を大きく変える時などに使う）
     void reset();
 
+    // 積分値だけをリセットする。reset()は前回偏差と微分フィルタまでゼロにするため、
+    // 「積分の持ち越しだけを消す」試験には使えない（次周期の微分が「現在偏差−0」から計算されてしまう）
+    void resetIntegral();
+
+    // 直近のcalculate()でのP/I/Dそれぞれの符号つき出力（診断用。制御には影響しない）。
+    // 合計操舵量だけでは「Iが必要な操舵を肩代わりした」のか「逆向きに残ってPと打ち消し合った」のか分からない
+    float getLastP() const { return lastP; }
+    float getLastI() const { return lastI; }
+    float getLastD() const { return lastD; }
+
 private:
     float kp;
     float ki;
@@ -35,6 +45,9 @@ private:
     float prevDeviation = 0.0f;       // 前回の偏差
     float integral = 0.0f;            // 偏差の累積(積分項)
     float filteredDerivative = 0.0f;  // ローパスフィルタをかけた微分項
+    float lastP = 0.0f;  // 診断用。直近のP/I/Dの内訳
+    float lastI = 0.0f;
+    float lastD = 0.0f;
 };
 
 #endif  // !PID_H_
