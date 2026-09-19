@@ -1,5 +1,6 @@
 #include "RallyTask.h"
 #include <cstdlib>
+#include <string>
 #include <cmath>
 
 #include "kernel.h" /* dly_tskのため */
@@ -21,11 +22,11 @@ void RallyTask::run() {
 
     // [1] - 基準角設定フェーズ
     /* 180°転回 */
-    turn(180.0f * CourseConfig::sign());
+    robot.turnByImu(180.0f * CourseConfig::sign(), Config::ETRALLY_SLOW_TURN_SPEED);
     /* [a] 一定距離ライントレースを行う */
     traceLineforDistance(Config::ETRALLY_TRACE_BACK_DISTANCE, tracer);
     /* 180°転回 */
-    turn(-180.0f * CourseConfig::sign());
+    robot.turnByImu(-180.0f * CourseConfig::sign(), Config::ETRALLY_SLOW_TURN_SPEED);
     /** 直線上で正確性の高いライントレースを行う
      *  青ラインを探知するまで行う
      *  このライントレース中にIMUの方向をリセット(条件あり)
@@ -35,13 +36,15 @@ void RallyTask::run() {
 
     // [2] - 格子点移動フェーズ
     /* 青ラインの右端から1/4の地点まで行く : runStraight(青ライン1/4[mm] - (秒速[mm/s] * 2 * 0.01[s])[mm]) */
-    turnToDirection(RallyTypes::Direction::WEST);
-    moveToDirection(Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL + (Config::BLUE_LINE_LENGTH_MM / 4.0f),
+    turnToDirection(RallyTypes::Direction::WEST, Config::ETRALLY_SLOW_TURN_SPEED);
+    moveToDirection(Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL
+                        + (Config::BLUE_LINE_LENGTH_MM / 4.0f),
                     RallyTypes::Direction::WEST,
                     Config::ETRALLY_SLOW_DRIVE_SPEED);
     /* 開始格子点まで行く : 90°右転回 → 開始格子点までの距離[mm]直進 */
-    turnToDirection(RallyTypes::Direction::NORTH);
-    moveToDirection(Config::BLUE_LINE_WIDTH_MM + Config::START_GRID_POINT_TO_START_LINE_MM,
+    turnToDirection(RallyTypes::Direction::NORTH, Config::ETRALLY_SLOW_TURN_SPEED);
+    moveToDirection(Config::BLUE_LINE_WIDTH_MM
+                        + Config::START_GRID_POINT_TO_START_LINE_MM,
                     RallyTypes::Direction::NORTH,
                     Config::ETRALLY_SLOW_DRIVE_SPEED);
 
@@ -72,7 +75,7 @@ void RallyTask::run() {
                     Config::ETRALLY_SLOW_DRIVE_SPEED);
     turnToDirection(RallyTypes::Direction::WEST);
 
-    {  // debug: segmentルートの確認
+    if(debug) {  // debug: segmentルートの確認
         syslog(LOG_NOTICE, "=== segments ===");
         for(RallyTypes::Segment segment : segments) {
             syslog(LOG_NOTICE, "start: (%d, %d)", segment.start.x, segment.start.y);
@@ -101,16 +104,9 @@ void RallyTask::run() {
     return;
 }
 
-float RallyTask::turn(float degrees, int delayTimeUs) {
-    dly_tsk(delayTimeUs);  // 直前のモータの動きによって正確性に影響が出ないようにdelayを挟む
-    float turnedDeg = robot.turnByImu(degrees, 150);
-    dly_tsk(delayTimeUs);  // モータの動きによって直後の動きの正確性に影響が出ないようにdelayを挟む
-    return turnedDeg;
-}
-
-float RallyTask::turnToDirection(RallyTypes::Direction direction, int delayTimeUs) {
+float RallyTask::turnToDirection(RallyTypes::Direction direction, int speedDegPerSec) {
     float directionDeg = getDirectionDegrees(direction);
-    return turn(calculateTurnAngle(directionDeg), delayTimeUs);
+    return robot.turnByImu(calculateTurnAngle(directionDeg), speedDegPerSec);
 }
 
 int RallyTask::moveToDirection(int distanceMm, RallyTypes::Direction direction, int speedDegPerSec) {
@@ -219,52 +215,29 @@ void RallyTask::calibrateHeadingByLineTrace(Tracer tracer) {
     return;
 }
 
-void RallyTask::followNodeSegments(std::vector<RallyTypes::Segment> segments, int speed) {
+void RallyTask::followNodeSegments(std::vector<RallyTypes::Segment> segments, int turnSpeed, int driveSpeed) {
     for(RallyTypes::Segment segment : segments) {
-        float directionDeg = getDirectionDegrees(segment.direction);  // 基準角から見た走行方向の角度
+        float startDeg = 0.0f;
+        int movedDistance = 0;
 
+        // segmentの方角に旋回
+        turnToDirection(segment.direction, turnSpeed);
+        if(debug)
+            startDeg = robot.getHeading();
+
+        // segmentの距離(エッジの長さ * 通過するエッジ数)を直進
         switch(segment.direction) {
-            case RallyTypes::Direction::NORTH: {
-                turn(calculateTurnAngle(directionDeg));  // 進行方向へ回転
-                int edgeCount = segment.start.y - segment.end.y;
-                // 進行方向へ直進
-                logAngle("(NORTH)");
-                syslog(LOG_NOTICE, "%d [mm]",
-                       robot.driveStraightByImu(Config::RALLY_UNIT_DISTANCE_MM * edgeCount, referenceGyroYaw + directionDeg, speed));
-                logAngle("(NORTH)");
-                break;
-            }
-
-            case RallyTypes::Direction::EAST: {
-                turn(calculateTurnAngle(directionDeg));
-                int edgeCount = segment.end.x - segment.start.x;
-
-                logAngle("(EAST)");
-                syslog(LOG_NOTICE, "%d [mm]",
-                       robot.driveStraightByImu(Config::RALLY_UNIT_DISTANCE_MM * edgeCount, referenceGyroYaw + directionDeg, speed));
-                logAngle("(EAST)");
-                break;
-            }
-
+            case RallyTypes::Direction::NORTH:
             case RallyTypes::Direction::SOUTH: {
-                turn(calculateTurnAngle(directionDeg));
-                int edgeCount = segment.end.y - segment.start.y;
-
-                logAngle("(SOUTH)");
-                syslog(LOG_NOTICE, "%d [mm]",
-                       robot.driveStraightByImu(Config::RALLY_UNIT_DISTANCE_MM * edgeCount, referenceGyroYaw + directionDeg, speed));
-                logAngle("(SOUTH)");
+                int edgeCount = std::abs(segment.end.y - segment.start.y);
+                movedDistance = moveToDirection(Config::RALLY_UNIT_DISTANCE_MM * edgeCount, segment.direction, driveSpeed);
                 break;
             }
 
+            case RallyTypes::Direction::EAST:
             case RallyTypes::Direction::WEST: {
-                turn(calculateTurnAngle(directionDeg));
-                int edgeCount = segment.start.x - segment.end.x;
-
-                logAngle("(WEST)");
-                syslog(LOG_NOTICE, "%d [mm]",
-                       robot.driveStraightByImu(Config::RALLY_UNIT_DISTANCE_MM * edgeCount, referenceGyroYaw + directionDeg, speed));
-                logAngle("(WEST)");
+                int edgeCount = std::abs(segment.end.x - segment.start.x);
+                movedDistance = moveToDirection(Config::RALLY_UNIT_DISTANCE_MM * edgeCount, segment.direction, driveSpeed);
                 break;
             }
 
@@ -272,10 +245,27 @@ void RallyTask::followNodeSegments(std::vector<RallyTypes::Segment> segments, in
                 syslog(LOG_ERROR, "ERROR: segment invalid direction");
                 break;
         }
-    }
-}
 
-void RallyTask::logAngle(const char* s) {  // debug用
-    int gyroYaw100 = (robot.getHeading() - referenceGyroYaw) * 100;
-    syslog(LOG_NOTICE, "%s Gyro Yaw : %d.%02d [°]", s, gyroYaw100 / 100, gyroYaw100 < 0 ? -gyroYaw100 % 100 : gyroYaw100 % 100);
+        if(debug) {
+            char* direction;
+            switch(segment.direction) {
+                case RallyTypes::Direction::NORTH:
+                    direction = "NORTH";
+                    break;
+                case RallyTypes::Direction::SOUTH:
+                    direction = "SOUTH";
+                    break;
+                case RallyTypes::Direction::EAST:
+                    direction = "EAST";
+                    break;
+                case RallyTypes::Direction::WEST:
+                    direction = "WEST";
+                    break;
+                default:
+                    direction = "UNDEFIND";
+                    break;
+            }
+            syslog(LOG_NOTICE, "{%s, %f[°]}: %d[mm]", direction, startDeg, movedDistance);
+        }
+    }
 }

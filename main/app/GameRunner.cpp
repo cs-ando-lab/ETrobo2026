@@ -7,6 +7,7 @@
 #include "tasks/test.h"
 #include "Config.h"
 #include "kernel.h"
+#include "t_syslog.h"
 
 GameRunner::GameRunner(Robot& robot)
     : robot(robot) {
@@ -76,8 +77,11 @@ void GameRunner::run() {
 
         // ガレージ入庫
         if(!moveTowardGarageArea()) {
+            syslog(LOG_ALERT, "FAILED TO ENTER THE GARAGE");
             return;
         }
+
+        return;
     }
 
     // 1. LAPゲートまでライントレース → ボトルデリバリー
@@ -93,6 +97,7 @@ void GameRunner::run() {
     if(startMode <= 2) {
         RallyTask rally(robot);
         rally.run();
+        return;
     }
 
     // 3. テスト用（関数などを試す）
@@ -150,7 +155,7 @@ bool GameRunner::lineTraceUntilLap() {
 bool GameRunner::moveTowardGarageArea() {
     Tracer tracer(robot);
 
-    /* ↓↓ 仮案 ↓↓ */
+    /* ↓↓ 仮案2つ ↓↓ */
     bool straight = true;        // ガレージまで直接行く
     bool traceLine = !straight;  // ラインをトレースしてガレージまで行く
 
@@ -158,7 +163,7 @@ bool GameRunner::moveTowardGarageArea() {
         // Todo：後でConfigに移す
         float BLUE_LINE_LEFT_TO_GARAGE = 5.364415f * Config::BLUE_LINE_LENGTH_MM;
 
-        robot.driveStraightByImu(BLUE_LINE_LEFT_TO_GARAGE, robot.getHeading());
+        robot.driveStraightByImu(BLUE_LINE_LEFT_TO_GARAGE + (Config::BLUE_LINE_LENGTH_MM * 3 / 4), robot.getHeading(), 800);
         robot.turnByImu(90 * CourseConfig::sign());
     }
 
