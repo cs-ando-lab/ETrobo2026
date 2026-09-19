@@ -82,8 +82,7 @@ namespace {
 
     // ── 帰りの90度コーナーの後 ────────────────────────────
     constexpr int kReturnAfterCornerFastPwm = 100;
-    constexpr int kReturnAfterCornerFastMm = 900;  // 曲がりきってからこの距離は速く走り、その後は落とす
-    constexpr int kReturnAfterCornerSlowPwm = 70;
+    constexpr int kReturnFinishAfterCornerMm = 900;  // 曲がりきってからこの距離を走ったら終了し、ラリーへ引き渡す
 
     // ── 帰りの90度コーナーの手前 ──────────────────────────
     // 帰りのトレース開始からコーナー検知までは 黄467〜473 / 青777 / 赤1064〜1089mm で、色が1つ変わるごとに約305mm。
@@ -108,7 +107,6 @@ namespace {
     // 直線部でも白は6〜7回連続する（TRACER_PWM=80・旧PIDでの実測）。10では帰りの手前で9まで来て誤検知もしたので12。
     // コーナー手前で減速するので、検知が2サンプル遅れても行き過ぎは小さい。Tracerの設定を触ったら測り直すこと
     constexpr int kCornerWhiteRunCount = 12;
-    constexpr int kCornerDetectStartDelayMs = 1000;  // 青1本目の後の移動・旋回直後は姿勢が乱れて誤検知するため判定を止める時間
 
     constexpr int kCornerPivotOuterPwm = 57;       // 両輪逆転は回転ジャークでボトルを落とすため片輪駆動。強すぎると線を踏み抜く
     constexpr int kCornerPivotInnerPwm = 0;        // 0で片輪旋回。負にすると半径は縮むがボトルへの負荷が増える
@@ -855,9 +853,8 @@ void DeliveryTask::run() {
         return static_cast<int>(robot.getImuHeading() - baselineHeading);
     };
 
-    // 直角コーナー対策の状態。青1本目の後の移動から1秒経ったら有効化する
+    // 直角コーナー対策の状態。手前での減速と同時に有効化する（下のisCornerSlowdownPendingの処理）
     CornerState outboundCorner;
-    const int cornerDetectStartDelayCount = (kCornerDetectStartDelayMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
 
     // 青1本目の上での踏み越え検知。診断用の集計とはカウンタを共用しない（共用して挙動を壊したことがあるため）
     int blue1OvershootWhiteRun = 0;
@@ -875,14 +872,13 @@ void DeliveryTask::run() {
     bool isCornerSlowdownPending = false;
     int cornerSlowdownStartMm = kCornerSlowdownStartMm;
 
-    // 右エッジのトレースに切り替え、コーナー判定を1秒後に有効化し、手前での減速を予約する（通常時・踏み越え時で共通）
+    // 右エッジのトレースに切り替え、手前での減速を予約する（通常時・踏み越え時で共通）。
+    // コーナー判定は減速するまで始めない（姿勢の乱れによる誤検知を避けるため）
     auto startRightEdgeTrace = [&](int slowdownStartMm) {
         tracer.setEdge(isLeftCourse ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT);
         tracer.setPwm(kCornerTracePwm);
         isCornerSlowdownPending = true;
         cornerSlowdownStartMm = slowdownStartMm;
-        outboundCorner.pending = true;
-        outboundCorner.enableLoop = outboundCorner.loopCount + cornerDetectStartDelayCount;
         outboundCorner.armedMs = nowMs();
         outboundCorner.armedMm = wheelDistanceMm();
         syslog(LOG_NOTICE, "Corner trace start t=%d ms", outboundCorner.armedMs);
@@ -1027,6 +1023,9 @@ void DeliveryTask::run() {
             } else if(wheelDistanceMm() - outboundCorner.armedMm >= cornerSlowdownStartMm) {
                 isCornerSlowdownPending = false;
                 tracer.setPwm(kCornerApproachPwm);  // 曲がりきるとupdateCornerDetection()がTRACER_PWMに戻す
+                // 減速したここから白の連続を数え始める
+                outboundCorner.pending = true;
+                outboundCorner.enableLoop = outboundCorner.loopCount;  // 次の周期から有効
                 syslog(LOG_NOTICE, "Corner slowdown to pwm %d t=%d ms (+%d mm since trace start)", kCornerApproachPwm, nowMs(), wheelDistanceMm() - outboundCorner.armedMm);
             }
         }
@@ -1096,12 +1095,9 @@ void DeliveryTask::run() {
     tracer.setEdge(isLeftCourse ? Tracer::Edge::LEFT : Tracer::Edge::RIGHT);
     tracer.setPwm(kReturnTracePwm);  // 暗黙の値継承に頼らず明示する
 
-    // 帰りは、90度コーナーを曲がりきるまで青を数えず、曲がった後の最初の青で止まる（ボトル色に関係なく共通）。
-    // 青の本数で数えると、エリアの青の上から走り出したときに1本多く数え、コーナーの手前で止まっていた
-    syslog(LOG_NOTICE, "Return: ignore blue until corner cleared, then stop at the first blue");
-
-    bool isOnFinalBlue = false;
-    int finalMatchedBlueCount = 0;
+    // 帰りは青で止めない（青の本数はエリアの青の上から走り出すとずれるため）。
+    // 90度コーナーを曲がりきってから一定距離を走った時点で終了し、ラリーへ引き渡す
+    syslog(LOG_NOTICE, "Return: finish %d mm after the corner is cleared", kReturnFinishAfterCornerMm);
 
     BlueStats returnBlueStats;
     CornerState returnCorner;
@@ -1117,9 +1113,8 @@ void DeliveryTask::run() {
     bool isReturnCornerSlowdownPending = true;
     syslog(LOG_NOTICE, "Return trace start t=%d ms: slowdown at %d mm, corner detection at %d mm", returnCorner.armedMs, returnCornerSlowdownStartMm, returnCornerDetectStartMm);
 
-    // 曲がりきった後の速度切り替え。-1はまだ曲がりきっていない
+    // 曲がりきった地点。終了までの距離の起点。-1はまだ曲がりきっていない
     int returnCornerClearedMm = -1;
-    bool isReturnSlowedAfterCorner = false;
 
     while(true) {
         if(robot.isCenterButtonPressed()) {
@@ -1141,15 +1136,10 @@ void DeliveryTask::run() {
             returnCorner.enableLoop = returnCorner.loopCount;  // 次の周期から有効
         }
 
+        // コーナー判定の抑制（青を跨ぐときの脇の白）にだけ青判定を使う。終了条件には使わない
         bool isOnBlueForCorner = false;
         if(!returnCorner.done) {
-            // 数えないが、コーナー判定の抑制（青を跨ぐときの脇の白）には生の青判定を使う
             isOnBlueForCorner = isBlueReading(returnBlueStats);
-        } else if(isOnBlueLine(finalMatchedBlueCount, blueEntryConfirmCount, returnBlueStats)) {
-            isOnFinalBlue = true;
-            ColorJudge::Reading entryReading = robot.getColorReading();
-            syslog(LOG_NOTICE, "Entered blue line after return corner (h=%d s=%d v=%d, +%d mm since trace start). Finishing DeliveryTask.", (int)entryReading.hsv.h, (int)entryReading.hsv.s, (int)entryReading.hsv.v, wheelDistanceMm() - returnCorner.armedMm);
-            break;
         }
 
         // 帰りはLコースで右90度コーナーなので、行きとは逆の右へ回す
@@ -1159,12 +1149,11 @@ void DeliveryTask::run() {
         if(returnCorner.done && returnCornerClearedMm < 0) {
             returnCornerClearedMm = wheelDistanceMm();
             tracer.setPwm(kReturnAfterCornerFastPwm);
-            syslog(LOG_NOTICE, "Return after corner: pwm %d for %d mm", kReturnAfterCornerFastPwm, kReturnAfterCornerFastMm);
+            syslog(LOG_NOTICE, "Return after corner: pwm %d for %d mm, then finish", kReturnAfterCornerFastPwm, kReturnFinishAfterCornerMm);
         }
-        if(returnCornerClearedMm >= 0 && !isReturnSlowedAfterCorner && wheelDistanceMm() - returnCornerClearedMm >= kReturnAfterCornerFastMm) {
-            isReturnSlowedAfterCorner = true;
-            tracer.setPwm(kReturnAfterCornerSlowPwm);
-            syslog(LOG_NOTICE, "Return after corner: slowdown to pwm %d t=%d ms", kReturnAfterCornerSlowPwm, nowMs());
+        if(returnCornerClearedMm >= 0 && wheelDistanceMm() - returnCornerClearedMm >= kReturnFinishAfterCornerMm) {
+            syslog(LOG_NOTICE, "Return finished: +%d mm since corner cleared, +%d mm since trace start. Finishing DeliveryTask.", wheelDistanceMm() - returnCornerClearedMm, wheelDistanceMm() - returnCorner.armedMm);
+            break;
         }
 
         tracer.run();
@@ -1174,7 +1163,7 @@ void DeliveryTask::run() {
     tracer.terminate();
     robot.stop();
     logBlueStats("return", returnBlueStats);
-    syslog(LOG_NOTICE, "Return end: onBlue %d, corner done %d", isOnFinalBlue ? 1 : 0, returnCorner.done ? 1 : 0);
+    syslog(LOG_NOTICE, "Return end: corner done %d", returnCorner.done ? 1 : 0);
     syslog(LOG_NOTICE, "Corner stats: maxWhiteRun(before trigger) %d / threshold %d", returnCorner.maxWhiteRunBeforeTrigger, kCornerWhiteRunCount);
     syslog(LOG_NOTICE, aborted ? "--- DeliveryTask ABORTED ---" : "--- DeliveryTask Finished ---");
 }
