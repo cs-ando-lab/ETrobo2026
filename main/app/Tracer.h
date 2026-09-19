@@ -56,7 +56,7 @@ public:
     // 「操舵が上限に当たっていないか」を外から測れる（診断用。制御には影響しない）
     int getLastLeftPwm() const { return lastLeftPwm; }
     int getLastRightPwm() const { return lastRightPwm; }
-    int getBasePwm() const { return pidConfig.basePwm; } // 診断用。制御状態は変更しない。
+    int getBasePwm() const { return pidConfig.basePwm; }  // 診断用。制御状態は変更しない。
 
     //
     void setEdge(Edge newEdge);
@@ -68,8 +68,8 @@ private:
     Edge edge;
     float curveDecelGain = Config::TRACER_CURVE_DECEL_GAIN;  // カーブ減速の強さ。setCurveDecelGain()で変えられる
     float filteredTurnMag = 0.0f;                            // カーブ減速量算出用、|turn|にEMAをかけた値
-    int leftMotorOffset = 0;       // 左右モーターの出力差を均すための調整値
-    int lastLeftPwm = 0;           // 診断用。クランプ前の計算値
+    int leftMotorOffset = 0;                                 // 左右モーターの出力差を均すための調整値
+    int lastLeftPwm = 0;                                     // 診断用。クランプ前の計算値
     int lastRightPwm = 0;
 
     void updateConfig(const PidConfig& newConfig);  // PidクラスのsetGain, setTargetを呼び出し、パラメータを更新。

@@ -45,7 +45,7 @@ private:
     float prevDeviation = 0.0f;       // 前回の偏差
     float integral = 0.0f;            // 偏差の累積(積分項)
     float filteredDerivative = 0.0f;  // ローパスフィルタをかけた微分項
-    float lastP = 0.0f;  // 診断用。直近のP/I/Dの内訳
+    float lastP = 0.0f;               // 診断用。直近のP/I/Dの内訳
     float lastI = 0.0f;
     float lastD = 0.0f;
 };
