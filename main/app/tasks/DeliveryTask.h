@@ -34,6 +34,15 @@ private:
         int maxSaturationInHue = 0;  // 青の色相範囲内で見えた最大彩度
         int satisfiedCount = 0;      // 青条件を満たしたサンプルの総数
         int maxConsecutive = 0;      // 青条件を満たした最大連続回数（確定に必要な回数と直接比較できる）
+        struct Span {
+            int ms = 0, mm = 0, duration = 0, distance = 0, count = 0, maxSat = 0;
+            int armed = 0, required = 0, nextBlue = 0, pwm = 0, gapBefore = 0, speed = 0, endSpeed = 0;
+        };
+        bool entryArmed = false;
+        int distanceOriginMm = 0;
+        int required = 0, nextBlue = 0, commandPwm = 0, nonBlueRun = 0;
+        Span spans[24]{};
+        int spanCount = 0, dropped = 0;
         int currentRun = 0;
     };
 
@@ -73,7 +82,18 @@ private:
     ColorJudge::Color confirmBottleColor();
 
     // アームを上げた直後に色を読む一式（整定待ち・診断ログ・確定）
-    ColorJudge::Color readBottleColorAfterRaise();
+    ColorJudge::Color readBottleColorAfterRaise(int targetDeg);
+
+    // Deliveryでは原点をリセットしない。初回上げ前のカウントを差し引いて比較する。
+    int armAbsoluteBaseDeg = 0;
+    int armAbsoluteDeg() const;
+
+    // 診断: 車体の姿勢（IMUの加速度・角速度）とアーム角度をログに出す
+    void logPosture(const char* label);
+    // アームを上げる前に車体を止め切り、揺れが収まるのを待つ
+    void stopAndSettleBeforeArm();
+    // 線検出直後は低速でエッジを掴み、連続安定してから高速区間へ渡す。
+    bool acquireTraceEntry(Tracer& tracer, const char* label);
 
     // 確定後にまとめてログへ出すための、最後に読んだボトルの生値
     mutable ColorJudge::Reading lastBottleReading{};
@@ -92,7 +112,7 @@ private:
     void brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs);
 
     // デューティ上限（＝トルク上限）を落として直進/後退する。distanceMmが負なら後退。上限は関数内で必ず元に戻す
-    void driveStraightWithDutyLimit(int distanceMm, int speedDegPerSec, int dutyLimit);
+    int driveStraightWithDutyLimit(int distanceMm, int speedDegPerSec, int dutyLimit);  // 戻り値は実際に走った距離[mm]
 
     // 両輪を逆向きに回してその場でturnDeg旋回する（閉ループのturnByImuより速い）
     void turnInPlaceByImu(int leftPwm, int rightPwm, float turnDeg);
