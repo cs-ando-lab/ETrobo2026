@@ -1,4 +1,5 @@
 #include "DeliveryTask.h"
+#include "AreaBlueGate.h"
 #include "Tracer.h"
 #include "Config.h"
 #include "CourseConfig.h"
@@ -10,8 +11,8 @@ namespace {
     // ── ライントレース速度 ──────────────────────────────
     constexpr int kApproachPwm = 50;         // ボトル接近中。Config::DELIVERY_TRACER_PWM(30)だとカーブ減速でほぼ動けなくなる
     constexpr int kReacquireLinePwm = 50;    // ライン復帰直後。ラインに対するズレが大きくカーブ減速が効きやすいので高め
-    constexpr int kPostSlowTracePwm = 80;    // ステップ8以降。Config::TRACER_PWM(現在90)は実機では速すぎた
-    constexpr int kOnFirstBlueLinePwm = 75;  // 青1本目に乗っている間だけ落とす速度
+    constexpr int kPostSlowTracePwm = 93;    // 曲線前半。後半は78/Kp0.55
+    constexpr int kOnFirstBlueLinePwm = 78;  // 青1本目に乗っている間だけ落とす速度
 
     // ── ボトルの色判定 ────────────────────────────────
     // 離れた位置から読むため反射光が弱く、実測で反射率2〜3・明度7〜9しかない。それでも彩度88〜91・
@@ -22,6 +23,31 @@ namespace {
     // アームを上げた直後の整定待ち。confirmBottleColor()が5回連続一致を要求し、決まらなければ
     // 1秒まで読み直すので、長い固定待ちは不要。車体の揺れが収まる分だけ置く
     constexpr int kArmSettleBeforeColorMs = 200;
+
+    // ── アームを上げる前の停止と整定 ─────────────────────
+    // 接近ループはtracer.terminate()(=stop()=coast)で抜けるだけで、止まるのを待っていなかった。
+    // 実測では1回目のアーム上げの時点で左307/右285°/秒出ており、車体が煽られたまま上げている。
+    // 2回目(raiseArmWhileDriving)は停止状態から200°/秒で5mmなので、条件がまったく違う
+    constexpr int kBottleStopSpeedDegPerSec = 40;  // これ未満なら止まったとみなす
+    constexpr int kBottleStopTimeoutMs = 600;
+    constexpr int kBottleSettleMinMs = 150;  // 止まってから車体の揺れが収まるのを待つ最低時間
+    constexpr int kBottleSettleMaxMs = 500;  // 収まらない場合の打ち切り
+    // IMU::isStationary()は実測で毎回550msのタイムアウトまで真にならなかった（判定窓が長いとみられる）。
+    // 代わりに角速度そのものを見る。実測では静止時に0/0/0が出ている
+    constexpr int kBottleSettleGyroDegPerSec = 3;  // 全軸これ未満なら揺れが収まったとみなす
+    constexpr int kBottleSettleStableCount = 5;    // それが続く回数（約50ms）
+
+    // 診断: アームを上げ切った後、角度がまだ動いていないかを見る
+    constexpr int kArmPostRaiseLogCount = 5;      // 記録する回数
+    constexpr int kArmPostRaiseLogIntervalMs = 40;
+
+    // アームの角度はraiseArm/lowerArmの開始時にresetCount()されるので、ログの値は「その動作での移動量」
+    // であって姿勢ではない。1回目と2回目を比べるには、各動作の移動量を積算した値が要る。
+    // 符号は上げが負・下げが正（ARM_RAISE_SPEED_DEG_PER_SECが負のため）。1回目の上げ直前を原点とする。
+    //
+    // 位置制御のis_done()は目標に届く前に真になる。実測では165/166で「reached」と言った後、
+    // 読み取り時点で171まで届いた回は色が読めて(v=52)、167で止まった回は読めなかった(v=1)。
+    // 保持は続いているので、実際に目標角に入るまで待つ
     constexpr int kBottleColorStableCount = 5;
     // 色が読めなかったとき、アームを下げて少し前に出ながら上げ直し、読めるまで繰り返す。
     // 角度と距離の組み合わせでセンサーの当たる位置が変わるので、前に出るたびに読める可能性がある
@@ -53,12 +79,22 @@ namespace {
     // ── 青1本目の後の移動（右エッジへの持ち替え） ──────────────
     // 基準角度から80度へのturnByImuは約1秒かかり、青の上で膨らんだ分も戻せなかった。弧を描いて線を横切り、
     // 黒を踏んだ時点で止める。時間だけで止めると、青を降りた位置のばらつきがそのまま残る。Lコース基準
-    constexpr int kAfterBlue1OuterPwm = 50;
-    constexpr int kAfterBlue1InnerPwm = 30;
+    // 実測の所要は121ms・275msとばらつく。時間ではなく進んだ距離で見たいので距離もログに出す。
+    // 50/30では遅いので上げる（比はそのまま。線を渡る向きの回頭量を変えないため）
+    constexpr int kAfterBlue1OuterPwm = 65;
+    constexpr int kAfterBlue1InnerPwm = 39;
     constexpr int kAfterBlue1MoveMs = 450;          // 上限。実測では143〜187msで黒を踏む
-    constexpr int kAfterBlue1MinMoveMs = 100;       // 動き出しで左エッジの黒を拾って即終了しないための下限
     constexpr int kAfterBlue1BlackReflection = 35;  // 黒15/青37/グラデーション43〜55
     constexpr int kAfterBlue1BlackRunCount = 2;
+    // 以前は「動き出しで左エッジの黒を拾って即終了しない」ために最低100ms動かしていたが、実測の所要は
+    // 132〜154msで、そのうち100msがこの固定待ちだった。懸念は時間ではなく開始時の状態で切り分ける。
+    //   開始時が黒   → すでに線をまたいでいるので動かさない
+    //   開始時が黒でない → 黒でない状態から始まるので、最初の黒で止めてよい（最低時間は不要）
+    constexpr int kAfterBlue1StartBlackCount = 3;  // 開始時に黒とみなす連続サンプル数（約30ms）
+    // 開始時の反射率が黒(35)の近くだと、動き出して1〜2サンプルで黒に入り、渡り切る前に止まる恐れがある。
+    // 実測の開始値は52・59で、この値より十分明るければ最低時間は要らない
+    constexpr int kAfterBlue1ClearOfBlackReflection = 45;
+    constexpr int kAfterBlue1AmbiguousMinMoveMs = 40;  // 35〜45の中間だったときだけ待つ
 
     // ── 青1本目での線の踏み越え ─────────────────────────────
     // 青の手前の曲線は成功時でも白が最大91回続くので判定に使えない。青1本目の上なら成功時の白の連続は
@@ -77,14 +113,14 @@ namespace {
     // 直線でのPWMは93が最良だった（実測の平均速度/平均誤差: 100で615〜635/27、95で818〜865/9〜10だが1本だけ638/18、
     // 93で788〜831/5〜6、97で604〜623/23）。100や97では「基準PWM±操舵量」の余裕がなくなり、
     // 狙った左右差が出ない分だけ蛇行する。93は2本とも白黒の端に一度も張り付かなかった
-    constexpr int kCornerTracePwm = 93;          // 手前で減速する前提なので、そこまでは速く走る
+    constexpr int kCornerTracePwm = 97;          // 手前で減速する前提なので、そこまでは速く走る
     constexpr int kCornerSlowdownStartMm = 950;  // 実機調整。線の終わりの約210mm手前
     // 踏み越え時は80度旋回の後から測るので、起点が通常時とずれる。通常時より早めに落とす
     constexpr int kCornerSlowdownStartMmAfterOvershoot = 800;
     constexpr int kCornerApproachPwm = 65;  // 行き・帰りのコーナー手前の減速後の速度
 
     // ── 帰りの90度コーナーの後 ────────────────────────────
-    constexpr int kReturnAfterCornerFastPwm = 93;
+    constexpr int kReturnAfterCornerFastPwm = 97;
     constexpr int kReturnFinishAfterCornerMm = 900;  // 曲がりきってからこの距離を走ったら終了し、ラリーへ引き渡す
 
     // ── 帰りの90度コーナーの手前 ──────────────────────────
@@ -93,13 +129,20 @@ namespace {
     constexpr int kReturnCornerDetectStartMmYellow = 400;    // 誤検知した356mmより後ろ、線の終わり(約430mm)より手前
     constexpr int kReturnCornerSlowdownStartMmYellow = 270;  // 実機調整。線の終わりの約160mm手前
     constexpr int kReturnCornerColorStepMm = 305;            // 黄→青→赤で1段ずつ遠くなる
-    constexpr int kReturnTracePwm = 93;                      // 減速位置まで。手前で減速する前提なので速く走る
+    constexpr int kReturnTracePwm = 97;                      // 減速位置まで。手前で減速する前提なので速く走る
 
     // ── エリアに入る青の手前 ─────────────────────────────
     // 速いまま斜め移動に入るとボトルを落とす。行きのコーナーを曲がりきってからエリアに入る青までは
     // 黄450〜452 / 赤1023〜1026mm（各3回）で、青2〜4本目の間隔は約287mm（青は青3本目の約735mm）
-    constexpr int kAreaSlowdownStartMmYellow = 240;  // 実機調整。青の約210mm手前
-    constexpr int kAreaBlueColorStepMm = 287;
+    // 最終青の検知位置予測。黄/青は従来実測、赤は直近1007〜1008mmを基にする。
+    // 物理的な青の先端位置ではなく、連続一致が成立する位置の目安。
+    constexpr int kAreaExpectedBlueMm[] = {450, 735, 1005}; // 黄・青・赤
+    constexpr int kAreaSlowLeadMm = 250;
+    // 黄は減速から最終青までが短く、加速と減速の間に姿勢が乱れて立て直しに距離を使う。黄だけ100mm早く落とす
+    constexpr int kAreaSlowLeadMmYellow = 350;  // 450-350=100mm地点で減速（従来は200mm地点）
+    constexpr int kAreaSearchLeadMm = 120; // 減速後、前の青より先で最終青の探索を有効化
+    constexpr int kAreaMissingBlueLimitMm = 200;
+    constexpr int kAreaFastPwm = 97;
     constexpr int kAreaApproachPwm = 65;
 
     // ── 直角コーナー対策 ───────────────────────────────
@@ -145,10 +188,15 @@ namespace {
     constexpr int kDiagonalRampPwms[] = { 50, 70 };
     constexpr int kDiagonalRampStageMs = 90;
 
-    constexpr int kAreaBackwardMm = -60;                // ボトルから抜ける後退量
+    // 惰性ぶんの行き過ぎは実測で12mm（間引きブレーキで止め切った後）。指令60mmで実効72mmだった。
+    // ブレーキで行き過ぎが読めるようになったので、指令そのものを増やして余裕を取る
+    constexpr int kAreaBackwardMm = -75;                // ボトルから抜ける後退量（実効で約87mm）
     constexpr int kAreaBackwardSpeedDegPerSec = 10000;  // 常に飽和させて最速で後退（pbio側でモーターの上限にクランプされる）
     // 車体が浮くのは速度ではなく立ち上がりのトルクが原因なので、必要ならデューティ上限でトルクの頭を押さえる（100で無効）
-    constexpr int kAreaBackwardDutyLimit = 100;
+    // 後退の指令速度は常に飽和させているので、立ち上がりでモーターが全トルクを出す。
+    // 実測のモーター速度は後退直後で-667/-716°/秒。ここが車体が浮く原因なので、デューティ上限で頭を押さえる。
+    // 100で無効。浮きが残るなら下げる／60mmに時間が掛かりすぎるなら上げる
+    constexpr int kAreaBackwardDutyLimit = 60;
 
     // 惰性を残したまま逆を指令すると初速が出ないため、後退前に止め切る
     constexpr int kSettleSpeedDegPerSec = 60;  // これ未満なら止まったとみなす
@@ -170,9 +218,7 @@ namespace {
     constexpr int kSearchPwm = 65;
     constexpr float kSearchMaxTurnDeg = 180.0f;   // これ以上回っても線から離れるだけなので打ち切る
     constexpr int kSearchTimeoutLoopCount = 500;  // 保険（10ms周期なので5秒）
-    constexpr int kSearchFoundPwmLeft = 30;       // 線を見つけた瞬間に踏み込む左右PWM
-    constexpr int kSearchFoundPwmRight = 90;
-    constexpr float kSearchFoundSec = 0.10f;
+    // 発見後の固定30/90・100ms踏み込みは廃止。反射率を見ながら接続する。
 
     // 診断ログ用。区間ごとの所要時間を出すため
     int nowMs() {
@@ -182,6 +228,62 @@ namespace {
     }
 
 }  // namespace
+
+
+namespace {
+// 診断は固定容量。走行中は集計のみ、出力は停止後。
+struct DeliveryTraceLog {
+    struct Part {
+        int n=0, clips=0, white=0, black=0, maxWhite=0, maxBlack=0;
+        float err=0, turn=0, lo=0, hi=0;
+        void add(Tracer& t, float kp, float heading) {
+            const float e=t.getLastP()/kp;
+            if(n==0) lo=hi=heading;
+            ++n; err+=std::fabs(e);
+            turn+=std::fabs(t.getLastP()+t.getLastI()+t.getLastD());
+            if(heading<lo)lo=heading;
+            if(heading>hi)hi=heading;
+            if(std::abs(t.getLastLeftPwm())>100 || std::abs(t.getLastRightPwm())>100)++clips;
+            float r=Config::TRACER_TARGET_REFLECTION-e;
+            white=r>=93?white+1:0; black=r<=27?black+1:0;
+            if(white>maxWhite)maxWhite=white;
+            if(black>maxBlack)maxBlack=black;
+        }
+        void print(const char* name, const char* section) const {
+            if(!n)return;
+            syslog(LOG_NOTICE,"[DTrace] %s/%s n %d err100 %d turn100 %d",name,section,n,(int)(100*err/n),(int)(100*turn/n));
+            syslog(LOG_NOTICE,"[DTrace] %s/%s clips %d white %d black %d",name,section,clips,maxWhite,maxBlack);
+            syslog(LOG_NOTICE,"[DTrace] %s/%s heading10 min %d max %d",name,section,(int)(lo*10),(int)(hi*10));
+        }
+    };
+    const char* name;
+    int startMs=0,startMm=0,endMs=0,endMm=0,entryMs=-1,entryMm=0;
+    float startHeading=0;
+    bool active=false, started=false;
+    Part entry, rest;
+    explicit DeliveryTraceLog(const char* label):name(label){}
+    void begin(int ms,int mm,float heading) {
+        startMs=endMs=ms; startMm=endMm=mm; startHeading=heading;
+        active=started=true;
+    }
+    void end(int ms,int mm) { if(active){endMs=ms;endMm=mm;active=false;} }
+    void sample(Tracer& t,float kp,int ms,int mm,float heading) {
+        if(!active)return;
+        endMs=ms; endMm=mm;
+        if(mm-startMm>=150 && entryMs<0){entryMs=ms;entryMm=mm;}
+        (entryMs<0?entry:rest).add(t,kp,heading-startHeading);
+    }
+    void print() const {
+        if(!started)return;
+        syslog(LOG_NOTICE,"[DTrace] %s total %d mm %d ms startHeading10 %d",name,endMm-startMm,endMs-startMs,(int)(startHeading*10));
+        if(entryMs>=0) {
+            syslog(LOG_NOTICE,"[DTrace] %s entry %d mm %d ms",name,entryMm-startMm,entryMs-startMs);
+            syslog(LOG_NOTICE,"[DTrace] %s rest %d mm %d ms",name,endMm-entryMm,endMs-entryMs);
+        }
+        entry.print(name,"entry");rest.print(name,"rest");
+    }
+};
+}
 
 DeliveryTask::DeliveryTask(Robot& robot)
     : robot(robot) {
@@ -220,11 +322,62 @@ ColorJudge::Color DeliveryTask::judgeBottleColor() const {
     return nearest;
 }
 
-// アームを上げた直後に色を読む一式。整定待ち→角度と生値のログ→確定
-ColorJudge::Color DeliveryTask::readBottleColorAfterRaise() {
+
+// 1回目の上げ直前を原点とした、アームの積算角度[度]（負が上げ側）
+int DeliveryTask::armAbsoluteDeg() const {
+    return armAbsoluteBaseDeg + robot.getArmCount();
+}
+
+// 診断: 車体の姿勢とアーム角度。静止していれば加速度は重力の分解なので、車体の傾きが読める
+void DeliveryTask::logPosture(const char* label) {
+    IMU::Acceleration accel = robot.getImuAcceleration();
+    IMU::AngularVelocity ang = robot.getImuAngularVelocity();
+    syslog(LOG_NOTICE, "[Posture] %s: accel %d/%d/%d mm/s2, stationary %s", label, (int)accel.x, (int)accel.y, (int)accel.z, robot.isImuStationary() ? "yes" : "no");
+    syslog(LOG_NOTICE, "[Posture] %s: gyro %d/%d/%d deg/s, arm %d deg", label, (int)ang.x, (int)ang.y, (int)ang.z, std::abs(robot.getArmCount()));
+    syslog(LOG_NOTICE, "[Posture] %s: arm power %d %%, stalled %s, abs %d deg", label, robot.getArmPower(), robot.isArmStalled() ? "YES" : "no", armAbsoluteDeg());
+}
+
+// 車体を止め切ってから、揺れが収まるのを待つ。アームを上げる前に使う
+void DeliveryTask::stopAndSettleBeforeArm() {
+    brakeUntilStopped(kBottleStopSpeedDegPerSec, kBottleStopTimeoutMs);
+    robot.stop();
+    if(aborted) {
+        return;
+    }
+    const int settleStartMs = nowMs();
+    const int minLoops = (kBottleSettleMinMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
+    const int maxLoops = (kBottleSettleMaxMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
+    const char* reason = "timeout";
+    int stableCount = 0;
+    for(int i = 0; i < maxLoops; i++) {
+        if(robot.isCenterButtonPressed()) {
+            aborted = true;
+            return;
+        }
+        IMU::AngularVelocity ang = robot.getImuAngularVelocity();
+        const bool quiet = std::abs(ang.x) < kBottleSettleGyroDegPerSec
+                           && std::abs(ang.y) < kBottleSettleGyroDegPerSec
+                           && std::abs(ang.z) < kBottleSettleGyroDegPerSec;
+        stableCount = quiet ? stableCount + 1 : 0;
+        if(i >= minLoops && stableCount >= kBottleSettleStableCount) {
+            reason = "gyro quiet";
+            break;
+        }
+        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+    }
+    syslog(LOG_NOTICE, "Settled before arm raise: %d ms (%s), imu stationary %s", nowMs() - settleStartMs, reason, robot.isImuStationary() ? "yes" : "no");
+}
+
+
+// アームを上げた直後に色を読む一式。目標角まで待つ→整定待ち→角度と生値のログ→確定
+ColorJudge::Color DeliveryTask::readBottleColorAfterRaise(int targetDeg) {
+    // positionDeliveryArmが位置・速度の連続成立を確認済み。
+    (void)targetDeg;
     dly_tsk(kArmSettleBeforeColorMs * 1000);
+    logPosture("at color reading");
     // 診断: 色を読む瞬間のアーム角度。raiseArm()が止めた角度と比べ、保持中に動いていないかを見る
-    syslog(LOG_NOTICE, "Arm angle at color reading: %d deg", std::abs(robot.getArmCount()));
+    syslog(LOG_NOTICE, "Arm position at color reading: count %d relative %d deg",
+           robot.getArmCount(), armAbsoluteDeg());
 
     ColorJudge::Color color = confirmBottleColor();
     syslog(LOG_NOTICE, "Bottle reading: h=%d s=%d v=%d refl=%d", (int)lastBottleReading.hsv.h, (int)lastBottleReading.hsv.s, (int)lastBottleReading.hsv.v, lastBottleReading.reflection);
@@ -278,13 +431,30 @@ bool DeliveryTask::isBlueReading(BlueStats& stats) const {
         stats.maxSaturationInHue = reading.hsv.s;
     }
     if(isBlue) {
+        if(stats.currentRun==0) {
+            if(stats.spanCount<24) {
+                auto& span=stats.spans[stats.spanCount++];
+                span.ms=nowMs();span.mm=wheelDistanceMm();
+                span.armed=stats.entryArmed?1:0;span.required=stats.required;
+                span.nextBlue=stats.nextBlue;span.pwm=stats.commandPwm;span.gapBefore=stats.nonBlueRun;
+                span.speed=(robot.getLeftMotor().getSpeed()+robot.getRightMotor().getSpeed())/2;
+            } else ++stats.dropped;
+        }
+        if(stats.dropped==0 && stats.spanCount>0) {
+            auto& span=stats.spans[stats.spanCount-1];
+            ++span.count;span.duration=nowMs()-span.ms;span.distance=wheelDistanceMm()-span.mm;
+            span.endSpeed=(robot.getLeftMotor().getSpeed()+robot.getRightMotor().getSpeed())/2;
+            if(reading.hsv.s>span.maxSat)span.maxSat=reading.hsv.s;
+        }
         stats.satisfiedCount++;
+        stats.nonBlueRun=0;
         stats.currentRun++;
         if(stats.currentRun > stats.maxConsecutive) {
             stats.maxConsecutive = stats.currentRun;
         }
     } else {
         stats.currentRun = 0;
+        ++stats.nonBlueRun;
     }
     return isBlue;
 }
@@ -300,6 +470,19 @@ bool DeliveryTask::isOnBlueLine(int& matchedCount, int stableCount, BlueStats& s
 }
 
 void DeliveryTask::logBlueStats(const char* label, const BlueStats& stats) const {
+    syslog(LOG_NOTICE,"[BlueRuns] %s stored %d dropped %d entryNeed %d finalNeed %d",label,stats.spanCount,stats.dropped,
+           kBlueEntryConfirmMs*1000/Config::LINE_TRACE_POLL_INTERVAL_US,kBlueFinalEntryConfirmMs*1000/Config::LINE_TRACE_POLL_INTERVAL_US);
+    for(int i=0;i<stats.spanCount;++i) {
+        const auto& p=stats.spans[i];
+        syslog(LOG_NOTICE,"[BlueRun] %s #%d t=%d mm=%d n=%d",label,i,p.ms,p.mm,p.count);
+        syslog(LOG_NOTICE,"[BlueRun] spanMs %d spanMm %d maxSat %d",p.duration,p.distance,p.maxSat);
+        syslog(LOG_NOTICE,"[BlueGate] next %d armed %d need %d pwm %d speedDegSec %d",
+               p.nextBlue,p.armed,p.required,p.pwm,p.speed);
+        syslog(LOG_NOTICE,"[BlueGate] nonBlueGapBefore %d (passNeed %d)",
+               p.gapBefore,kBluePassedConfirmMs*1000/Config::LINE_TRACE_POLL_INTERVAL_US);
+        syslog(LOG_NOTICE,"[BluePosition] relativeStart %d relativeEnd %d speedStart %d speedEnd %d",
+               p.mm-stats.distanceOriginMm,p.mm+p.distance-stats.distanceOriginMm,p.speed,p.endSpeed);
+    }
     syslog(LOG_NOTICE, "Blue stats[%s]: maxSat %d, satisfied %d, maxRun %d", label, stats.maxSaturationInHue, stats.satisfiedCount, stats.maxConsecutive);
 }
 
@@ -321,6 +504,7 @@ void DeliveryTask::diagonalMoveUntilImuTurn(bool isOuterLeft, int outerPwm, floa
         }
         if(loopCount >= timeoutLoopCount) {
             syslog(LOG_NOTICE, "STOP[diagonalMoveUntilImuTurn]: TIMEOUT");
+            aborted = true;
             break;
         }
 
@@ -358,9 +542,12 @@ void DeliveryTask::brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs)
             return;
         }
 
-        // 掛けっぱなしにせず間引くことで、制動力を平均で下げる
+        // 掛けっぱなしにせず間引くことで、制動力を平均で下げる。
+        // Robot::brake()は「完全停止まで待つ」仕様に変わった（commit 242be65）ため使えない。
+        // 1回目の呼び出しで止め切ってしまい、間引く意味がなくなって全掛けと同じになる
         if((i % kSettleBrakeCycleLoops) < kSettleBrakeOnLoops) {
-            robot.brake();
+            robot.getLeftMotor().brake();
+            robot.getRightMotor().brake();
         } else {
             robot.stop();
         }
@@ -378,14 +565,16 @@ void DeliveryTask::brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs)
 
 // デューティ上限（＝トルク上限）を落として直進/後退する。
 // 戻し忘れると以降のライントレースまで非力になるため、必ずこの関数内で復帰させる
-void DeliveryTask::driveStraightWithDutyLimit(int distanceMm, int speedDegPerSec, int dutyLimit) {
+int DeliveryTask::driveStraightWithDutyLimit(int distanceMm, int speedDegPerSec, int dutyLimit) {
     int oldLeftLimit = robot.getLeftMotor().setDutyLimit(dutyLimit);
     int oldRightLimit = robot.getRightMotor().setDutyLimit(dutyLimit);
 
-    robot.driveStraight(distanceMm, speedDegPerSec);
+    const int traveled = robot.driveStraight(distanceMm, speedDegPerSec);
+    if(robot.isCenterButtonPressed() || std::abs(traveled) < std::abs(distanceMm)) aborted=true;
 
     robot.getLeftMotor().restoreDutyLimit(oldLeftLimit);
     robot.getRightMotor().restoreDutyLimit(oldRightLimit);
+    return traveled;
 }
 
 // 両輪を逆向きに回してその場で旋回する。turnByImu(閉ループ)より速く回せる
@@ -393,6 +582,8 @@ void DeliveryTask::turnInPlaceByImu(int leftPwm, int rightPwm, float turnDeg) {
     const int timeoutLoopCount = (kAreaTurnTimeoutMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
 
     float startHeading = robot.getImuHeading();
+    const int startedMs = nowMs();
+    float peakX=0,peakY=0,peakZ=0;
     int loopCount = 0;
     while(std::fabs(robot.getImuHeading() - startHeading) < turnDeg) {
         if(robot.isCenterButtonPressed()) {
@@ -401,13 +592,65 @@ void DeliveryTask::turnInPlaceByImu(int leftPwm, int rightPwm, float turnDeg) {
         }
         if(loopCount >= timeoutLoopCount) {
             syslog(LOG_NOTICE, "STOP[turnInPlaceByImu]: TIMEOUT");
+            aborted = true;
             break;
         }
-        robot.setMotorPower(leftPwm, rightPwm);
+        // 発進80msを立ち上げ、終端20度で落とす。70度/最大PWM70は維持。
+        const float turned = std::fabs(robot.getImuHeading()-startHeading);
+        const float ramp = std::fmin(1.0f, 0.6f + 0.4f*(nowMs()-startedMs)/80.0f);
+        const float taper = std::fmin(1.0f, 0.6f + 0.4f*(turnDeg-turned)/20.0f);
+        const float ratio = std::fmin(ramp,taper);
+        const auto gyro=robot.getImuAngularVelocity();
+        peakX=std::fmax(peakX,std::fabs(gyro.x));
+        peakY=std::fmax(peakY,std::fabs(gyro.y));
+        peakZ=std::fmax(peakZ,std::fabs(gyro.z));
+        robot.setMotorPower((int)(leftPwm*ratio), (int)(rightPwm*ratio));
         dly_tsk(Config::MOTION_POLL_INTERVAL_US);
         loopCount++;
     }
     robot.stop();
+    const float commandTurn=robot.getImuHeading()-startHeading;
+    // 次の片輪探索に残留回転を持ち込まない。共有のブロッキングbrakeは使わない。
+    brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs);
+    robot.stop();
+    if(std::abs(robot.getLeftMotor().getSpeed()) >= kSettleSpeedDegPerSec ||
+       std::abs(robot.getRightMotor().getSpeed()) >= kSettleSpeedDegPerSec) {
+        aborted=true;
+        syslog(LOG_NOTICE,"[AreaTurn] settle failed; abort line search");
+    }
+    syslog(LOG_NOTICE,"[AreaTurn] command10 %d settled10 %d ms %d",
+           (int)(commandTurn*10),(int)((robot.getImuHeading()-startHeading)*10),nowMs()-startedMs);
+    syslog(LOG_NOTICE,"[AreaTurn] peakGyro xyz %d/%d/%d",(int)peakX,(int)peakY,(int)peakZ);
+}
+
+bool DeliveryTask::acquireTraceEntry(Tracer& tracer, const char* label) {
+    tracer.setConfig(0.30f,0.01f,0.02f,Config::TRACER_TARGET_REFLECTION,65);
+    tracer.setCurveDecelGain(2.3f);
+    tracer.resetPid();
+    const int startMs=nowMs(), startMm=wheelDistanceMm();
+    const float startHeading=robot.getImuHeading();
+    int stable=0, firstReflection=-1, lastReflection=-1;
+    const char* result="timeout";
+    bool ok=false;
+    while(nowMs()-startMs < 1500) {
+        if(robot.isCenterButtonPressed()) { result="button";break; }
+        const int mm=wheelDistanceMm()-startMm;
+        if(mm>=150) {result="distance limit";break;}
+        if(std::fabs(robot.getImuHeading()-startHeading)>30) {result="heading limit";break;}
+        tracer.run();
+        lastReflection=(int)std::lround(Config::TRACER_TARGET_REFLECTION-tracer.getLastP()/0.30f);
+        if(firstReflection<0)firstReflection=lastReflection;
+        stable=std::abs(lastReflection-Config::TRACER_TARGET_REFLECTION)<=15?stable+1:0;
+        if(mm>=20 && stable>=8) {ok=true;result="stable";break;}
+        dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
+    }
+    robot.stop();
+    syslog(LOG_NOTICE,"[Handoff] %s %s mm %d ms %d heading10 %d",
+           label,result,wheelDistanceMm()-startMm,nowMs()-startMs,
+           (int)((robot.getImuHeading()-startHeading)*10));
+    syslog(LOG_NOTICE,"[Handoff] reflection %d -> %d stable %d",firstReflection,lastReflection,stable);
+    if(!ok)aborted=true;
+    return ok;
 }
 
 // 帰りの線探し。片輪ピボットのまま反射率で線を見つけるまで回し続ける。
@@ -428,18 +671,8 @@ bool DeliveryTask::pivotUntilReflectionBelow(int reflectionThreshold, int pwm, b
             robot.stop();
             syslog(LOG_NOTICE, "Line found by reflection: %d", reflection);
 
-            int foundLoopCount = static_cast<int>(kSearchFoundSec * 1000 * 1000 / Config::MOTION_POLL_INTERVAL_US);
-            int foundMoveLeftPwm = isRightTurn ? kSearchFoundPwmLeft : kSearchFoundPwmRight;
-            int foundMoveRightPwm = isRightTurn ? kSearchFoundPwmRight : kSearchFoundPwmLeft;
-            for(int i = 0; i < foundLoopCount; i++) {
-                if(robot.isCenterButtonPressed()) {
-                    aborted = true;
-                    break;
-                }
-                robot.setMotorPower(foundMoveLeftPwm, foundMoveRightPwm);
-                dly_tsk(Config::MOTION_POLL_INTERVAL_US);
-            }
-            robot.stop();
+            syslog(LOG_NOTICE,"[Search] found heading10 %d turn10 %d",
+                   (int)(robot.getImuHeading()*10),(int)((robot.getImuHeading()-startHeading)*10));
             return true;
         }
 
@@ -580,6 +813,7 @@ DeliveryTask::CornerResult DeliveryTask::turnAtCorner(bool isLeftTurn, float sta
     float pivotTurnedDeg = 0.0f;
     bool lineFound = pivotUntilLineFound(isLeftTurn, kCornerPivotOuterPwm, kCornerPivotInnerPwm, minTurnDeg, kCornerPivotMaxTurnDeg, pivotTurnedDeg);
 
+    if(aborted) return CornerResult::FAILED;
     bool sweepBackFoundLine = false;
     if(!lineFound) {
         // 回りすぎて通り過ぎたか、そもそも線が無い方向だった。
@@ -700,6 +934,7 @@ void DeliveryTask::updateCornerDetection(CornerState& state, bool isLeftTurn, fl
 void DeliveryTask::run() {
     syslog(LOG_NOTICE, "--- DeliveryTask Started ---");
     aborted = false;
+    const int deliveryStartMs = nowMs();
 
     // このタスクの数値・エッジ・回頭方向はすべてLコースで実測調整したもの。Rコースはその鏡像になるので、
     // isLeftCourseがfalseのときは進行方向に関わる箇所（エッジ・旋回角度・斜め移動の左右パワー）を反転させる。
@@ -739,21 +974,39 @@ void DeliveryTask::run() {
     syslog(LOG_NOTICE, "[Heading] baseline %d (0.1deg, %d samples), at bottle stop %d from baseline", (int)(baselineHeading * 10.0f), headingSampleCount, (int)((robot.getImuHeading() - baselineHeading) * 10.0f));
 
     // 2. ボトルの前でアームを上げる（Robotクラスに移譲）
-    int armExtraDeg = 0;  // 上げ角の上乗せ分。下げるときも同じだけ下げる
-    robot.raiseArm(armExtraDeg);
+    // 接近ループはcoastで抜けるだけなので、ここで止め切ってから上げる。
+    // 惰性が残ったまま上げると車体がピッチ方向に傾き、アームの地面に対する向きがずれる
+    logPosture("before stop");
+    stopAndSettleBeforeArm();
+    if(aborted) { robot.stop(); return; }
+    logPosture("before raise 1");
+
+    // 起点は初回だけ固定。リトライでも同じ物理モーター位置を目標にする。
+    const int armHomeCount = robot.getArmCount();
+    armAbsoluteBaseDeg = -armHomeCount;
+    const int armTargetCount = armHomeCount - (Config::ARM_RAISE_DEG + kBottleRetryExtraArmDeg);
+    if(!robot.positionDeliveryArm(armTargetCount, Config::ARM_RAISE_SPEED_DEG_PER_SEC, "raise-first")) {
+        robot.stop(); return;
+    }
 
     // 3. ボトルの色を判定。読めなければアームを下げ、少し前に出ながら上げ直して読み直す
-    ColorJudge::Color bottleColor = readBottleColorAfterRaise();
+    ColorJudge::Color bottleColor = readBottleColorAfterRaise(Config::ARM_RAISE_DEG + kBottleRetryExtraArmDeg);
     for(int retry = 1; bottleColor == ColorJudge::Color::UNKNOWN && !aborted && retry <= kBottleRetryMaxCount; retry++) {
         if(robot.isCenterButtonPressed()) {
             aborted = true;
             break;
         }
-        robot.lowerArm(armExtraDeg);
-        armExtraDeg += kBottleRetryExtraArmDeg;
-        syslog(LOG_NOTICE, "Bottle color unknown. Retry %d/%d: advance %dmm while raising to %d deg", retry, kBottleRetryMaxCount, kBottleRetryAdvanceMm, Config::ARM_RAISE_DEG + armExtraDeg);
-        robot.raiseArmWhileDriving(kBottleRetryAdvanceMm, kBottleRetryAdvanceSpeedDegPerSec, armExtraDeg);
-        bottleColor = readBottleColorAfterRaise();
+        if(!robot.positionDeliveryArm(armHomeCount, Config::ARM_LOWER_SPEED_DEG_PER_SEC, "lower-retry")) {
+            aborted=true; break;
+        }
+        // 距離対策は変更しない。従来の再試行5mmのみ維持し、上げ動作とは分離して原因を切り分ける。
+        const int moved = robot.driveStraight(kBottleRetryAdvanceMm, kBottleRetryAdvanceSpeedDegPerSec);
+        if(robot.isCenterButtonPressed() || moved < kBottleRetryAdvanceMm) { aborted=true; break; }
+        syslog(LOG_NOTICE,"Bottle retry %d/%d: same arm target %d",retry,kBottleRetryMaxCount,armTargetCount);
+        if(!robot.positionDeliveryArm(armTargetCount, Config::ARM_RAISE_SPEED_DEG_PER_SEC, "raise-retry")) {
+            aborted=true; break;
+        }
+        bottleColor = readBottleColorAfterRaise(Config::ARM_RAISE_DEG + kBottleRetryExtraArmDeg);
     }
     if(aborted) {
         robot.stop();
@@ -798,13 +1051,17 @@ void DeliveryTask::run() {
     }
 
     // 4. アームを下げる（Robotクラスに移譲）
-    robot.lowerArm(armExtraDeg);
+    if(!robot.positionDeliveryArm(armHomeCount, Config::ARM_LOWER_SPEED_DEG_PER_SEC, "lower-final")) {
+        robot.stop(); return;
+    }
+    if(robot.isCenterButtonPressed()) { robot.stop(); return; }
 
     // 5. 左35・右40のパワーでkAfterArmStraightSec秒直進してラインに復帰する（蛇行探索より速く、実機ではこれで十分だった）
     int afterArmStraightLoopCount = static_cast<int>(kAfterArmStraightSec * 1000 * 1000 / Config::MOTION_POLL_INTERVAL_US);
     for(int i = 0; i < afterArmStraightLoopCount; i++) {
         if(robot.isCenterButtonPressed()) {
             aborted = true;
+            robot.stop();
             return;
         }
         robot.setMotorPower(kAfterArmStraightLeftPwm, kAfterArmStraightRightPwm);
@@ -831,7 +1088,29 @@ void DeliveryTask::run() {
 
     // 8. 通常速度に戻してライントレースを継続
     syslog(LOG_NOTICE, "Slow trace done. Switching to pwm %d.", kPostSlowTracePwm);
-    tracer.setPwm(kPostSlowTracePwm);
+    tracer.setConfig(0.38f, 0.01f, 0.02f, Config::TRACER_TARGET_REFLECTION, kPostSlowTracePwm);
+    tracer.setCurveDecelGain(2.3f);
+    const int curveStartMm = wheelDistanceMm();
+    const float curveStartHeading = robot.getImuHeading();
+    bool curveActive=true, curveSlowed=false;
+    int curveSlowMm=-1, curveSlowMs=-1;
+    float traceKp=0.38f;
+    // タスクのスタックは4KiB。固定診断バッファは静的領域に置き毎回初期化する。
+    // DeliveryTaskは単一タスクからのみ実行する（並列実行不可）。
+    static DeliveryTraceLog curveLog("curve"), outLog("blue1-to-corner"), areaLog("corner-to-area");
+    static DeliveryTraceLog areaApproachLog("area-slow");
+    areaApproachLog=DeliveryTraceLog("area-slow");
+    curveLog=DeliveryTraceLog("curve");
+    outLog=DeliveryTraceLog("blue1-to-corner");
+    areaLog=DeliveryTraceLog("corner-to-area");
+    curveLog.begin(nowMs(),curveStartMm,curveStartHeading);
+    auto sampleOutbound = [&]() {
+        int ms=nowMs(), mm=wheelDistanceMm(); float h=robot.getImuHeading();
+        curveLog.sample(tracer,traceKp,ms,mm,h);
+        outLog.sample(tracer,traceKp,ms,mm,h);
+        areaLog.sample(tracer,traceKp,ms,mm,h);
+        areaApproachLog.sample(tracer,traceKp,ms,mm,h);
+    };
 
     // 9. 指定回数青ラインを検知するまでライントレース
     syslog(LOG_NOTICE, "Tracing until blue line count: %d", targetBlueLineCount);
@@ -848,8 +1127,9 @@ void DeliveryTask::run() {
     int bluePassedConfirmCount = (kBluePassedConfirmMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
 
     // 青判定の診断。コーナー前の高彩度がコーナー後の情報を隠さないよう、区間を分けて集計する
-    BlueStats blueStatsBeforeCorner;
-    BlueStats blueStatsAfterCorner;
+    static BlueStats blueStatsBeforeCorner, blueStatsAfterCorner;
+    blueStatsBeforeCorner=BlueStats{};
+    blueStatsAfterCorner=BlueStats{};
 
     // 診断: 向きは基準角度からのズレ[度]。Lコースの左カーブは負
     auto headingFromBaseline = [this, baselineHeading]() {
@@ -868,7 +1148,15 @@ void DeliveryTask::run() {
     int outboundCornerClearedMs = 0;
     int outboundCornerClearedMm = -1;
     const int areaColorSteps = targetBlueLineCount - 2;  // 黄0・青1・赤2（エリアに入る青の本数から）
-    const int areaSlowdownStartMm = kAreaSlowdownStartMmYellow + kAreaBlueColorStepMm * areaColorSteps;
+    const int areaExpectedBlueMm = kAreaExpectedBlueMm[areaColorSteps];
+    const int areaSlowLeadMm = (areaColorSteps == 0) ? kAreaSlowLeadMmYellow : kAreaSlowLeadMm;  // 0は黄
+    const int areaSlowdownStartMm = areaExpectedBlueMm - areaSlowLeadMm;
+    const int areaSearchStartMm = areaExpectedBlueMm - kAreaSearchLeadMm;
+    AreaBlueGate areaGate(areaSearchStartMm,areaExpectedBlueMm+kAreaMissingBlueLimitMm,
+                          blueFinalEntryConfirmCount);
+    bool areaSearchOpened=false;
+    int areaGateOpenedMm=-1, areaFirstRawBlueMm=-1;
+    int areaSlowActualMm=-1, areaSlowMs=-1, finalBlueActualMm=-1;
     bool isAreaSlowdownPending = true;
 
     // コーナー手前の減速。トレース開始からの距離で落とす
@@ -879,11 +1167,15 @@ void DeliveryTask::run() {
     // コーナー判定は減速するまで始めない（姿勢の乱れによる誤検知を避けるため）
     auto startRightEdgeTrace = [&](int slowdownStartMm) {
         tracer.setEdge(isLeftCourse ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT);
-        tracer.setPwm(kCornerTracePwm);
+        curveLog.end(nowMs(),wheelDistanceMm());
+        curveActive=false; traceKp=0.30f;
         isCornerSlowdownPending = true;
         cornerSlowdownStartMm = slowdownStartMm;
         outboundCorner.armedMs = nowMs();
         outboundCorner.armedMm = wheelDistanceMm();
+        if(!acquireTraceEntry(tracer,"blue1")) return;
+        tracer.setPwm(kCornerTracePwm); // 安定後はPID履歴を引き継ぐ
+        outLog.begin(nowMs(),wheelDistanceMm(),robot.getImuHeading());
         syslog(LOG_NOTICE, "Corner trace start t=%d ms", outboundCorner.armedMs);
     };
 
@@ -893,12 +1185,20 @@ void DeliveryTask::run() {
             break;
         }
 
+        if(curveActive && !curveSlowed &&
+           ((robot.getImuHeading()-curveStartHeading)*courseSign <= -55.0f ||
+            wheelDistanceMm()-curveStartMm >= 500)) {
+            curveSlowed=true; traceKp=0.55f;
+            curveSlowMm=wheelDistanceMm()-curveStartMm; curveSlowMs=nowMs();
+            tracer.setConfig(0.55f,0.01f,0.02f,Config::TRACER_TARGET_REFLECTION,78);
+        }
         const int reflection = robot.getReflection();
 
         // 青1本目の上で線を踏み越えたら、通過を待たずに基準角度から80度へ旋回して右エッジで進む
-        if(detectedBlueCount == 1 && isCurrentlyOnBlue && !isBlueIgnored) {
+        if(!outboundCorner.done && detectedBlueCount == 1 && isCurrentlyOnBlue && !isBlueIgnored) {
             blue1OvershootWhiteRun = (reflection >= kCornerWhiteReflection) ? blue1OvershootWhiteRun + 1 : 0;
             if(blue1OvershootWhiteRun >= kBlue1OvershootWhiteRunCount) {
+                curveLog.end(nowMs(),wheelDistanceMm());
                 const int detectedMs = nowMs();
                 syslog(LOG_NOTICE, "[Overshoot] blue1: white %d samples t=%d ms, heading %d. Turning to baseline-80.", blue1OvershootWhiteRun, detectedMs, headingFromBaseline());
 
@@ -917,6 +1217,35 @@ void DeliveryTask::run() {
                 }
                 // 弧を描く移動は線の左側から始める前提なので行わない
                 startRightEdgeTrace(kCornerSlowdownStartMmAfterOvershoot);
+                if(aborted) break;
+            }
+        }
+
+        if(outboundCornerClearedMm>=0) {
+            const int areaMm=wheelDistanceMm()-outboundCornerClearedMm;
+            // 毎周期、同じ1回の色読みを観測と最終青判定に使う。途中の青は本数にしない。
+            blueStatsAfterCorner.entryArmed=areaGate.armed();
+            blueStatsAfterCorner.nextBlue=targetBlueLineCount;
+            blueStatsAfterCorner.required=blueFinalEntryConfirmCount;
+            blueStatsAfterCorner.commandPwm=tracer.getBasePwm();
+            const bool rawBlue=isBlueReading(blueStatsAfterCorner);
+            const auto decision=areaGate.update(areaMm,rawBlue,!isAreaSlowdownPending);
+            if(areaGate.armed() && !areaSearchOpened) {
+                areaSearchOpened=true;
+                areaGateOpenedMm=areaMm;
+            }
+            if(areaSearchOpened && rawBlue && areaFirstRawBlueMm<0) areaFirstRawBlueMm=areaMm;
+            if(decision==AreaBlueGate::Result::MISSING) {
+                aborted=true;robot.stop();
+                syslog(LOG_NOTICE,"[AreaBlue] target not found in window; stopping at %d mm",areaMm);
+                break;
+            }
+            if(decision==AreaBlueGate::Result::FOUND) {
+                finalBlueActualMm=areaMm;
+                robot.stop();
+                syslog(LOG_NOTICE,"[AreaBlue] target detected at %d mm (bottle target %d); placing",
+                       areaMm,targetBlueLineCount);
+                break;
             }
         }
 
@@ -931,9 +1260,17 @@ void DeliveryTask::run() {
             }
         }
 
+        BlueStats& currentBlueStats=outboundCorner.done?blueStatsAfterCorner:blueStatsBeforeCorner;
+        currentBlueStats.entryArmed=!isCurrentlyOnBlue && !isBlueIgnored;
+        currentBlueStats.nextBlue=detectedBlueCount+1;
+        currentBlueStats.required=(detectedBlueCount+1>=targetBlueLineCount)?blueFinalEntryConfirmCount:blueEntryConfirmCount;
+        currentBlueStats.commandPwm=tracer.getBasePwm();
         // 無視期間中も、コーナー判定の抑制（青を跨ぐときの脇の白）には生の青判定を使う
         bool isOnBlueForCorner = isCurrentlyOnBlue;
-        if(isBlueIgnored) {
+        if(outboundCornerClearedMm>=0) {
+            // 上で観測済み。コーナー後は旧本数カウンタも400ms通過待ちも使わない。
+            isOnBlueForCorner=false;
+        } else if(isBlueIgnored) {
             BlueStats& blueStats = outboundCorner.done ? blueStatsAfterCorner : blueStatsBeforeCorner;
             isOnBlueForCorner = isBlueReading(blueStats);
         } else if(!isCurrentlyOnBlue) {
@@ -962,7 +1299,10 @@ void DeliveryTask::run() {
                 }
                 // 指定回数に達したら、その場ですぐに終了する
                 if(detectedBlueCount >= targetBlueLineCount) {
-                    syslog(LOG_NOTICE, "Target count reached! Stopping immediately.");
+                    // 配置はコーナー後の距離窓内の実検知だけで開始する。
+                    aborted=true;
+                    robot.stop();
+                    syslog(LOG_NOTICE, "Unexpected blue count before corner. Stopping without placement.");
                     break;
                 }
             }
@@ -985,36 +1325,70 @@ void DeliveryTask::run() {
 
                 if(detectedBlueCount == 1) {
                     syslog(LOG_NOTICE, "[Blue1] passed t=%d ms, heading %d", nowMs(), headingFromBaseline());
+                    curveLog.end(nowMs(),wheelDistanceMm());
 
                     // 弧を描いて線を横切り、右エッジ側へ移る。黒を踏んだら止める
                     const float headingBefore = robot.getImuHeading();
                     const int leftPwm = isLeftCourse ? kAfterBlue1OuterPwm : kAfterBlue1InnerPwm;
                     const int rightPwm = isLeftCourse ? kAfterBlue1InnerPwm : kAfterBlue1OuterPwm;
                     const int moveLoopCount = (kAfterBlue1MoveMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
-                    const int minMoveLoopCount = (kAfterBlue1MinMoveMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
                     const int moveStartMs = nowMs();
+                    const int moveStartMm = wheelDistanceMm();
                     const int startReflection = robot.getReflection();
-                    int blackRun = 0;
-                    const char* stopReason = "timeout";
-                    for(int k = 0; k < moveLoopCount; k++) {
-                        if(robot.isCenterButtonPressed()) {
-                            aborted = true;
+
+                    // 直前のtracer.run()が出した出力が残っているので、判定の前に明示的に切る。
+                    // stop()はcoastなので惰性では進むが、少なくとも駆動はしていない状態で判定できる
+                    robot.stop();
+
+                    // 開始時点ですでに黒か。黒ならもう線の上なので動かさない
+                    int startBlackRun = 0;
+                    for(int k = 0; k < kAfterBlue1StartBlackCount; k++) {
+                        if(robot.getReflection() > kAfterBlue1BlackReflection) {
+                            startBlackRun = 0;
                             break;
                         }
-                        blackRun = (robot.getReflection() <= kAfterBlue1BlackReflection) ? blackRun + 1 : 0;
-                        if(k >= minMoveLoopCount && blackRun >= kAfterBlue1BlackRunCount) {
-                            stopReason = "black";
-                            break;
-                        }
-                        robot.setMotorPower(leftPwm, rightPwm);
+                        startBlackRun++;
                         dly_tsk(Config::MOTION_POLL_INTERVAL_US);
                     }
+                    const bool alreadyOnLine = (startBlackRun >= kAfterBlue1StartBlackCount);
+
+                    // 開始値が黒の近くなら、渡り切る前に止まらないよう短い下限だけ置く
+                    const int minMoveLoopCount = (startReflection >= kAfterBlue1ClearOfBlackReflection)
+                                                     ? 0
+                                                     : (kAfterBlue1AmbiguousMinMoveMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
+
+                    int blackRun = 0;
+                    const char* stopReason = alreadyOnLine ? "already on line (no move)" : "timeout";
+                    if(!alreadyOnLine) {
+                        for(int k = 0; k < moveLoopCount; k++) {
+                            if(robot.isCenterButtonPressed()) {
+                                aborted = true;
+                                break;
+                            }
+                            blackRun = (robot.getReflection() <= kAfterBlue1BlackReflection) ? blackRun + 1 : 0;
+                            if(k >= minMoveLoopCount && blackRun >= kAfterBlue1BlackRunCount) {
+                                stopReason = "black";
+                                break;
+                            }
+                            robot.setMotorPower(leftPwm, rightPwm);
+                            dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+                        }
+                    }
+                    // ループを抜けた時点では弧の出力が残っている。ログを出す前に切る
+                    robot.stop();
                     if(aborted) {
                         break;
                     }
-                    syslog(LOG_NOTICE, "[Blue1] move stop by %s at %d ms, reflection start %d / end %d, heading change %d", stopReason, nowMs() - moveStartMs, startReflection, robot.getReflection(), (int)(robot.getImuHeading() - headingBefore));
+                    if(!alreadyOnLine && blackRun < kAfterBlue1BlackRunCount) {
+                        aborted=true;
+                        syslog(LOG_NOTICE,"[Blue1] crossing failed; do not start fast trace");
+                        break;
+                    }
+                    syslog(LOG_NOTICE, "[Blue1] move stop by %s at %d ms / %d mm, reflection start %d / end %d", stopReason, nowMs() - moveStartMs, wheelDistanceMm() - moveStartMm, startReflection, robot.getReflection());
+                    syslog(LOG_NOTICE, "[Blue1] move heading change %d deg", (int)(robot.getImuHeading() - headingBefore));
 
                     startRightEdgeTrace(kCornerSlowdownStartMm);
+                    if(aborted) break;
                 }
             }
             isOnBlueForCorner = isCurrentlyOnBlue;
@@ -1025,7 +1399,10 @@ void DeliveryTask::run() {
                 isCornerSlowdownPending = false;  // 減速位置より手前で曲がりきった
             } else if(wheelDistanceMm() - outboundCorner.armedMm >= cornerSlowdownStartMm) {
                 isCornerSlowdownPending = false;
-                tracer.setPwm(kCornerApproachPwm);  // 曲がりきるとupdateCornerDetection()がTRACER_PWMに戻す
+                outLog.end(nowMs(),wheelDistanceMm());
+                tracer.setConfig(0.38f,0.01f,0.02f,Config::TRACER_TARGET_REFLECTION,kCornerApproachPwm);
+                traceKp=0.38f;
+                // 曲がりきるとupdateCornerDetection()がTRACER_PWMに戻す
                 // 減速したここから白の連続を数え始める
                 outboundCorner.pending = true;
                 outboundCorner.enableLoop = outboundCorner.loopCount;  // 次の周期から有効
@@ -1035,27 +1412,64 @@ void DeliveryTask::run() {
 
         // Lコースでは左90度コーナーなので左へ回す
         updateCornerDetection(outboundCorner, isLeftCourse, kCornerPivotMinTurnDeg, tracer, isOnBlueForCorner, "Corner");
+        if(aborted) break;
         if(outboundCorner.done && outboundCornerClearedMm < 0) {
+            traceKp=0.30f;
+            tracer.setConfig(0.30f,0.01f,0.02f,Config::TRACER_TARGET_REFLECTION,kAreaFastPwm);
+            tracer.resetPid();
+            tracer.setCurveDecelGain(2.3f);
+            areaLog.begin(nowMs(),wheelDistanceMm(),robot.getImuHeading());
             outboundCornerClearedMs = nowMs();
             outboundCornerClearedMm = wheelDistanceMm();
+            blueStatsAfterCorner.distanceOriginMm=outboundCornerClearedMm;
+            isCurrentlyOnBlue=false;
+            isBlueIgnored=false;
+            matchedBlueCount=matchedNonBlueCount=0;
             syslog(LOG_NOTICE, "Corner cleared: distance origin for blue entries t=%d ms, area slowdown at %d mm", outboundCornerClearedMs, areaSlowdownStartMm);
         }
         if(outboundCornerClearedMm >= 0 && isAreaSlowdownPending && wheelDistanceMm() - outboundCornerClearedMm >= areaSlowdownStartMm) {
             isAreaSlowdownPending = false;
-            tracer.setPwm(kAreaApproachPwm);
+            areaSlowActualMm=wheelDistanceMm()-outboundCornerClearedMm;
+            areaSlowMs=nowMs();
+            areaLog.end(areaSlowMs,wheelDistanceMm());
+            areaApproachLog.begin(areaSlowMs,wheelDistanceMm(),robot.getImuHeading());
+            // 低速の最終青進入は従来設定へ戻し、速度以外の変更を分離する。
+            traceKp=0.38f;
+            tracer.setConfig(0.38f,0.01f,0.02f,Config::TRACER_TARGET_REFLECTION,kAreaApproachPwm);
             syslog(LOG_NOTICE, "Area slowdown to pwm %d t=%d ms (+%d mm since corner cleared)", kAreaApproachPwm, nowMs(), wheelDistanceMm() - outboundCornerClearedMm);
         }
 
+        if(outboundCornerClearedMm>=0 &&
+           wheelDistanceMm()-outboundCornerClearedMm>areaExpectedBlueMm+kAreaMissingBlueLimitMm) {
+            aborted=true;
+            robot.stop();
+            syslog(LOG_NOTICE,"[AreaBlue] target missing beyond expected + %d mm; stopping",kAreaMissingBlueLimitMm);
+            break;
+        }
         // 青ライン上でも関係なく通常のライントレースを継続
         tracer.run();
+        sampleOutbound();
 
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
     }
 
     tracer.terminate();
+    const int outboundDiagnosticStartMs=nowMs();
+    areaApproachLog.end(outboundDiagnosticStartMs,wheelDistanceMm());
+    syslog(LOG_NOTICE,"[AreaBlue] expected %d slowPlan %d slowActual %d finalActual %d",
+           areaExpectedBlueMm,areaSlowdownStartMm,areaSlowActualMm,finalBlueActualMm);
+    syslog(LOG_NOTICE,"[AreaBlue] searchPlan %d armedAt %d firstCandidate %d max %d",
+           areaSearchStartMm,areaGateOpenedMm,areaFirstRawBlueMm,areaExpectedBlueMm+kAreaMissingBlueLimitMm);
+    if(areaSlowActualMm>=0 && finalBlueActualMm>=0)
+        syslog(LOG_NOTICE,"[AreaBlue] slowToFinal %d mm %d ms",
+               finalBlueActualMm-areaSlowActualMm,nowMs()-areaSlowMs);
+    curveLog.end(nowMs(),wheelDistanceMm());outLog.end(nowMs(),wheelDistanceMm());areaLog.end(nowMs(),wheelDistanceMm());
+    curveLog.print();outLog.print();areaLog.print();
+    areaApproachLog.print();
+    syslog(LOG_NOTICE,"[DTrace] curve slowdown at %d mm t=%d; outbound elapsed %d ms",curveSlowMm,curveSlowMs,nowMs()-deliveryStartMs);
     logBlueStats("before corner", blueStatsBeforeCorner);
     logBlueStats("after corner", blueStatsAfterCorner);
-    syslog(LOG_NOTICE, "Outbound end: blueCount %d / %d, onBlue %d, corner done %d, reason %s", detectedBlueCount, targetBlueLineCount, isCurrentlyOnBlue ? 1 : 0, outboundCorner.done ? 1 : 0, aborted ? "ABORTED" : "reached");
+    syslog(LOG_NOTICE, "Outbound end: preCornerCount %d, targetSlot %d, finalDetected %d, corner done %d, reason %s", detectedBlueCount, targetBlueLineCount, finalBlueActualMm>=0?1:0, outboundCorner.done ? 1 : 0, aborted ? "ABORTED" : "reached");
     syslog(LOG_NOTICE, "Corner stats: maxWhiteRun(before trigger) %d / threshold %d", outboundCorner.maxWhiteRunBeforeTrigger, kCornerWhiteRunCount);
     if(aborted) {
         // 中断で抜けた場合にエリア配置へ進むと、各動作が即座に空振りして「到達した」ように見えてしまう
@@ -1063,17 +1477,29 @@ void DeliveryTask::run() {
         syslog(LOG_NOTICE, "ABORTED during blue search. Stopping.");
         return;
     }
+    const int outboundDiagnosticMs=nowMs()-outboundDiagnosticStartMs;
+    const int placementStartMs=nowMs();
     syslog(LOG_NOTICE, "Reached target zone.");
 
     // 10. エリアへの配置（斜め移動 → 惰性を殺す → 後退 → その場旋回）。色に関わらず共通。
     // 前進は立ち上がりが遅くボトルネックだったため廃止し、斜め移動の弧だけでエリアまで運ぶ
     syslog(LOG_NOTICE, "Diagonal move into area");
     diagonalMoveUntilImuTurn(isLeftCourse, kDiagonalPwmHigh, robot.getImuHeading(), kDiagonalTurnDeg);
+    if(aborted) { robot.stop(); return; }
 
     brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs);
+    if(aborted) { robot.stop(); return; }
 
     syslog(LOG_NOTICE, "Driving backward %dmm (duty limit %d)", kAreaBackwardMm, kAreaBackwardDutyLimit);
-    driveStraightWithDutyLimit(kAreaBackwardMm, kAreaBackwardSpeedDegPerSec, kAreaBackwardDutyLimit);
+    // Robot::driveStraight()は先頭でresetMotorCounts()するので、外側で車輪距離の差を取ると原点が変わる。
+    // 指令ぶんは戻り値を使い、惰性ぶんだけを指令終了後の差分で測る
+    const int backwardDrivenMm = driveStraightWithDutyLimit(kAreaBackwardMm, kAreaBackwardSpeedDegPerSec, kAreaBackwardDutyLimit);
+    const int backwardCommandEndMm = wheelDistanceMm();
+    // driveStraight()の末尾はstop()（coast）なので、指令が終わった後も惰性で進む。行き過ぎの本体はここ
+    brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs);
+    const int backwardOverrunMm = wheelDistanceMm() - backwardCommandEndMm;
+    syslog(LOG_NOTICE, "Backward: commanded %d mm, driven %d mm, overrun %d mm, total %d mm", kAreaBackwardMm, backwardDrivenMm, backwardOverrunMm, backwardDrivenMm + backwardOverrunMm);
+    if(aborted) { robot.stop(); return; }
 
     syslog(LOG_NOTICE, "Turning %d degrees in place", (int)kAreaTurnDeg);
     turnInPlaceByImu(isLeftCourse ? kAreaTurnPwm : -kAreaTurnPwm, isLeftCourse ? -kAreaTurnPwm : kAreaTurnPwm, kAreaTurnDeg);
@@ -1086,7 +1512,7 @@ void DeliveryTask::run() {
 
     // 帰りの線探し（旋回方向はコース依存、反射率ベース）。見つけた瞬間の踏み込みもこの中で行う
     syslog(LOG_NOTICE, "Pivoting to find line by reflection");
-    if(!pivotUntilReflectionBelow(kSearchReflectionThreshold, kSearchPwm, isLeftCourse)) {
+    if(!pivotUntilReflectionBelow(kSearchReflectionThreshold, kSearchPwm, isLeftCourse) || aborted) {
         // 線が無い場所でTracerを起動すると白の上を暴走するだけなので、ここで打ち切る
         robot.stop();
         syslog(LOG_NOTICE, aborted ? "ABORTED during line search. Stopping." : "Line search FAILED. Aborting return trip.");
@@ -1096,18 +1522,26 @@ void DeliveryTask::run() {
     // 11. 左エッジでライントレースを再開
     syslog(LOG_NOTICE, "Resuming line trace on LEFT edge");
     tracer.setEdge(isLeftCourse ? Tracer::Edge::LEFT : Tracer::Edge::RIGHT);
-    tracer.setPwm(kReturnTracePwm);  // 暗黙の値継承に頼らず明示する
+    const int returnEntryStartMs=nowMs(), returnEntryStartMm=wheelDistanceMm();
+    if(!acquireTraceEntry(tracer,"area-return")) return;
+    tracer.setPwm(kReturnTracePwm);
+    const int placementElapsedMs=nowMs()-placementStartMs;
+    static DeliveryTraceLog returnLog("area-to-corner"), finishLog("return-after-corner");
+    returnLog=DeliveryTraceLog("area-to-corner");
+    finishLog=DeliveryTraceLog("return-after-corner");
+    returnLog.begin(nowMs(),wheelDistanceMm(),robot.getImuHeading());  // 暗黙の値継承に頼らず明示する
 
     // 帰りは青で止めない（青の本数はエリアの青の上から走り出すとずれるため）。
     // 90度コーナーを曲がりきってから一定距離を走った時点で終了し、ラリーへ引き渡す
     syslog(LOG_NOTICE, "Return: finish %d mm after the corner is cleared", kReturnFinishAfterCornerMm);
 
-    BlueStats returnBlueStats;
+    static BlueStats returnBlueStats;
+    returnBlueStats=BlueStats{};
     CornerState returnCorner;
     // 帰りにも直角コーナーが1つある。行きは左折だったが帰りは右折になる（Lコース基準）。
     // 判定の開始と減速は、トレース開始からの距離で行う（位置はボトル色で決まる）
-    returnCorner.armedMs = nowMs();
-    returnCorner.armedMm = wheelDistanceMm();
+    returnCorner.armedMs = returnEntryStartMs;
+    returnCorner.armedMm = returnEntryStartMm;
     const int returnColorSteps = (bottleColor == ColorJudge::Color::RED) ? 2 : (bottleColor == ColorJudge::Color::BLUE) ? 1
                                                                                                                         : 0;
     const int returnCornerDetectStartMm = kReturnCornerDetectStartMmYellow + kReturnCornerColorStepMm * returnColorSteps;
@@ -1129,7 +1563,9 @@ void DeliveryTask::run() {
         if(isReturnCornerSlowdownPending && returnTracedMm >= returnCornerSlowdownStartMm) {
             isReturnCornerSlowdownPending = false;
             if(!returnCorner.done) {
-                tracer.setPwm(kCornerApproachPwm);  // 曲がりきると下でkReturnAfterCornerFastPwmに上書きする
+                returnLog.end(nowMs(),wheelDistanceMm());
+                tracer.setConfig(0.38f,0.01f,0.02f,Config::TRACER_TARGET_REFLECTION,kCornerApproachPwm);
+                // 曲がりきると下でkReturnAfterCornerFastPwmに上書きする
                 syslog(LOG_NOTICE, "Return corner slowdown to pwm %d t=%d ms (+%d mm since trace start)", kCornerApproachPwm, nowMs(), returnTracedMm);
             }
         }
@@ -1148,10 +1584,13 @@ void DeliveryTask::run() {
         // 帰りはLコースで右90度コーナーなので、行きとは逆の右へ回す
         updateCornerDetection(returnCorner, !isLeftCourse, kCornerPivotReturnMinTurnDeg, tracer, isOnBlueForCorner, "Return corner");
 
+        if(aborted) break;
         // updateCornerDetection()は曲がりきるとTRACER_PWMに戻すので、その直後に上書きする
         if(returnCorner.done && returnCornerClearedMm < 0) {
             returnCornerClearedMm = wheelDistanceMm();
-            tracer.setPwm(kReturnAfterCornerFastPwm);
+            tracer.setConfig(0.30f,0.01f,0.02f,Config::TRACER_TARGET_REFLECTION,kReturnAfterCornerFastPwm);
+            tracer.resetPid();
+            finishLog.begin(nowMs(),wheelDistanceMm(),robot.getImuHeading());
             syslog(LOG_NOTICE, "Return after corner: pwm %d for %d mm, then finish", kReturnAfterCornerFastPwm, kReturnFinishAfterCornerMm);
         }
         if(returnCornerClearedMm >= 0 && wheelDistanceMm() - returnCornerClearedMm >= kReturnFinishAfterCornerMm) {
@@ -1160,11 +1599,18 @@ void DeliveryTask::run() {
         }
 
         tracer.run();
+        returnLog.sample(tracer,0.30f,nowMs(),wheelDistanceMm(),robot.getImuHeading());
+        finishLog.sample(tracer,0.30f,nowMs(),wheelDistanceMm(),robot.getImuHeading());
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
     }
 
     tracer.terminate();
     robot.stop();
+    const int deliveryElapsedMs=nowMs()-deliveryStartMs;
+    returnLog.end(nowMs(),wheelDistanceMm());finishLog.end(nowMs(),wheelDistanceMm());
+    returnLog.print();finishLog.print();
+    syslog(LOG_NOTICE,"[Delivery] total %d ms outboundDiag %d ms placementAndSearch %d ms aborted %d",
+           deliveryElapsedMs,outboundDiagnosticMs,placementElapsedMs,aborted?1:0);
     logBlueStats("return", returnBlueStats);
     syslog(LOG_NOTICE, "Return end: corner done %d", returnCorner.done ? 1 : 0);
     syslog(LOG_NOTICE, "Corner stats: maxWhiteRun(before trigger) %d / threshold %d", returnCorner.maxWhiteRunBeforeTrigger, kCornerWhiteRunCount);
