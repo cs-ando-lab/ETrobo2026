@@ -95,8 +95,16 @@ private:
     void logPosture(const char* label);
     // アームを上げる前に車体を止め切り、揺れが収まるのを待つ
     void stopAndSettleBeforeArm();
+    // 接続のやり方。既定はすべて従来どおりで、経路ごとに個別に有効化する
+    struct TraceEntryOptions {
+        // Tracer::restartFromNextSample()で再開する。falseならresetPid()（前回偏差0）のまま
+        bool explicitRestart = false;
+    };
+
     // 線検出直後は低速でエッジを掴み、連続安定してから高速区間へ渡す。
-    bool acquireTraceEntry(Tracer& tracer, const char* label);
+    // optionsは既定値を省略できない（クラス内の入れ子型の既定初期化子を既定引数には使えない）ので、
+    // 従来どおりの経路もTraceEntryOptions{}を明示して呼ぶ
+    bool acquireTraceEntry(Tracer& tracer, const char* label, const TraceEntryOptions& options);
 
     // 確定後にまとめてログへ出すための、最後に読んだボトルの生値
     mutable ColorJudge::Reading lastBottleReading{};

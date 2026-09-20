@@ -4,7 +4,7 @@ set -e
 cd "$(dirname "$0")"
 for src in *_test.cpp; do
     out="$(mktemp)"
-    g++ -std=c++17 -Wall -Wextra -o "$out" "$src"
+    g++ -std=c++17 -Wall -Wextra -o "$out" "$src" ../main/app/Pid.cpp
     "$out" && echo "PASS $src"
     rm -f "$out"
 done

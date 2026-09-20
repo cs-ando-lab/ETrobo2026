@@ -643,10 +643,13 @@ void DeliveryTask::turnInPlaceByImu(int leftPwm, int rightPwm, float turnDeg) {
     syslog(LOG_NOTICE,"[AreaTurn] peakGyro xyz %d/%d/%d",(int)peakX,(int)peakY,(int)peakZ);
 }
 
-bool DeliveryTask::acquireTraceEntry(Tracer& tracer, const char* label) {
+bool DeliveryTask::acquireTraceEntry(Tracer& tracer, const char* label, const TraceEntryOptions& options) {
     tracer.setConfig(0.30f,0.01f,0.02f,Config::TRACER_TARGET_REFLECTION,65);
     tracer.setCurveDecelGain(2.3f);
-    tracer.resetPid();
+    // 設定を全て終えてから再開を予約する。resetPid()は前回偏差を0にするため、
+    // 実際には反射率が動いていなくても再開直後の1回だけD項が出ていた
+    if(options.explicitRestart) tracer.restartFromNextSample();
+    else tracer.resetPid();
     const int startMs=nowMs(), startMm=wheelDistanceMm();
     const float startHeading=robot.getImuHeading();
     int stable=0, firstReflection=-1, lastReflection=-1;
@@ -1183,7 +1186,7 @@ void DeliveryTask::run() {
 
     // 右エッジのトレースに切り替え、手前での減速を予約する（通常時・踏み越え時で共通）。
     // コーナー判定は減速するまで始めない（姿勢の乱れによる誤検知を避けるため）
-    auto startRightEdgeTrace = [&](int slowdownStartMm) {
+    auto startRightEdgeTrace = [&](int slowdownStartMm, const TraceEntryOptions& entryOptions) {
         tracer.setEdge(isLeftCourse ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT);
         curveLog.end(nowMs(),wheelDistanceMm());
         curveActive=false; traceKp=0.30f;
@@ -1191,7 +1194,7 @@ void DeliveryTask::run() {
         cornerSlowdownStartMm = slowdownStartMm;
         outboundCorner.armedMs = nowMs();
         outboundCorner.armedMm = wheelDistanceMm();
-        if(!acquireTraceEntry(tracer,"blue1")) return;
+        if(!acquireTraceEntry(tracer,"blue1",entryOptions)) return;
         tracer.setPwm(kCornerTracePwm); // 安定後はPID履歴を引き継ぐ
         outLog.begin(nowMs(),wheelDistanceMm(),robot.getImuHeading());
         syslog(LOG_NOTICE, "Corner trace start t=%d ms", outboundCorner.armedMs);
@@ -1233,8 +1236,9 @@ void DeliveryTask::run() {
                     aborted = true;
                     break;
                 }
-                // 弧を描く移動は線の左側から始める前提なので行わない
-                startRightEdgeTrace(kCornerSlowdownStartMmAfterOvershoot);
+                // 弧を描く移動は線の左側から始める前提なので行わない。
+                // 接続の再開方法は通常経路から段階的に入れるため、ここは従来どおり
+                startRightEdgeTrace(kCornerSlowdownStartMmAfterOvershoot, TraceEntryOptions{});
                 if(aborted) break;
             }
         }
@@ -1405,7 +1409,10 @@ void DeliveryTask::run() {
                     syslog(LOG_NOTICE, "[Blue1] move stop by %s at %d ms / %d mm, reflection start %d / end %d", stopReason, nowMs() - moveStartMs, wheelDistanceMm() - moveStartMm, startReflection, robot.getReflection());
                     syslog(LOG_NOTICE, "[Blue1] move heading change %d deg", (int)(robot.getImuHeading() - headingBefore));
 
-                    startRightEdgeTrace(kCornerSlowdownStartMm);
+                    // 通常の持ち替え経路だけ、まず新しい再開方法を使う
+                    TraceEntryOptions blue1Options;
+                    blue1Options.explicitRestart = true;
+                    startRightEdgeTrace(kCornerSlowdownStartMm, blue1Options);
                     if(aborted) break;
                 }
             }
@@ -1541,7 +1548,7 @@ void DeliveryTask::run() {
     syslog(LOG_NOTICE, "Resuming line trace on LEFT edge");
     tracer.setEdge(isLeftCourse ? Tracer::Edge::LEFT : Tracer::Edge::RIGHT);
     const int returnEntryStartMs=nowMs(), returnEntryStartMm=wheelDistanceMm();
-    if(!acquireTraceEntry(tracer,"area-return")) return;
+    if(!acquireTraceEntry(tracer,"area-return",TraceEntryOptions{})) return;
     tracer.setPwm(kReturnTracePwm);
     const int placementElapsedMs=nowMs()-placementStartMs;
     static DeliveryTraceLog returnLog("area-to-corner"), finishLog("return-after-corner");

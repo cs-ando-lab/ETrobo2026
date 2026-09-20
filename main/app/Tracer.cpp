@@ -82,6 +82,11 @@ void Tracer::resetPid() {
     pid.reset();
 }
 
+void Tracer::restartFromNextSample() {
+    pid.restartFromNextSample();
+    filteredTurnMag = 0.0f;
+}
+
 void Tracer::resetPidIntegral() {
     pid.resetIntegral();
 }
