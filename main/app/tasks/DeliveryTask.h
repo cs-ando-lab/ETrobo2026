@@ -131,7 +131,20 @@ private:
     void diagonalMoveUntilImuTurn(bool isOuterLeft, int outerPwm, float startHeading, float turnDeg);
 
     // 進行方向を変える前に、ブレーキで速度が落ちるまで待つ（惰性と逆向き指令の喧嘩を避ける）
-    void brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs);
+    // 整定の結果。成功の意味は「両輪が閾値未満まで落ちた」であって、完全静止でも姿勢安定でもない
+    enum class SettleResult { STOPPED,
+                              TIMEOUT,
+                              CANCELLED };
+    struct SettleOutcome {
+        SettleResult result = SettleResult::STOPPED;
+        int elapsedMs = 0;
+        int leftSpeed = 0;   // 最後に読んだ左右の速度[deg/s]
+        int rightSpeed = 0;
+        bool ok() const { return result == SettleResult::STOPPED; }
+    };
+    SettleOutcome brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs, const char* label);
+    void releaseDriveAfterFailedSettle(SettleOutcome& outcome);
+    void logSettleOutcome(const char* label, const SettleOutcome& outcome);
 
     // デューティ上限（＝トルク上限）を落として直進/後退する。distanceMmが負なら後退。上限は関数内で必ず元に戻す
     int driveStraightWithDutyLimit(int distanceMm, int speedDegPerSec, int dutyLimit);  // 戻り値は実際に走った距離[mm]

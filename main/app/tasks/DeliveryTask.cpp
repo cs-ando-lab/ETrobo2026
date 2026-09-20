@@ -2,6 +2,7 @@
 #include "AreaBlueGate.h"
 #include "BottleColorBeep.h"
 #include "Blue1Transition.h"
+#include "SettleGate.h"
 #include "TraceEntryLog.h"
 #include "Tracer.h"
 #include "Config.h"
@@ -360,7 +361,10 @@ void DeliveryTask::logPosture(const char* label) {
 
 // 車体を止め切ってから、揺れが収まるのを待つ。アームを上げる前に使う
 void DeliveryTask::stopAndSettleBeforeArm() {
-    brakeUntilStopped(kBottleStopSpeedDegPerSec, kBottleStopTimeoutMs);
+    // 止まり切っていなければアームを上げない（車体が動いたまま上げると読む向きがずれる）
+    if(!brakeUntilStopped(kBottleStopSpeedDegPerSec, kBottleStopTimeoutMs, "before arm").ok()) {
+        return;
+    }
     robot.stop();
     if(aborted) {
         return;
@@ -566,33 +570,71 @@ void DeliveryTask::diagonalMoveUntilImuTurn(bool isOuterLeft, int outerPwm, floa
 
 // 進行方向を変える前に、ブレーキで速度を落とし切る。惰性が残ったまま逆を指令すると
 // 減速と加速が同じ制御に混ざり、初速が出ない（実測で後退に785ms掛かっていた）
-void DeliveryTask::brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs) {
-    const int timeoutLoopCount = (timeoutMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
-    for(int i = 0; i < timeoutLoopCount; i++) {
+DeliveryTask::SettleOutcome DeliveryTask::brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs, const char* label) {
+    SettleOutcome outcome;
+    // 既に中断しているならブレーキループごと飛ばす。空振りの時間を積まない
+    if(aborted) {
+        outcome.result = SettleResult::CANCELLED;
+        logSettleOutcome(label, outcome);
+        return outcome;
+    }
+    const SettleGate gate{ speedThresholdDegPerSec,
+                           (timeoutMs * 1000) / Config::MOTION_POLL_INTERVAL_US,
+                           kSettleBrakeCycleLoops, kSettleBrakeOnLoops };
+    for(int i = 0; i < gate.timeoutLoops; i++) {
         if(robot.isCenterButtonPressed()) {
             aborted = true;
-            return;
+            outcome.result = SettleResult::CANCELLED;
+            outcome.elapsedMs = i * Config::MOTION_POLL_INTERVAL_US / 1000;
+            releaseDriveAfterFailedSettle(outcome);
+            logSettleOutcome(label, outcome);
+            return outcome;
         }
 
         // 掛けっぱなしにせず間引くことで、制動力を平均で下げる。
         // Robot::brake()は「完全停止まで待つ」仕様に変わった（commit 242be65）ため使えない。
         // 1回目の呼び出しで止め切ってしまい、間引く意味がなくなって全掛けと同じになる
-        if((i % kSettleBrakeCycleLoops) < kSettleBrakeOnLoops) {
+        if(gate.shouldBrake(i)) {
             robot.getLeftMotor().brake();
             robot.getRightMotor().brake();
         } else {
             robot.stop();
         }
         // Robotは速度を公開していないため、モーターのgetterから直接読む
-        int leftSpeed = robot.getLeftMotor().getSpeed();
-        int rightSpeed = robot.getRightMotor().getSpeed();
-        if(std::abs(leftSpeed) < speedThresholdDegPerSec && std::abs(rightSpeed) < speedThresholdDegPerSec) {
-            syslog(LOG_NOTICE, "Settled in %dms", i * Config::MOTION_POLL_INTERVAL_US / 1000);
-            return;
+        outcome.leftSpeed = robot.getLeftMotor().getSpeed();
+        outcome.rightSpeed = robot.getRightMotor().getSpeed();
+        if(gate.isStopped(outcome.leftSpeed, outcome.rightSpeed)) {
+            // 成功。出力状態はこの周期のまま触らない（停止方式の変更を混ぜない）
+            outcome.result = SettleResult::STOPPED;
+            outcome.elapsedMs = i * Config::MOTION_POLL_INTERVAL_US / 1000;
+            logSettleOutcome(label, outcome);
+            return outcome;
         }
         dly_tsk(Config::MOTION_POLL_INTERVAL_US);
     }
-    syslog(LOG_NOTICE, "STOP[brakeUntilStopped]: TIMEOUT");
+    outcome.result = SettleResult::TIMEOUT;
+    outcome.elapsedMs = timeoutMs;
+    aborted = true;  // 止まり切っていないまま次の動作へ進ませない
+    releaseDriveAfterFailedSettle(outcome);
+    logSettleOutcome(label, outcome);
+    return outcome;
+}
+
+// 整定に失敗したときの後始末。駆動だけ解除し、止まるまで待つ処理は足さない
+// （惰性ゼロまでは保証しない。再加速させないことが最低限の契約）
+void DeliveryTask::releaseDriveAfterFailedSettle(SettleOutcome& outcome) {
+    robot.getLeftMotor().brake();
+    robot.getRightMotor().brake();
+    outcome.leftSpeed = robot.getLeftMotor().getSpeed();
+    outcome.rightSpeed = robot.getRightMotor().getSpeed();
+}
+
+void DeliveryTask::logSettleOutcome(const char* label, const SettleOutcome& outcome) {
+    const char* name = outcome.result == SettleResult::STOPPED ? "STOPPED"
+                       : outcome.result == SettleResult::TIMEOUT ? "TIMEOUT"
+                                                                 : "CANCELLED";
+    syslog(LOG_NOTICE, "[Settle] %s %s in %d ms (speed %d/%d)",
+           label, name, outcome.elapsedMs, outcome.leftSpeed, outcome.rightSpeed);
 }
 
 // デューティ上限（＝トルク上限）を落として直進/後退する。
@@ -643,13 +685,9 @@ void DeliveryTask::turnInPlaceByImu(int leftPwm, int rightPwm, float turnDeg) {
     robot.stop();
     const float commandTurn=robot.getImuHeading()-startHeading;
     // 次の片輪探索に残留回転を持ち込まない。共有のブロッキングbrakeは使わない。
-    brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs);
-    robot.stop();
-    if(std::abs(robot.getLeftMotor().getSpeed()) >= kSettleSpeedDegPerSec ||
-       std::abs(robot.getRightMotor().getSpeed()) >= kSettleSpeedDegPerSec) {
-        aborted=true;
-        syslog(LOG_NOTICE,"[AreaTurn] settle failed; abort line search");
-    }
+    // 成否はbrakeUntilStopped()が返すので、ここで速度を読み直す二重確認はしない
+    const SettleOutcome settle=brakeUntilStopped(kSettleSpeedDegPerSec,kSettleTimeoutMs,"area turn");
+    if(settle.ok()) robot.stop();
     syslog(LOG_NOTICE,"[AreaTurn] command10 %d settled10 %d ms %d",
            (int)(commandTurn*10),(int)((robot.getImuHeading()-startHeading)*10),nowMs()-startedMs);
     syslog(LOG_NOTICE,"[AreaTurn] peakGyro xyz %d/%d/%d",(int)peakX,(int)peakY,(int)peakZ);
@@ -1616,8 +1654,7 @@ void DeliveryTask::run() {
     diagonalMoveUntilImuTurn(isLeftCourse, kDiagonalPwmHigh, robot.getImuHeading(), kDiagonalTurnDeg);
     if(aborted) { robot.stop(); return; }
 
-    brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs);
-    if(aborted) { robot.stop(); return; }
+    if(!brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs, "after diagonal").ok()) { robot.stop(); return; }
 
     syslog(LOG_NOTICE, "Driving backward %dmm (duty limit %d)", kAreaBackwardMm, kAreaBackwardDutyLimit);
     // Robot::driveStraight()は先頭でresetMotorCounts()するので、外側で車輪距離の差を取ると原点が変わる。
@@ -1625,10 +1662,10 @@ void DeliveryTask::run() {
     const int backwardDrivenMm = driveStraightWithDutyLimit(kAreaBackwardMm, kAreaBackwardSpeedDegPerSec, kAreaBackwardDutyLimit);
     const int backwardCommandEndMm = wheelDistanceMm();
     // driveStraight()の末尾はstop()（coast）なので、指令が終わった後も惰性で進む。行き過ぎの本体はここ
-    brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs);
+    const bool backwardSettled = brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs, "after backward").ok();
     const int backwardOverrunMm = wheelDistanceMm() - backwardCommandEndMm;
     syslog(LOG_NOTICE, "Backward: commanded %d mm, driven %d mm, overrun %d mm, total %d mm", kAreaBackwardMm, backwardDrivenMm, backwardOverrunMm, backwardDrivenMm + backwardOverrunMm);
-    if(aborted) { robot.stop(); return; }
+    if(!backwardSettled || aborted) { robot.stop(); return; }
 
     syslog(LOG_NOTICE, "Turning %d degrees in place", (int)kAreaTurnDeg);
     turnInPlaceByImu(isLeftCourse ? kAreaTurnPwm : -kAreaTurnPwm, isLeftCourse ? -kAreaTurnPwm : kAreaTurnPwm, kAreaTurnDeg);
