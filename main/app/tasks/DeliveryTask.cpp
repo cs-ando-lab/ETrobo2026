@@ -1,6 +1,7 @@
 #include "DeliveryTask.h"
 #include "AreaBlueGate.h"
 #include "BottleColorBeep.h"
+#include "Blue1Transition.h"
 #include "TraceEntryLog.h"
 #include "Tracer.h"
 #include "Config.h"
@@ -83,6 +84,10 @@ namespace {
     // マージンが2〜3しか残らないため70msまで詰める。誤検知は彩度ゲート(kBlueLineMinSaturation)で切る
     constexpr int kBlueEntryConfirmMs = 70;    // 青に乗ったと確定するまでの時間
     constexpr int kBluePassedConfirmMs = 400;  // 青を通過した（完全に降りた）と確定するまでの時間
+    // 青1本目で右エッジへの持ち替えを始める条件。旧実装は上のkBluePassedConfirmMsが
+    // 「次の青を数え直してよいか」と「持ち替えを始めてよいか」の両方を決めていた。
+    // 分離しただけで値は変えていない。短くするなら実機で出口の位置を見てから
+    constexpr int kBlue1MoveExitConfirmMs = kBluePassedConfirmMs;
     // エリアへ向かう最後の1本だけ短くする。300msだと確定までに約60mm進み、入口ではなく出口で抜けてしまうため
     constexpr int kBlueFinalEntryConfirmMs = 50;
 
@@ -1223,6 +1228,7 @@ void DeliveryTask::run() {
     int blueEntryConfirmCount = (kBlueEntryConfirmMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
     int blueFinalEntryConfirmCount = (kBlueFinalEntryConfirmMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
     int bluePassedConfirmCount = (kBluePassedConfirmMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
+    int blue1MoveExitCount = (kBlue1MoveExitConfirmMs * 1000) / Config::LINE_TRACE_POLL_INTERVAL_US;
 
     // 青判定の診断。コーナー前の高彩度がコーナー後の情報を隠さないよう、区間を分けて集計する
     static BlueStats blueStatsBeforeCorner, blueStatsAfterCorner;
@@ -1237,10 +1243,20 @@ void DeliveryTask::run() {
     // 直角コーナー対策の状態。手前での減速と同時に有効化する（下のisCornerSlowdownPendingの処理）
     CornerState outboundCorner;
 
-    // 青1本目の上での踏み越え検知。診断用の集計とはカウンタを共用しない（共用して挙動を壊したことがあるため）
-    int blue1OvershootWhiteRun = 0;
+    // 青1本目の踏み越え・持ち替え・再受付の状態。診断用の集計とはカウンタを共用しない
+    // （共用して挙動を壊したことがあるため）
+    Blue1Transition blue1(blue1MoveExitCount, bluePassedConfirmCount, kBlue1OvershootWhiteRunCount);
     bool isBlueIgnored = false;  // 踏み越え後、青1本目を二重に数えないための無視期間
     int blueIgnoreEndMs = 0;
+
+    // 青1本目の再受付。ここから先は同じ青を2本目として数えない
+    auto applyBlue1Rearm = [&]() {
+        if(!blue1.takeRearm()) return;
+        isCurrentlyOnBlue = false;
+        matchedBlueCount = 0;
+        syslog(LOG_NOTICE, "Passed blue line!");
+        syslog(LOG_NOTICE, "[Blue1] passed t=%d ms, heading %d", nowMs(), headingFromBaseline());
+    };
 
     // コーナーを曲がりきった地点。エリアに入る青の手前での減速の起点。-1はまだ曲がりきっていない
     int outboundCornerClearedMs = 0;
@@ -1294,14 +1310,15 @@ void DeliveryTask::run() {
         }
         const int reflection = robot.getReflection();
 
-        // 青1本目の上で線を踏み越えたら、通過を待たずに基準角度から80度へ旋回して右エッジで進む
-        if(!outboundCorner.done && detectedBlueCount == 1 && isCurrentlyOnBlue && !isBlueIgnored) {
-            blue1OvershootWhiteRun = (reflection >= kCornerWhiteReflection) ? blue1OvershootWhiteRun + 1 : 0;
-            if(blue1OvershootWhiteRun >= kBlue1OvershootWhiteRunCount) {
+        // 青1本目の上で線を踏み越えたら、通過を待たずに基準角度から80度へ旋回して右エッジで進む。
+        // 白の連続を見るのは青1を確定してから持ち替えを始めるまでの間だけ（Blue1Transitionが持つ）
+        if(!outboundCorner.done && detectedBlueCount == 1 && !isBlueIgnored) {
+            if(blue1.updateWhite(reflection >= kCornerWhiteReflection)) {
                 curveLog.end(nowMs(),wheelDistanceMm());
                 const int detectedMs = nowMs();
-                syslog(LOG_NOTICE, "[Overshoot] blue1: white %d samples t=%d ms, heading %d. Turning to baseline-80.", blue1OvershootWhiteRun, detectedMs, headingFromBaseline());
+                syslog(LOG_NOTICE, "[Overshoot] blue1: white %d samples t=%d ms, heading %d. Turning to baseline-80.", blue1.getWhiteRun(), detectedMs, headingFromBaseline());
 
+                blue1.markRecovered();  // 通常の持ち替えは行わない。以降の再受付は無視期間で持つ
                 isCurrentlyOnBlue = false;
                 matchedBlueCount = 0;
                 matchedNonBlueCount = 0;
@@ -1395,7 +1412,7 @@ void DeliveryTask::run() {
                 if(detectedBlueCount == 1) {
                     // 青1本目の上に乗っている間（判定しなくなるまで）は速度を落とす
                     tracer.setPwm(kOnFirstBlueLinePwm);
-                    blue1OvershootWhiteRun = 0;
+                    blue1.acceptBlue();
                     syslog(LOG_NOTICE, "[Blue1] entry t=%d ms, heading %d", nowMs(), headingFromBaseline());
                 }
                 // 指定回数に達したら、その場ですぐに終了する
@@ -1408,93 +1425,98 @@ void DeliveryTask::run() {
                 }
             }
             isOnBlueForCorner = isCurrentlyOnBlue;
+        } else if(detectedBlueCount == 1) {
+            // 青1本目の上にいる。再受付（次の青を数え直す）と持ち替えの開始を別々に判断する
+            BlueStats& blueStats = outboundCorner.done ? blueStatsAfterCorner : blueStatsBeforeCorner;
+            const Blue1Transition::Action blue1Action = blue1.updateBlue(isBlueReading(blueStats));
+            applyBlue1Rearm();
+            if(blue1Action == Blue1Transition::Action::START_MOVE) {
+                curveLog.end(nowMs(),wheelDistanceMm());
+
+                // 弧を描いて線を横切り、右エッジ側へ移る。黒を踏んだら止める
+                const float headingBefore = robot.getImuHeading();
+                const int leftPwm = isLeftCourse ? kAfterBlue1OuterPwm : kAfterBlue1InnerPwm;
+                const int rightPwm = isLeftCourse ? kAfterBlue1InnerPwm : kAfterBlue1OuterPwm;
+                const int moveLoopCount = (kAfterBlue1MoveMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
+                const int moveStartMs = nowMs();
+                const int moveStartMm = wheelDistanceMm();
+                const int startReflection = robot.getReflection();
+
+                // 直前のtracer.run()が出した出力が残っているので、判定の前に明示的に切る。
+                // stop()はcoastなので惰性では進むが、少なくとも駆動はしていない状態で判定できる
+                robot.stop();
+
+                // 開始時点ですでに黒か。黒ならもう線の上なので動かさない
+                int startBlackRun = 0;
+                for(int k = 0; k < kAfterBlue1StartBlackCount; k++) {
+                    if(robot.getReflection() > kAfterBlue1BlackReflection) {
+                        startBlackRun = 0;
+                        break;
+                    }
+                    startBlackRun++;
+                    dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+                }
+                const bool alreadyOnLine = (startBlackRun >= kAfterBlue1StartBlackCount);
+
+                // 開始値が黒の近くなら、渡り切る前に止まらないよう短い下限だけ置く
+                const int minMoveLoopCount = (startReflection >= kAfterBlue1ClearOfBlackReflection)
+                                                 ? 0
+                                                 : (kAfterBlue1AmbiguousMinMoveMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
+
+                int blackRun = 0;
+                const char* stopReason = alreadyOnLine ? "already on line (no move)" : "timeout";
+                if(!alreadyOnLine) {
+                    for(int k = 0; k < moveLoopCount; k++) {
+                        if(robot.isCenterButtonPressed()) {
+                            aborted = true;
+                            break;
+                        }
+                        blackRun = (robot.getReflection() <= kAfterBlue1BlackReflection) ? blackRun + 1 : 0;
+                        if(k >= minMoveLoopCount && blackRun >= kAfterBlue1BlackRunCount) {
+                            stopReason = "black";
+                            break;
+                        }
+                        robot.setMotorPower(leftPwm, rightPwm);
+                        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+                    }
+                }
+                // ループを抜けた時点では弧の出力が残っている。ログを出す前に切る
+                robot.stop();
+                if(aborted) {
+                    break;
+                }
+                if(!alreadyOnLine && blackRun < kAfterBlue1BlackRunCount) {
+                    aborted=true;
+                    syslog(LOG_NOTICE,"[Blue1] crossing failed; do not start fast trace");
+                    break;
+                }
+                syslog(LOG_NOTICE, "[Blue1] move stop by %s at %d ms / %d mm, reflection start %d / end %d", stopReason, nowMs() - moveStartMs, wheelDistanceMm() - moveStartMm, startReflection, robot.getReflection());
+                syslog(LOG_NOTICE, "[Blue1] move heading change %d deg", (int)(robot.getImuHeading() - headingBefore));
+
+                // 線を横切り終えた。まだ再受付していなければここで成立させる
+                blue1.markCrossed();
+                applyBlue1Rearm();
+
+                // 通常の持ち替え経路だけ、まず新しい再開方法を使う
+                TraceEntryOptions blue1Options;
+                blue1Options.explicitRestart = true;
+                blue1Options.continuousHandoff = true;
+                startRightEdgeTrace(kCornerSlowdownStartMm, blue1Options);
+                if(aborted) break;
+            }
+            isOnBlueForCorner = isCurrentlyOnBlue;
         } else {
-            // すでに青ラインに乗っている状態：青から降りる（青以外）のを探す
+            // 2本目以降の青の上：青以外を一定時間連続で読んだら通り過ぎたと判定する
             BlueStats& blueStats = outboundCorner.done ? blueStatsAfterCorner : blueStatsBeforeCorner;
             if(!isBlueReading(blueStats)) {
                 matchedNonBlueCount++;
             } else {
                 matchedNonBlueCount = 0;  // もし途中で青を読んだらリセット
             }
-
-            // 青以外を一定時間連続で読んだら「完全にラインを通り過ぎた」と判定して次のラインを探せるようにする
             if(matchedNonBlueCount >= bluePassedConfirmCount) {
                 isCurrentlyOnBlue = false;
                 matchedBlueCount = 0;  // 次の青ラインを探すためにリセット
-
                 syslog(LOG_NOTICE, "Passed blue line!");
-
-                if(detectedBlueCount == 1) {
-                    syslog(LOG_NOTICE, "[Blue1] passed t=%d ms, heading %d", nowMs(), headingFromBaseline());
-                    curveLog.end(nowMs(),wheelDistanceMm());
-
-                    // 弧を描いて線を横切り、右エッジ側へ移る。黒を踏んだら止める
-                    const float headingBefore = robot.getImuHeading();
-                    const int leftPwm = isLeftCourse ? kAfterBlue1OuterPwm : kAfterBlue1InnerPwm;
-                    const int rightPwm = isLeftCourse ? kAfterBlue1InnerPwm : kAfterBlue1OuterPwm;
-                    const int moveLoopCount = (kAfterBlue1MoveMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
-                    const int moveStartMs = nowMs();
-                    const int moveStartMm = wheelDistanceMm();
-                    const int startReflection = robot.getReflection();
-
-                    // 直前のtracer.run()が出した出力が残っているので、判定の前に明示的に切る。
-                    // stop()はcoastなので惰性では進むが、少なくとも駆動はしていない状態で判定できる
-                    robot.stop();
-
-                    // 開始時点ですでに黒か。黒ならもう線の上なので動かさない
-                    int startBlackRun = 0;
-                    for(int k = 0; k < kAfterBlue1StartBlackCount; k++) {
-                        if(robot.getReflection() > kAfterBlue1BlackReflection) {
-                            startBlackRun = 0;
-                            break;
-                        }
-                        startBlackRun++;
-                        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
-                    }
-                    const bool alreadyOnLine = (startBlackRun >= kAfterBlue1StartBlackCount);
-
-                    // 開始値が黒の近くなら、渡り切る前に止まらないよう短い下限だけ置く
-                    const int minMoveLoopCount = (startReflection >= kAfterBlue1ClearOfBlackReflection)
-                                                     ? 0
-                                                     : (kAfterBlue1AmbiguousMinMoveMs * 1000) / Config::MOTION_POLL_INTERVAL_US;
-
-                    int blackRun = 0;
-                    const char* stopReason = alreadyOnLine ? "already on line (no move)" : "timeout";
-                    if(!alreadyOnLine) {
-                        for(int k = 0; k < moveLoopCount; k++) {
-                            if(robot.isCenterButtonPressed()) {
-                                aborted = true;
-                                break;
-                            }
-                            blackRun = (robot.getReflection() <= kAfterBlue1BlackReflection) ? blackRun + 1 : 0;
-                            if(k >= minMoveLoopCount && blackRun >= kAfterBlue1BlackRunCount) {
-                                stopReason = "black";
-                                break;
-                            }
-                            robot.setMotorPower(leftPwm, rightPwm);
-                            dly_tsk(Config::MOTION_POLL_INTERVAL_US);
-                        }
-                    }
-                    // ループを抜けた時点では弧の出力が残っている。ログを出す前に切る
-                    robot.stop();
-                    if(aborted) {
-                        break;
-                    }
-                    if(!alreadyOnLine && blackRun < kAfterBlue1BlackRunCount) {
-                        aborted=true;
-                        syslog(LOG_NOTICE,"[Blue1] crossing failed; do not start fast trace");
-                        break;
-                    }
-                    syslog(LOG_NOTICE, "[Blue1] move stop by %s at %d ms / %d mm, reflection start %d / end %d", stopReason, nowMs() - moveStartMs, wheelDistanceMm() - moveStartMm, startReflection, robot.getReflection());
-                    syslog(LOG_NOTICE, "[Blue1] move heading change %d deg", (int)(robot.getImuHeading() - headingBefore));
-
-                    // 通常の持ち替え経路だけ、まず新しい再開方法を使う
-                    TraceEntryOptions blue1Options;
-                    blue1Options.explicitRestart = true;
-                    blue1Options.continuousHandoff = true;
-                    startRightEdgeTrace(kCornerSlowdownStartMm, blue1Options);
-                    if(aborted) break;
-                }
             }
             isOnBlueForCorner = isCurrentlyOnBlue;
         }
