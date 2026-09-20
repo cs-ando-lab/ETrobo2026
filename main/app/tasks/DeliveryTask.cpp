@@ -1,6 +1,7 @@
 #include "DeliveryTask.h"
 #include "AreaBlueGate.h"
 #include "BottleColorBeep.h"
+#include "TraceEntryLog.h"
 #include "Tracer.h"
 #include "Config.h"
 #include "CourseConfig.h"
@@ -228,6 +229,12 @@ namespace {
     constexpr float kSearchMaxTurnDeg = 180.0f;   // これ以上回っても線から離れるだけなので打ち切る
     constexpr int kSearchTimeoutLoopCount = 500;  // 保険（10ms周期なので5秒）
     // 発見後の固定30/90・100ms踏み込みは廃止。反射率を見ながら接続する。
+
+    // 接続の診断。成功時は走りながら貯めて、止まった後でまとめて出す。
+    // タスクスタック(4KiB)を食わないようここに置く。走行ごとにrun()の先頭で初期化する
+    TraceEntryLogBuffer<4> traceEntryLog;
+    int traceEntryPendingIndex = -1;  // 高速側の最初の制御を待っている記録
+    SYSTIM traceEntryLastControl = 0;  // その記録の、低速側の最後の制御の時刻
 
     // 診断ログ用。区間ごとの所要時間を出すため
     int nowMs() {
@@ -653,6 +660,9 @@ bool DeliveryTask::acquireTraceEntry(Tracer& tracer, const char* label, const Tr
     const int startMs=nowMs(), startMm=wheelDistanceMm();
     const float startHeading=robot.getImuHeading();
     int stable=0, firstReflection=-1, lastReflection=-1;
+    float firstP=0.0f, firstI=0.0f, firstD=0.0f;
+    bool sampled=false;
+    SYSTIM lastControl=0;
     const char* result="timeout";
     bool ok=false;
     while(nowMs()-startMs < 1500) {
@@ -661,19 +671,84 @@ bool DeliveryTask::acquireTraceEntry(Tracer& tracer, const char* label, const Tr
         if(mm>=150) {result="distance limit";break;}
         if(std::fabs(robot.getImuHeading()-startHeading)>30) {result="heading limit";break;}
         tracer.run();
+        get_tim(&lastControl);
+        if(!sampled) {
+            sampled=true;
+            firstP=tracer.getLastP(); firstI=tracer.getLastI(); firstD=tracer.getLastD();
+        }
         lastReflection=(int)std::lround(Config::TRACER_TARGET_REFLECTION-tracer.getLastP()/0.30f);
         if(firstReflection<0)firstReflection=lastReflection;
         stable=std::abs(lastReflection-Config::TRACER_TARGET_REFLECTION)<=15?stable+1:0;
         if(mm>=20 && stable>=8) {ok=true;result="stable";break;}
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
     }
+    const int mm=wheelDistanceMm()-startMm, ms=nowMs()-startMs;
+    const int heading10=(int)((robot.getImuHeading()-startHeading)*10);
+    if(ok && options.continuousHandoff) {
+        // 成功。出力を切らずに戻る。stop()・syslog・追加の待ちを挟むと、その間だけ駆動が切れる。
+        // Pidは固定dt前提なので、低速の最後の制御から約1周期空けて呼び出し元の最初の制御へ渡す
+        if(sampled) {
+            SYSTIM now; get_tim(&now);
+            const int elapsedUs=(int)(now-lastControl);
+            if(elapsedUs>=0 && elapsedUs<Config::LINE_TRACE_POLL_INTERVAL_US)
+                dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US-elapsedUs);
+        }
+        recordTraceEntry(label,result,mm,ms,heading10,firstReflection,lastReflection,stable,
+                         firstP,firstI,firstD,true);
+        traceEntryLastControl=lastControl;
+        return true;
+    }
+    // 失敗・中断・従来どおりの経路。止めてからその場で出す
     robot.stop();
-    syslog(LOG_NOTICE,"[Handoff] %s %s mm %d ms %d heading10 %d",
-           label,result,wheelDistanceMm()-startMm,nowMs()-startMs,
-           (int)((robot.getImuHeading()-startHeading)*10));
-    syslog(LOG_NOTICE,"[Handoff] reflection %d -> %d stable %d",firstReflection,lastReflection,stable);
-    if(!ok)aborted=true;
+    recordTraceEntry(label,result,mm,ms,heading10,firstReflection,lastReflection,stable,
+                     firstP,firstI,firstD,false);
+    if(!ok) {
+        aborted=true;
+        printTraceEntryRecords();
+    }
     return ok;
+}
+
+// deferredなら貯めるだけ。そうでなければ従来どおりその場で出す
+void DeliveryTask::recordTraceEntry(const char* label, const char* result, int mm, int ms, int heading10,
+                                    int firstReflection, int lastReflection, int stable,
+                                    float firstP, float firstI, float firstD, bool deferred) {
+    TraceEntryRecord record;
+    record.label=label; record.result=result;
+    record.mm=mm; record.ms=ms; record.heading10=heading10;
+    record.firstReflection=firstReflection; record.lastReflection=lastReflection; record.stable=stable;
+    record.firstP100=(int)std::lround(firstP*100); record.firstI100=(int)std::lround(firstI*100);
+    record.firstD100=(int)std::lround(firstD*100);
+    if(!deferred) {
+        syslog(LOG_NOTICE,"[Handoff] %s %s mm %d ms %d heading10 %d",label,result,mm,ms,heading10);
+        syslog(LOG_NOTICE,"[Handoff] reflection %d -> %d stable %d",firstReflection,lastReflection,stable);
+        syslog(LOG_NOTICE,"[Handoff] %s firstPID100 %d / %d / %d",label,record.firstP100,record.firstI100,record.firstD100);
+        return;
+    }
+    traceEntryPendingIndex=traceEntryLog.add(record);
+}
+
+// 高速側の最初の制御の直後に呼ぶ。1回ぶんの時刻差を書き戻すだけで、制御には触らない
+void DeliveryTask::noteFirstFastControl() {
+    if(traceEntryPendingIndex<0) return;
+    SYSTIM now; get_tim(&now);
+    traceEntryLog.at(traceEntryPendingIndex).gapToFastUs=(int)(now-traceEntryLastControl);
+    traceEntryPendingIndex=-1;
+}
+
+void DeliveryTask::printTraceEntryRecords() {
+    if(traceEntryLog.count()==0 && traceEntryLog.dropped()==0) return;
+    syslog(LOG_NOTICE,"[Handoff] records %d dropped %d (max %d)",
+           traceEntryLog.count(),traceEntryLog.dropped(),traceEntryLog.capacity());
+    for(int i=0;i<traceEntryLog.count();i++) {
+        const TraceEntryRecord& r=traceEntryLog.at(i);
+        syslog(LOG_NOTICE,"[Handoff] %s %s mm %d ms %d heading10 %d",r.label,r.result,r.mm,r.ms,r.heading10);
+        syslog(LOG_NOTICE,"[Handoff] %s reflection %d -> %d stable %d",r.label,r.firstReflection,r.lastReflection,r.stable);
+        syslog(LOG_NOTICE,"[Handoff] %s firstPID100 %d / %d / %d",r.label,r.firstP100,r.firstI100,r.firstD100);
+        syslog(LOG_NOTICE,"[Handoff] %s gapToFast %d us",r.label,r.gapToFastUs);
+    }
+    traceEntryLog.clear();
+    traceEntryPendingIndex=-1;
 }
 
 // 帰りの線探し。片輪ピボットのまま反射率で線を見つけるまで回し続ける。
@@ -957,6 +1032,8 @@ void DeliveryTask::updateCornerDetection(CornerState& state, bool isLeftTurn, fl
 void DeliveryTask::run() {
     syslog(LOG_NOTICE, "--- DeliveryTask Started ---");
     aborted = false;
+    traceEntryLog.clear();
+    traceEntryPendingIndex = -1;
     const int deliveryStartMs = nowMs();
 
     // このタスクの数値・エッジ・回頭方向はすべてLコースで実測調整したもの。Rコースはその鏡像になるので、
@@ -1194,10 +1271,12 @@ void DeliveryTask::run() {
         cornerSlowdownStartMm = slowdownStartMm;
         outboundCorner.armedMs = nowMs();
         outboundCorner.armedMm = wheelDistanceMm();
+        // 接続が成功しても止めない経路があるので、ここのログは接続を始める前に出しておく。
+        // 成功して戻ってから最初の制御までの間に、syslogや待ちを挟まないため
+        syslog(LOG_NOTICE, "Corner trace start t=%d ms", outboundCorner.armedMs);
         if(!acquireTraceEntry(tracer,"blue1",entryOptions)) return;
         tracer.setPwm(kCornerTracePwm); // 安定後はPID履歴を引き継ぐ
         outLog.begin(nowMs(),wheelDistanceMm(),robot.getImuHeading());
-        syslog(LOG_NOTICE, "Corner trace start t=%d ms", outboundCorner.armedMs);
     };
 
     while(true) {
@@ -1412,6 +1491,7 @@ void DeliveryTask::run() {
                     // 通常の持ち替え経路だけ、まず新しい再開方法を使う
                     TraceEntryOptions blue1Options;
                     blue1Options.explicitRestart = true;
+                    blue1Options.continuousHandoff = true;
                     startRightEdgeTrace(kCornerSlowdownStartMm, blue1Options);
                     if(aborted) break;
                 }
@@ -1473,6 +1553,7 @@ void DeliveryTask::run() {
         }
         // 青ライン上でも関係なく通常のライントレースを継続
         tracer.run();
+        noteFirstFastControl();
         sampleOutbound();
 
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
@@ -1491,6 +1572,7 @@ void DeliveryTask::run() {
     curveLog.end(nowMs(),wheelDistanceMm());outLog.end(nowMs(),wheelDistanceMm());areaLog.end(nowMs(),wheelDistanceMm());
     curveLog.print();outLog.print();areaLog.print();
     areaApproachLog.print();
+    printTraceEntryRecords();
     syslog(LOG_NOTICE,"[DTrace] curve slowdown at %d mm t=%d; outbound elapsed %d ms",curveSlowMm,curveSlowMs,nowMs()-deliveryStartMs);
     logBlueStats("before corner", blueStatsBeforeCorner);
     logBlueStats("after corner", blueStatsAfterCorner);
@@ -1624,6 +1706,7 @@ void DeliveryTask::run() {
         }
 
         tracer.run();
+        noteFirstFastControl();
         returnLog.sample(tracer,0.30f,nowMs(),wheelDistanceMm(),robot.getImuHeading());
         finishLog.sample(tracer,0.30f,nowMs(),wheelDistanceMm(),robot.getImuHeading());
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
@@ -1634,6 +1717,7 @@ void DeliveryTask::run() {
     const int deliveryElapsedMs=nowMs()-deliveryStartMs;
     returnLog.end(nowMs(),wheelDistanceMm());finishLog.end(nowMs(),wheelDistanceMm());
     returnLog.print();finishLog.print();
+    printTraceEntryRecords();
     syslog(LOG_NOTICE,"[Delivery] total %d ms outboundDiag %d ms placementAndSearch %d ms aborted %d",
            deliveryElapsedMs,outboundDiagnosticMs,placementElapsedMs,aborted?1:0);
     logBlueStats("return", returnBlueStats);

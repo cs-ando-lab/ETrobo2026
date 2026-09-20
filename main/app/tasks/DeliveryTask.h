@@ -99,7 +99,18 @@ private:
     struct TraceEntryOptions {
         // Tracer::restartFromNextSample()で再開する。falseならresetPid()（前回偏差0）のまま
         bool explicitRestart = false;
+        // 成功したら止めずに、低速の制御出力を保ったまま高速区間へ渡す。
+        // falseなら従来どおり成功時もstop()してその場でログを出す
+        bool continuousHandoff = false;
     };
+
+    // 接続の診断を貯める・出す。走行中はsyslogせず、止まった後でまとめて出す
+    void recordTraceEntry(const char* label, const char* result, int mm, int ms, int heading10,
+                          int firstReflection, int lastReflection, int stable,
+                          float firstP, float firstI, float firstD, bool deferred);
+    void printTraceEntryRecords();
+    // 高速側の最初の制御の直後に呼ぶ。低速の最後の制御からの時間を記録に書き戻す
+    void noteFirstFastControl();
 
     // 線検出直後は低速でエッジを掴み、連続安定してから高速区間へ渡す。
     // optionsは既定値を省略できない（クラス内の入れ子型の既定初期化子を既定引数には使えない）ので、
