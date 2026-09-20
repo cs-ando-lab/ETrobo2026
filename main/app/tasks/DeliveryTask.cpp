@@ -1,5 +1,6 @@
 #include "DeliveryTask.h"
 #include "AreaBlueGate.h"
+#include "BottleColorBeep.h"
 #include "Tracer.h"
 #include "Config.h"
 #include "CourseConfig.h"
@@ -58,6 +59,14 @@ namespace {
     constexpr int kBottleRetryMaxCount = 5;
     constexpr int kBottleColorSampleIntervalMs = 20;
     constexpr int kBottleColorTimeoutMs = 1000;
+
+    // ── ボトル色の通知 ─────────────────────────────────
+    // 色が決まってから黄1回・青2回・赤3回のビープを鳴らし、鳴り終わるまでアームの下降へ進まない。
+    // 待ちは黄100/青300/赤500msで、色によって走行時間にも差が付く。通知は人が見るためのもので
+    // 目的地の選択にも診断にも使っていないため、既定では鳴らさない。現場で音が要るならtrueに戻す
+    constexpr bool kNotifyBottleColorByBeep = false;
+    constexpr int kBottleColorBeepMs = 100;     // 1回の長さ
+    constexpr int kBottleColorBeepGapMs = 100;  // 2回目以降の前に空ける時間
 
     // ── アームを下げた直後の直進（これだけでラインへ復帰させる）──
     constexpr int kAfterArmStraightLeftPwm = 35;
@@ -385,6 +394,17 @@ ColorJudge::Color DeliveryTask::readBottleColorAfterRaise(int targetDeg) {
 }
 
 // ボトル色を連続一致で確定させる。決まらなければUNKNOWNを返す
+// 色の通知。鳴らす場合はplayTone()が鳴り終わるまで戻らないので、その時間だけ走行が止まる。
+// 鳴らさない設定のときに「通知のぶんの待ち」を残さないよう、空のdelayは置かない
+void DeliveryTask::notifyBottleColor(int beepCount) {
+    const BottleColorBeepPlan plan = bottleColorBeepPlan(beepCount, kNotifyBottleColorByBeep,
+                                                         kBottleColorBeepMs, kBottleColorBeepGapMs);
+    for(int i = 0; i < plan.count; i++) {
+        if(i > 0) dly_tsk(plan.gapMs * 1000);
+        robot.beep(plan.toneMs);
+    }
+}
+
 ColorJudge::Color DeliveryTask::confirmBottleColor() {
     const int intervalUs = kBottleColorSampleIntervalMs * 1000;
     const int maxSamples = kBottleColorTimeoutMs / kBottleColorSampleIntervalMs;
@@ -1014,30 +1034,25 @@ void DeliveryTask::run() {
         return;
     }
     int targetBlueLineCount = 0;  // 目標の青ライン通過回数
+    const int colorDecidedMs = nowMs();  // 診断: 色が決まってから下降を始めるまでに何ms使ったか
 
-    // 判定結果に応じてビープ音を鳴らし、目標通過回数を設定
+    // 判定結果に応じて目標通過回数を設定する（通知は上のkNotifyBottleColorByBeep次第）
     switch(bottleColor) {
         case ColorJudge::Color::YELLOW:
             syslog(LOG_NOTICE, "Bottle Color: YELLOW");
-            robot.beep(100);
+            notifyBottleColor(1);
             targetBlueLineCount = 2;
             break;
 
         case ColorJudge::Color::BLUE:
             syslog(LOG_NOTICE, "Bottle Color: BLUE");
-            robot.beep(100);
-            dly_tsk(100 * 1000);
-            robot.beep(100);
+            notifyBottleColor(2);
             targetBlueLineCount = 3;
             break;
 
         case ColorJudge::Color::RED:
             syslog(LOG_NOTICE, "Bottle Color: RED");
-            robot.beep(100);
-            dly_tsk(100 * 1000);
-            robot.beep(100);
-            dly_tsk(100 * 1000);
-            robot.beep(100);
+            notifyBottleColor(3);
             targetBlueLineCount = 4;
             break;
 
@@ -1049,6 +1064,9 @@ void DeliveryTask::run() {
             robot.stop();
             return;
     }
+
+    syslog(LOG_NOTICE, "[Notify] color decided -> arm lower start %d ms (beep %s)",
+           nowMs() - colorDecidedMs, kNotifyBottleColorByBeep ? "on" : "off");
 
     // 4. アームを下げる（Robotクラスに移譲）
     if(!robot.positionDeliveryArm(armHomeCount, Config::ARM_LOWER_SPEED_DEG_PER_SEC, "lower-final")) {

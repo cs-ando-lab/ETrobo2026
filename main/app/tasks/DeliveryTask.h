@@ -81,6 +81,9 @@ private:
     // 上記を連続一致で確定させる。決まらなければUNKNOWN
     ColorJudge::Color confirmBottleColor();
 
+    // 判定した色を鳴らして知らせる。回数は色ごと（黄1・青2・赤3）
+    void notifyBottleColor(int beepCount);
+
     // アームを上げた直後に色を読む一式（整定待ち・診断ログ・確定）
     ColorJudge::Color readBottleColorAfterRaise(int targetDeg);
 
