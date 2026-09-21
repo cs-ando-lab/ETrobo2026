@@ -231,11 +231,11 @@ private:
     // 配置の開始位置の比較。往路の詳細ログの設定に関わらず出す
     void printPlacementDiagnostics();
     // コーナー後の最初の制御の内訳。走行中は採るだけ
-    void armPostCornerSample(const char* label, int reason);
+    void armPostCornerSample(const char* label, int reason, int pwm);
     void capturePostCornerSample(Tracer& tracer);
     void printPostCornerSamples();
     // コーナー完了後の次区間の設定。完了の経路によってPIDの引き継ぎ方を変える
-    void applyPostCornerTracerConfig(Tracer& tracer, CornerDoneReason reason, int pwm);
+    void applyPostCornerTracerConfig(Tracer& tracer, int pwm);
     // 新しいピボットへ入る前に、古い確認状態を残さない
     void clearCornerConfirm(CornerState& state);
 };

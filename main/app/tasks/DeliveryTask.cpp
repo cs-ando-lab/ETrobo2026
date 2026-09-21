@@ -359,12 +359,20 @@ namespace {
         bool armed = false, captured = false;
         const char* label = "";
         int reason = 0;  // 1=ピボットから直接 2=Tracerの追従中
+        int pwm = 0;     // 切り替えた基準PWM。走行中にsyslogせず、ここへ入れて停止後に出す
         int p100 = 0, i100 = 0, d100 = 0;
         int leftPwm = 0, rightPwm = 0;
         int ms = 0;
+        // コーナー完了から最初のTracer出力までの内部時刻差。走行中の同期処理が制御を
+        // どれだけ遅らせたかを、CSVの受信時刻ではなく内部時計で見るため
+        SYSTIM doneUs = 0;
+        int gapToFirstControlUs = -1;
     };
     PostCornerSample postCornerSamples[2];
     bool postCornerSamplesPrinted = false;
+    // コーナーが完了した瞬間の内部時刻。SYSTIMはヘッダから見えないのでここで持つ。
+    // 完了した周期と同じ周期でarmPostCornerSample()が消費するので、行きと帰りで取り違えない
+    SYSTIM cornerDoneUs = 0;
 
     // 早期持ち替えの診断。曲線終盤の直近ぶん（リング）と、候補成立以降（追記）を分けて持つ。
     // 走行中は貯めるだけで、出すのは止まってから
@@ -1450,12 +1458,15 @@ void DeliveryTask::printPlacementDiagnostics() {
 }
 
 // コーナー後の最初の制御の内訳。走行中は採るだけで、出すのは止まってから
-void DeliveryTask::armPostCornerSample(const char* label, int reason) {
+void DeliveryTask::armPostCornerSample(const char* label, int reason, int pwm) {
     for(PostCornerSample& sample : postCornerSamples) {
         if(sample.armed || sample.captured) continue;
         sample.armed = true;
         sample.label = label;
         sample.reason = reason;
+        sample.pwm = pwm;
+        sample.doneUs = cornerDoneUs;
+        cornerDoneUs = 0;
         return;
     }
 }
@@ -1471,6 +1482,11 @@ void DeliveryTask::capturePostCornerSample(Tracer& tracer) {
         sample.leftPwm = tracer.getLastLeftPwm();
         sample.rightPwm = tracer.getLastRightPwm();
         sample.ms = nowMs();
+        if(sample.doneUs != 0) {
+            SYSTIM now;
+            get_tim(&now);
+            sample.gapToFirstControlUs = (int)(now - sample.doneUs);
+        }
         return;
     }
 }
@@ -1480,9 +1496,11 @@ void DeliveryTask::printPostCornerSamples() {
     postCornerSamplesPrinted = true;
     for(const PostCornerSample& sample : postCornerSamples) {
         if(!sample.captured) continue;
-        // reason 1=ピボットから直接（restart）、2=Tracerの追従中（履歴を引き継ぐ）
-        stoppedDiagnosticLog(LOG_NOTICE, "[Corner] %s first control after switch: reason %d t=%d ms",
-               sample.label, sample.reason, sample.ms);
+        // reason 1=ピボットから直接、2=Tracerの追従中。方式はどちらも setConfig→resetPid
+        stoppedDiagnosticLog(LOG_NOTICE, "[Corner] %s post-corner config: LEGACY reset pwm %d reason %d",
+               sample.label, sample.pwm, sample.reason);
+        stoppedDiagnosticLog(LOG_NOTICE, "[Corner] %s first control after switch: t=%d ms, gap from done %d us",
+               sample.label, sample.ms, sample.gapToFirstControlUs);
         stoppedDiagnosticLog(LOG_NOTICE, "[Corner] %s firstPID100 %d / %d / %d",
                sample.label, sample.p100, sample.i100, sample.d100);
         stoppedDiagnosticLog(LOG_NOTICE, "[Corner] %s first pwm %d / %d",
@@ -1494,11 +1512,11 @@ void DeliveryTask::printPostCornerSamples() {
 // 経路別の引き継ぎ（ピボット完了はrestart／追従完了は履歴維持）は挙動を比較できる形へ戻すため撤回した。
 // 旧方式ではsetConfig()の後にresetPid()を呼ぶので、再開直後の1回にD項が出ることがある。
 // これは戻す対象そのものなので、ここで再びゼロ化しない。reasonは診断のためだけに受け取る
-void DeliveryTask::applyPostCornerTracerConfig(Tracer& tracer, CornerDoneReason reason, int pwm) {
+// 方式と完了理由はここではsyslogせず、armPostCornerSample()経由で固定容量の診断へ入れて停止後に出す。
+// この呼び出しから最初のTracer出力までの間に同期処理を挟まないため
+void DeliveryTask::applyPostCornerTracerConfig(Tracer& tracer, int pwm) {
     tracer.setConfig(0.30f, 0.01f, 0.02f, Config::TRACER_TARGET_REFLECTION, pwm);
     tracer.resetPid();
-    // 1=ピボットから直接 2=Tracerの追従中。方式は同じでも、どちらで曲がりきったかは後で分けて見る
-    syslog(LOG_NOTICE, "[Corner] post-corner config: LEGACY reset (pwm %d, reason %d)", pwm, (int)reason);
 }
 
 DeliveryTask::CornerUpdate DeliveryTask::updateCornerDetection(CornerState& state, bool isLeftTurn, float minTurnDeg, bool isOnBlue, const char* label) {
@@ -1544,6 +1562,7 @@ DeliveryTask::CornerUpdate DeliveryTask::updateCornerDetection(CornerState& stat
             state.done = true;
             state.doneReason = CornerDoneReason::TRACE_CONFIRMED;
             state.doneMs = nowMs();
+            get_tim(&cornerDoneUs);
             state.doneTurnDeg = (int)turnedDeg;
             state.doneReflection = reflection;
             state.doneSuppressRemaining = state.suppressCount;
@@ -1609,6 +1628,7 @@ DeliveryTask::CornerUpdate DeliveryTask::updateCornerDetection(CornerState& stat
         state.done = true;
         state.doneReason = CornerDoneReason::PIVOT_CLEARED;
         state.doneMs = nowMs();
+        get_tim(&cornerDoneUs);
         state.doneTurnDeg = (int)turnedDeg;
         state.doneReflection = robot.getReflection();
         state.doneSuppressRemaining = state.suppressCount;
@@ -1664,6 +1684,7 @@ void DeliveryTask::run() {
     placementSummary = PlacementSummary{};
     for(PostCornerSample& sample : postCornerSamples) sample = PostCornerSample{};
     postCornerSamplesPrinted = false;
+    cornerDoneUs = 0;
     earlyEvent = EarlyEvent{};
     earlyEvent.mode = (int)kEarlyHandoffMode;
     earlyPreCount = earlyPreNext = 0;
@@ -2358,8 +2379,8 @@ void DeliveryTask::run() {
             earlyEvent.cornerDoneMm = wheelDistanceMm() - curveStartMm;
             earlyRecordingActive = false;  // ここから先は帰りの接続。同じ枠へ入れない
             traceKp=0.30f;
-            applyPostCornerTracerConfig(tracer, outboundCorner.doneReason, kAreaFastPwm);
-            armPostCornerSample("outbound", (int)outboundCorner.doneReason);
+            armPostCornerSample("outbound", (int)outboundCorner.doneReason, kAreaFastPwm);
+            applyPostCornerTracerConfig(tracer, kAreaFastPwm);
             tracer.setCurveDecelGain(2.3f);
             areaLog.begin(nowMs(),wheelDistanceMm(),robot.getImuHeading());
             outboundCornerClearedMs = nowMs();
@@ -2569,8 +2590,8 @@ void DeliveryTask::run() {
         // 曲がりきった後の設定は、検知側ではなくここで一度だけ決める
         if(returnCorner.done && returnCornerClearedMm < 0) {
             returnCornerClearedMm = wheelDistanceMm();
-            applyPostCornerTracerConfig(tracer, returnCorner.doneReason, kReturnAfterCornerFastPwm);
-            armPostCornerSample("return", (int)returnCorner.doneReason);
+            armPostCornerSample("return", (int)returnCorner.doneReason, kReturnAfterCornerFastPwm);
+            applyPostCornerTracerConfig(tracer, kReturnAfterCornerFastPwm);
             finishLog.begin(nowMs(),wheelDistanceMm(),robot.getImuHeading());
             syslog(LOG_NOTICE, "Return after corner: pwm %d for %d mm, then finish", kReturnAfterCornerFastPwm, kReturnFinishAfterCornerMm);
         }
