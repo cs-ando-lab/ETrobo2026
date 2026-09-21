@@ -26,7 +26,7 @@ void Tracer::run() {
     filteredTurnMag = Config::TRACER_CURVE_TURN_FILTER_ALPHA * turnMag
                       + (1.0f - Config::TRACER_CURVE_TURN_FILTER_ALPHA) * filteredTurnMag;
     float minPwm = pidConfig.basePwm * Config::TRACER_CURVE_MIN_PWM_RATIO;
-    float curvePwm = pidConfig.basePwm - Config::TRACER_CURVE_DECEL_GAIN * filteredTurnMag;
+    float curvePwm = pidConfig.basePwm - curveDecelGain * filteredTurnMag;
     if(curvePwm < minPwm)
         curvePwm = minPwm;
     else if(curvePwm > pidConfig.basePwm)
@@ -34,6 +34,9 @@ void Tracer::run() {
 
     int pwm_l = static_cast<int>(curvePwm - (static_cast<int>(edge) * turn));  // 基準値と調整値を使って操作量を求める
     int pwm_r = static_cast<int>(curvePwm + (static_cast<int>(edge) * turn));
+    lastLeftPwm = pwm_l + leftMotorOffset;  // 診断用に控える（モーター側で±100に丸められる前の値）
+    lastRightPwm = pwm_r;
+
     robot.setMotorPower(pwm_l + leftMotorOffset, pwm_r);
 }
 
@@ -73,6 +76,23 @@ void Tracer::setPwm(int newPwm) {
 
 void Tracer::setLeftMotorOffset(int newOffset) {
     leftMotorOffset = newOffset;
+}
+
+void Tracer::resetPid() {
+    pid.reset();
+}
+
+void Tracer::resetPidIntegral() {
+    pid.resetIntegral();
+}
+
+void Tracer::setCurveDecelGain(float newGain) {
+    if(newGain < 0.0f) {
+        syslog(LOG_ERROR, "invalid curve decel gain : gain must be >= 0");
+        return;
+    }
+
+    curveDecelGain = newGain;
 }
 
 void Tracer::setEdge(Edge newEdge) {

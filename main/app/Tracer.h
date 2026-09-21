@@ -36,6 +36,28 @@ public:
     void setPwm(int newPwm);  // newPwmは0～100の大きさのみ
     void setLeftMotorOffset(int newOffset);
 
+    // カーブ減速の強さ（|操舵量|1あたりに基準パワーから引くPWM）を変更する。
+    // 既定値はConfig::TRACER_CURVE_DECEL_GAINなので、呼ばなければ今までどおり。
+    // 直線区間など、減速されると困る場面で一時的に弱める用
+    void setCurveDecelGain(float newGain);
+
+    // PIDの内部状態（積分・微分）をリセットする。ゲインを途中で変えるときに、
+    // 前の区間で溜まった積分がそのまま効いてしまうのを防ぐ。
+    // 微分の履歴まで消えるので、積分だけを消したいときはresetPidIntegral()を使う
+    void resetPid();
+    void resetPidIntegral();
+
+    // 直近のP/I/Dの符号つき内訳（診断用）
+    float getLastP() const { return pid.getLastP(); }
+    float getLastI() const { return pid.getLastI(); }
+    float getLastD() const { return pid.getLastD(); }
+
+    // 最後にrun()が計算した左右のPWM。モーター側で±100に頭打ちされる前の値なので、
+    // 「操舵が上限に当たっていないか」を外から測れる（診断用。制御には影響しない）
+    int getLastLeftPwm() const { return lastLeftPwm; }
+    int getLastRightPwm() const { return lastRightPwm; }
+    int getBasePwm() const { return pidConfig.basePwm; }  // 診断用。制御状態は変更しない。
+
     //
     void setEdge(Edge newEdge);
 
@@ -44,8 +66,11 @@ private:
     Pid pid;  // 反射率がConfig::TRACER_TARGET_REFLECTIONに近づくよう左右パワー差を計算する
     PidConfig pidConfig;
     Edge edge;
-    float filteredTurnMag = 0.0f;  // カーブ減速量算出用、|turn|にEMAをかけた値
-    int leftMotorOffset = 0;       // 左右モーターの出力差を均すための調整値
+    float curveDecelGain = Config::TRACER_CURVE_DECEL_GAIN;  // カーブ減速の強さ。setCurveDecelGain()で変えられる
+    float filteredTurnMag = 0.0f;                            // カーブ減速量算出用、|turn|にEMAをかけた値
+    int leftMotorOffset = 0;                                 // 左右モーターの出力差を均すための調整値
+    int lastLeftPwm = 0;                                     // 診断用。クランプ前の計算値
+    int lastRightPwm = 0;
 
     void updateConfig(const PidConfig& newConfig);  // PidクラスのsetGain, setTargetを呼び出し、パラメータを更新。
 };

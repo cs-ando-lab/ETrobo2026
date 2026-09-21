@@ -498,6 +498,82 @@ void Robot::runWavingUntilColors(const ColorJudge::Color* colors, int colorCount
     stop();
 }
 
+bool Robot::positionDeliveryArm(int targetCount, int speedDegPerSec, const char* label) {
+    pbio_servo_t* srv = nullptr;
+    if(pbio_servo_get_servo(PBIO_PORT_ID_C, &srv) != PBIO_SUCCESS || !srv)
+        return false;
+    ArmLimits saved{};
+    pbio_control_settings_get_limits(&srv->control.settings, &saved.speed,
+                                     &saved.acceleration, &saved.deceleration, &saved.actuation);
+    if(pbio_control_settings_set_limits(&srv->control.settings, saved.speed,
+                                        Config::ARM_RAISE_ACCELERATION_DEG_PER_SEC2, Config::ARM_RAISE_DECELERATION_DEG_PER_SEC2,
+                                        saved.actuation)
+       != PBIO_SUCCESS)
+        return false;
+    const int startCount = armMotor.getCount();
+    const auto err = pbio_servo_run_target(srv, std::abs(speedDegPerSec), targetCount,
+                                           PBIO_CONTROL_ON_COMPLETION_HOLD);
+    if(err != PBIO_SUCCESS) {
+        pbio_control_settings_set_limits(&srv->control.settings, saved.speed,
+                                         saved.acceleration, saved.deceleration, saved.actuation);
+        return false;
+    }
+    struct Sample {
+        int ms, angle, speed, power;
+    };
+    Sample samples[51]{};
+    int count = 0, stable = 0, stalledRun = 0, peakPower = 0;
+    bool success = false;
+    const char* reason = "timeout";
+    SYSTIM start, now;
+    get_tim(&start);
+    int lastSampleMs = -40;
+    for(;;) {
+        get_tim(&now);
+        const int ms = static_cast<int>((now - start) / 1000);
+        const int angle = armMotor.getCount(), speed = armMotor.getSpeed(), power = armMotor.getPower();
+        if(std::abs(power) > peakPower)
+            peakPower = std::abs(power);
+        if(ms - lastSampleMs >= 40 && count < 51) {
+            samples[count++] = { ms, angle, speed, power };
+            lastSampleMs = ms;
+        }
+        if(isCenterButtonPressed()) {
+            reason = "button";
+            break;
+        }
+        // is_doneは許容幅内を示すだけなので、位置誤差と低速が連続して成立することを確認。
+        stable = std::abs(angle - targetCount) <= 2 && std::abs(speed) <= 20 ? stable + 1 : 0;
+        if(stable >= 5) {
+            success = true;
+            reason = "settled";
+            break;
+        }
+        stalledRun = armMotor.isStalled() && std::abs(angle - targetCount) > 2 ? stalledRun + 1 : 0;
+        if(stalledRun >= 5) {
+            reason = "stalled";
+            break;
+        }
+        if(ms >= Config::ARM_TIMEOUT_MS)
+            break;
+        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+    }
+    if(!success) {
+        armMotor.stop();
+        armMotor.hold();
+    }
+    pbio_control_settings_set_limits(&srv->control.settings, saved.speed,
+                                     saved.acceleration, saved.deceleration, saved.actuation);
+    syslog(LOG_NOTICE, "[ArmMotion] %s %s start %d target %d end %d",
+           label, reason, startCount, targetCount, armMotor.getCount());
+    syslog(LOG_NOTICE, "[ArmMotion] peakAbsPower %d samples %d", peakPower, count);
+    // 移動中にsyslogしない。4KiBスタック内に収まる固定最大51点。
+    for(int i = 0; i < count; ++i)
+        syslog(LOG_NOTICE, "[ArmSample] %s ms %d count %d speed %d power %d",
+               label, samples[i].ms, samples[i].angle, samples[i].speed, samples[i].power);
+    return success;
+}
+
 void Robot::raiseArm(int extraDeg) {
     // 上げた角度でボトルの色を読むので、止まる位置の精度が要る。setSpeed()で回して角度を見て止める方式は、
     // 10ms周期の止め遅れと惰性のぶん目標を越える。位置制御ならモーター側が減速を計画して目標角で止まり、そのまま保持する
@@ -616,6 +692,22 @@ float Robot::getImuHeading() const {
     return imu.getHeading();
 }
 
+IMU::Acceleration Robot::getImuAcceleration() {
+    IMU::Acceleration accel{};
+    imu.getAcceleration(accel);
+    return accel;
+}
+
+IMU::AngularVelocity Robot::getImuAngularVelocity() {
+    IMU::AngularVelocity ang{};
+    imu.getAngularVelocity(ang);
+    return ang;
+}
+
+bool Robot::isImuStationary() const {
+    return imu.isStationary();
+}
+
 bool Robot::isForceSensorPressed() const {
     return forceSensor.isTouched();
 }
@@ -682,4 +774,12 @@ int Robot::getRightMotorCount() const {
 
 int Robot::getArmCount() const {
     return armMotor.getCount();
+}
+
+int Robot::getArmPower() const {
+    return armMotor.getPower();
+}
+
+bool Robot::isArmStalled() const {
+    return armMotor.isStalled();
 }
