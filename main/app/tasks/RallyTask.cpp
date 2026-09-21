@@ -20,13 +20,18 @@ void RallyTask::run() {
     robot.resetHeading();
     robot.resetMotorCounts();
 
+    /* ↓↓ 前タスクとシームレスにつながったので、[1]は実行しない ↓↓ */
+
     // [1] - 基準角設定フェーズ
     /* 180°転回 */
-    robot.turnByImu(180.0f * CourseConfig::sign(), Config::ETRALLY_SLOW_TURN_SPEED);
+    // robot.turnByImu(180.0f * CourseConfig::sign(), Config::ETRALLY_SLOW_TURN_SPEED);
     /* [a] 一定距離ライントレースを行う */
-    traceLineforDistance(Config::ETRALLY_TRACE_BACK_DISTANCE, tracer);
+    // traceLineforDistance(Config::ETRALLY_TRACE_BACK_DISTANCE, tracer);
     /* 180°転回 */
-    robot.turnByImu(-180.0f * CourseConfig::sign(), Config::ETRALLY_SLOW_TURN_SPEED);
+    // robot.turnByImu(-180.0f * CourseConfig::sign(), Config::ETRALLY_SLOW_TURN_SPEED);
+
+    /* ↑↑ 前タスクとシームレスにつながったので、[1]は実行しない ↑↑ */
+
     /** 直線上で正確性の高いライントレースを行う
      *  青ラインを探知するまで行う
      *  このライントレース中にIMUの方向をリセット(条件あり)
