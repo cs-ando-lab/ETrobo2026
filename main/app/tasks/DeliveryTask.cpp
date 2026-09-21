@@ -322,9 +322,13 @@ namespace {
     constexpr int kSearchTimeoutLoopCount = 500;  // 保険（10ms周期なので5秒）
     // 発見後の固定30/90・100ms踏み込みは廃止。反射率を見ながら接続する。
 
-    // 往路の詳細ログを配置の前に出すと、その間も車体は惰性で動いている。
-    // 値はイベント時点で確定させ、出力は帰還して止まった後へ回す。falseで旧位置へ戻せる
-    constexpr bool kDeferOutboundDiagnostics = true;
+    // 往路の詳細ログを出す位置。falseが旧位置（最終青→terminate→往路診断→斜め移動）。
+    // 良好だった版はログ出力中にcoastしてから配置へ進んでいた。今は最終青検知と斜め移動開始が
+    // 同時刻で、実測の開始速度が423/412 deg/sある。この初期速度・位置の違いは配置後の姿勢へ
+    // 波及し得るので、姿勢の再現を優先して旧位置に戻す。食い込みの原因と確定したわけではない。
+    // ログ保護（欠落対策付きの待ち）は通したままなので、待ち時間は旧版と一致しない。
+    // 詳細ログが増えた分と通信状況で変わる
+    constexpr bool kDeferOutboundDiagnostics = false;
 
     // 帰還後に出すために、往路終了時点の値を確定して持っておく。
     // 後から現在距離・現在時刻を読んで復元しない（車輪カウントは配置でリセットされる）
@@ -2396,7 +2400,7 @@ void DeliveryTask::run() {
 
     tracer.terminate();
     const int outboundDiagnosticStartMs=nowMs();
-    // ここまでの値を確定させる。出力は帰還して止まった後（kDeferOutboundDiagnostics）
+    // ここまでの値を確定させる。出力位置はkDeferOutboundDiagnosticsで決める
     areaApproachLog.end(outboundDiagnosticStartMs,wheelDistanceMm());
     curveLog.end(outboundDiagnosticStartMs,wheelDistanceMm());
     outLog.end(outboundDiagnosticStartMs,wheelDistanceMm());
