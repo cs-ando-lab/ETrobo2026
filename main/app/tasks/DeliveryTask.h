@@ -39,14 +39,14 @@ private:
         int satisfiedCount = 0;      // 青条件を満たしたサンプルの総数
         int maxConsecutive = 0;      // 青条件を満たした最大連続回数（確定に必要な回数と直接比較できる）
         struct Span {
-            int ms=0, mm=0, duration=0, distance=0, count=0, maxSat=0;
-            int armed=0, required=0, nextBlue=0, pwm=0, gapBefore=0, speed=0, endSpeed=0;
+            int ms = 0, mm = 0, duration = 0, distance = 0, count = 0, maxSat = 0;
+            int armed = 0, required = 0, nextBlue = 0, pwm = 0, gapBefore = 0, speed = 0, endSpeed = 0;
         };
-        bool entryArmed=false;
-        int distanceOriginMm=0;
-        int required=0, nextBlue=0, commandPwm=0, nonBlueRun=0;
+        bool entryArmed = false;
+        int distanceOriginMm = 0;
+        int required = 0, nextBlue = 0, commandPwm = 0, nonBlueRun = 0;
         Span spans[24]{};
-        int spanCount=0, dropped=0;
+        int spanCount = 0, dropped = 0;
         int currentRun = 0;
     };
 
