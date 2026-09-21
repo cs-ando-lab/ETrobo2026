@@ -1,4 +1,5 @@
 #include "DeliveryTask.h"
+#include "ApproachEnd.h"
 #include "AreaBlueGate.h"
 #include "ColorNotifier.h"
 #include "Tracer.h"
@@ -11,6 +12,9 @@
 namespace {
     // ── ライントレース速度 ──────────────────────────────
     constexpr int kApproachPwm = 50;         // ボトル接近中。Config::DELIVERY_TRACER_PWM(30)だとカーブ減速でほぼ動けなくなる
+    // 超音波が反応しなくても、低速接近開始からこの距離で初回アーム動作へ進む。
+    // 仮値。実機でユーザーが調整する [mm]。
+    constexpr int kApproachFallbackDistanceMm = 200;
     constexpr int kReacquireLinePwm = 50;    // ライン復帰直後。ラインに対するズレが大きくカーブ減速が効きやすいので高め
     constexpr int kPostSlowTracePwm = 93;    // 曲線前半。後半は78/Kp0.55
     constexpr int kOnFirstBlueLinePwm = 78;  // 青1本目に乗っている間だけ落とす速度
@@ -952,10 +956,18 @@ bool DeliveryTask::run() {
     Tracer tracer(robot);
     tracer.setEdge(isLeftCourse ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT);
     tracer.setPwm(kApproachPwm);
+    // 低速接近の起点。モーターカウントはリセットせず、ここからの符号付き前進量だけを見る
+    const int approachStartMm = wheelDistanceMm();
+    const int approachStartMs = nowMs();
+    syslog(LOG_NOTICE, "[Approach] ultrasonic target %d mm, fallback limit %d mm",
+           Config::DELIVERY_TARGET_DISTANCE_MM, kApproachFallbackDistanceMm);
 
-    // 1. ライントレースしながらボトルに近づく（この間、ラインに正対した基準角度をIMUで平均して求めておく）
+    // 1. ライントレースしながらボトルに近づく（この間、ラインに正対した基準角度をIMUで平均して求めておく）。
+    // 超音波が反応しない走行があったため、走った距離でも接近を終えられるようにする（早い方で終わる）
     float headingSum = 0.0f;
     int headingSampleCount = 0;
+    ApproachEnd::Reason approachReason = ApproachEnd::Reason::NONE;
+    int approachMovedMm = 0, approachEndUltrasonicMm = -1;
     while(true) {
         if(robot.isCenterButtonPressed()) {  // センターボタンで安全停止
             aborted = true;
@@ -964,8 +976,13 @@ bool DeliveryTask::run() {
         }
 
         int currentDistance = robot.getUltrasonicDistance();
+        const int movedMm = wheelDistanceMm() - approachStartMm;
 
-        if(currentDistance > 0 && currentDistance <= Config::DELIVERY_TARGET_DISTANCE_MM) {
+        approachReason = ApproachEnd::decide(currentDistance, Config::DELIVERY_TARGET_DISTANCE_MM,
+                                             movedMm, kApproachFallbackDistanceMm);
+        if(approachReason != ApproachEnd::Reason::NONE) {
+            approachMovedMm = movedMm;
+            approachEndUltrasonicMm = currentDistance;
             tracer.terminate();
             break;
         }
@@ -976,6 +993,10 @@ bool DeliveryTask::run() {
         tracer.run();
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
     }
+    // 200mmが妥当かは、通常時に超音波で終わったときの実距離と並べて次の試走で判断する
+    syslog(LOG_NOTICE, "[Approach] reason %s moved %d mm limit %d mm ultrasonic %d mm elapsed %d ms",
+           ApproachEnd::reasonName(approachReason), approachMovedMm, kApproachFallbackDistanceMm,
+           approachEndUltrasonicMm, nowMs() - approachStartMs);
     float baselineHeading = (headingSampleCount > 0) ? (headingSum / headingSampleCount) : robot.getImuHeading();
     // 診断: 以降の角度はすべてこの基準からのズレで出す。接近中に曲がっていると基準自体がずれるので、停止時点との差も見る
     syslog(LOG_NOTICE, "[Heading] baseline %d (0.1deg, %d samples), at bottle stop %d from baseline", (int)(baselineHeading * 10.0f), headingSampleCount, (int)((robot.getImuHeading() - baselineHeading) * 10.0f));
