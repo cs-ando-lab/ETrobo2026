@@ -14,7 +14,7 @@ namespace {
     constexpr int kApproachPwm = 50;         // ボトル接近中。Config::DELIVERY_TRACER_PWM(30)だとカーブ減速でほぼ動けなくなる
     // 超音波が反応しなくても、低速接近開始からこの距離で初回アーム動作へ進む。
     // 仮値。実機でユーザーが調整する [mm]。
-    constexpr int kApproachFallbackDistanceMm = 200;
+    constexpr int kApproachFallbackDistanceMm = 190;
     constexpr int kReacquireLinePwm = 50;    // ライン復帰直後。ラインに対するズレが大きくカーブ減速が効きやすいので高め
     constexpr int kPostSlowTracePwm = 93;    // 曲線前半。後半は78/Kp0.55
     constexpr int kOnFirstBlueLinePwm = 78;  // 青1本目に乗っている間だけ落とす速度
@@ -201,7 +201,7 @@ namespace {
     // ブレーキで行き過ぎが読めるようになったので、指令そのものを増やして余裕を取る
     // 直近2走行は指令-75mmで実動-76〜-77mm・惰性-10mm・合計-86〜-87mm。目視でボトルとの
     // 余裕が足りないという判断で5mm増やした初回の仮調整値。実効も必ず5mm増えるとは限らない
-    constexpr int kAreaBackwardMm = -80;                // ボトルから抜ける後退量（-75のとき実効で約87mm）
+    constexpr int kAreaBackwardMm = -90;                // ボトルから抜ける後退量（-75のとき実効で約87mm）
     constexpr int kAreaBackwardSpeedDegPerSec = 10000;  // 常に飽和させて最速で後退（pbio側でモーターの上限にクランプされる）
     // 車体が浮くのは速度ではなく立ち上がりのトルクが原因なので、必要ならデューティ上限でトルクの頭を押さえる（100で無効）
     // 後退の指令速度は常に飽和させているので、立ち上がりでモーターが全トルクを出す。
