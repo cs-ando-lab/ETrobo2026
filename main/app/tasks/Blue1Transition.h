@@ -78,6 +78,9 @@ public:
         }
     }
 
+    // 別の経路（早期持ち替えなど）が持ち替えを引き受けた。以降この状態から動作を起こさない
+    void markSuperseded() { markRecovered(); }
+
     // 踏み越え回復に入った。通常の持ち替えは行わない。青の無視は呼び出し側が持つ
     void markRecovered() {
         recovered = true;
