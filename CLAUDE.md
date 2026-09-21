@@ -52,8 +52,8 @@ make app="<リポジトリのディレクトリ名>/main" up     # ビルド＋�
 Calibrator（L/Rコース選択・フォースセンサーでスタート）
 → フォースセンサーが離されるのを待つ
 → 開始モード選択（O/D/R/T、左右ボタンで選択しフォースセンサーで確定）
-→ [O] lineTraceUntilLap → DeliveryTask → RallyTask → moveTowardGarageArea
-→ [D] lineTraceUntilLap → DeliveryTask
+→ [O] lineTraceUntilLap → DeliveryTask → (正常帰還時のみ) RallyTask → moveTowardGarageArea
+→ [D] lineTraceUntilLap → DeliveryTask → (正常帰還時のみ) RallyTask
 → [R] RallyTask
 → [T] Test（tasks/test.cpp。関数の試し打ち用）
 ```
@@ -84,7 +84,8 @@ Calibrator（L/Rコース選択・フォースセンサーでスタート）
 - **`Calibrator`**（[main/app/Calibrator.h](main/app/Calibrator.h)）: 起動時の準備（ビープ→BLE接続待ち→L/Rコース選択→フォースセンサーでスタート）。
 - **`Config`**（[main/app/Config.h](main/app/Config.h)）: チューニング用定数の一元管理。速度・タイムアウト・PIDゲイン・色判定閾値・コース寸法などをここに集約し、他クラスのコード中に定数を直書きしない方針（実機調整途中の値が各タスクの無名namespaceに残っている箇所があるが、確定したものはConfigへ移す）。
 - **`main/app/tasks/`**: 各課題（`DeliveryTask`/`RallyTask`/`SumoTask`）と試験用の`Test`を実装。`Robot&`を受け取り`run()`を1回呼べば完結するインターフェースで統一する。
-  - Delivery専用のヘッダのみの部品（実機・SDKに依存しないので`tests/`でそのまま試験できる）: `Blue1Transition.h`（青1本目の再受付と右エッジへの持ち替え開始を別々に持つ。現在`DeliveryTask`は旧方式へ戻したため未使用で、試験だけが残っている）、`TraceEntryLog.h`（接続の診断を貯めて停止後に出すバッファ）、`BottleColorBeep.h`（色通知で走行が止まる時間）。
+  - 例外として`DeliveryTask::run()`だけ`bool`を返す。trueは「帰りの90度コーナーを曲がりきってから規定距離を走り終えた」正常帰還だけで、中断・失敗・早期returnはすべてfalse。**ラリーへ移ってよいかはこの戻り値だけで判断する**（`run()`から戻ったことや内部の中断フラグを根拠にしない）。
+  - Delivery専用のヘッダのみの部品（実機・SDKに依存しないので`tests/`でそのまま試験できる）: `Blue1Transition.h`・`TraceEntryLog.h`・`BottleColorBeep.h`・`SettleGate.h`・`ColorNotifier.h`。**いずれも現在`DeliveryTask`からは使っていない**（`DeliveryTask`を`641c68f`相当へ戻したため）。ファイルと`tests/`の試験だけが残っている。
   - `main/app/tasks/AreaBlueGate.h`: Delivery専用のヘッダのみのクラス。エリアに入る最終青を、コーナーを曲がりきった地点からの距離窓の中だけで判定する。窓に入ってから一度青が切れるのを待つので、手前の青の上から数え始めることがない。
   - `main/app/tasks/RallyTask/`: ETラリー専用の補助クラス。`RallyTypes`（ゲート・ノード・方角の型）、`RallyRoute`（曲がる回数→歩数の順にコスト最小となる経路探索）、`HeadingCalibration`（ライントレース中のジャイロ角をリングバッファで平均し基準角を決める）。
 

@@ -67,9 +67,14 @@ void GameRunner::run() {
             return;
         }
 
-        // ボトルデリバリー
+        // ボトルデリバリー。
+        // ラリーへ進めるのは、帰りの90度コーナーを曲がりきってから規定距離を走り終えた場合だけ。
+        // 中断・失敗・早期returnはすべてここで終える（青の検知や配置の完了では進めない）
         DeliveryTask delivery(robot);
-        delivery.run();
+        if(!delivery.run()) {
+            syslog(LOG_ALERT, "DELIVERY DID NOT COMPLETE THE RETURN RUN; NOT STARTING THE RALLY");
+            return;
+        }
 
         // ETラリー
         RallyTask rally(robot);
@@ -84,13 +89,17 @@ void GameRunner::run() {
         return;
     }
 
-    // 1. LAPゲートまでライントレース → ボトルデリバリー
+    // 1. LAPゲートまでライントレース → ボトルデリバリー（この後ラリーへ続く）
     if(startMode <= 1) {
         if(!lineTraceUntilLap()) {
             return;
         }
+        // 下のラリーへ落ちてよいのは、Deliveryが正常に帰還した場合だけ
         DeliveryTask delivery(robot);
-        delivery.run();
+        if(!delivery.run()) {
+            syslog(LOG_ALERT, "DELIVERY DID NOT COMPLETE THE RETURN RUN; NOT STARTING THE RALLY");
+            return;
+        }
     }
 
     // 2. ETラリー

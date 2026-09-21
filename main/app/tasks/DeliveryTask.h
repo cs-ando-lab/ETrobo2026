@@ -1,7 +1,6 @@
 #ifndef DELIVERYTASK_H_
 #define DELIVERYTASK_H_
 
-#include "ColorNotifier.h"
 #include "Robot.h"
 
 class Tracer;
@@ -14,7 +13,11 @@ using namespace spikeapi;
 class DeliveryTask {
 public:
     DeliveryTask(Robot& robot);
-    void run();
+    // 戻り値は「帰りの90度コーナーを曲がりきってから規定距離を走り終え、正常に帰還した」か。
+    // trueを返せるのは帰りのループをその距離条件で抜けた場合だけで、中断・失敗・早期returnは
+    // すべてfalse。ラリーへ移ってよいかの判断にはこの値だけを使うこと（aborted==falseや
+    // 「run()から戻った」ことを根拠にしない）
+    bool run();
 
 private:
     Robot& robot;
@@ -28,25 +31,6 @@ private:
         CLEARED,     // 線を発見し、検知時からの方位差が完了角度以上
         REACQUIRED,  // 線には復帰したが、まだ完了角度に届いていない
         FAILED       // 正方向・振り戻しとも線を発見できなかった
-    };
-
-    // コーナーを曲がりきった理由。PIDの引き継ぎ方が経路ごとに変わるので区別する
-    enum class CornerDoneReason {
-        NONE,
-        PIVOT_CLEARED,   // ピボット／振り戻しの直後に完了角度へ届いていた
-        TRACE_CONFIRMED  // 線に復帰した後、Tracerが追従したまま完了角度へ届いた
-    };
-
-    // コーナー判定の1周期の結果
-    enum class CornerUpdate {
-        IDLE,             // 判定していない（完了済み・受付前）
-        TRACKING,         // 通常追従。白の連続を見ているだけ
-        CONFIRMING,       // 線に復帰済みで、Tracerが曲がりきるのを待っている
-        REACQUIRED,       // この周期でピボットから線に復帰した
-        PIVOT_FAILED,     // この周期のピボットが線を見つけられなかった
-        DONE_PIVOT,       // ピボットから直接完了した
-        DONE_TRACE,       // Tracerの追従中に完了した
-        ABORTED
     };
 
     // 青判定の診断集計。制御で使ったのと同じ読み取り値だけを渡す（診断のためにセンサーを追加で読まない）
@@ -72,23 +56,12 @@ private:
         bool enabled = false;     // 白の連続を数えている
         bool confirming = false;  // 線には復帰した。Tracerが残りを曲がりきるのを待っている
         bool done = false;        // 曲がりきった。以降は一切判定しない
-        CornerDoneReason doneReason = CornerDoneReason::NONE;
         int whiteRun = 0;
         int suppressCount = 0;
         int loopCount = 0;
         int enableLoop = 0;
-        // 確認の期限は周期数ではなく内部時計で持つ。青や再検知の抑制で無期限に延びないようにする
-        int confirmStartMs = -1;
-        int confirmDeadlineMs = -1;
+        int confirmDeadlineLoop = 0;
         float startHeading = 0.0f;  // コーナーを検知した時点の方位
-
-        // 診断専用。完了の経路と、そのときの状況
-        int doneMs = -1;
-        int doneTurnDeg = 0;
-        int doneReflection = -1;
-        int doneSuppressRemaining = 0;   // 完了時に残っていた再検知の抑制数
-        int confirmedWhileSuppressed = 0;  // 抑制が残ったまま完了できた回数（今回の分離が効いたか）
-        int confirmExpiredCount = 0;       // 確認の期限切れ回数
 
         // 診断専用。検知に使われた白連続（＝しきい値に達したもの）は除いて最大値を取るので、
         // 「直線部でどこまで白が続くか」＝しきい値までのマージンがそのまま読める
@@ -112,34 +85,18 @@ private:
     // 上記を連続一致で確定させる。決まらなければUNKNOWN
     ColorJudge::Color confirmBottleColor();
 
-    // 色の通知音。走行ループの中から、鳴り終わりを待たずに鳴らす
-    void applyNotifierAction(ColorNotifier::Action action);
-    void logColorNotify(const ColorNotifier& notifier, int plannedCount, int startMs, const char* reason,
-                        int maxIntervalMs, int loopCount);
-
     // アームを上げた直後に色を読む一式（整定待ち・診断ログ・確定）
     ColorJudge::Color readBottleColorAfterRaise(int targetDeg);
 
     // Deliveryでは原点をリセットしない。初回上げ前のカウントを差し引いて比較する。
     int armAbsoluteBaseDeg = 0;
-    // raiseArm/lowerArmの前に呼び、それまでの移動量を積算に取り込む
-    void commitArmMovement();
     int armAbsoluteDeg() const;
 
     // 診断: 車体の姿勢（IMUの加速度・角速度）とアーム角度をログに出す
     void logPosture(const char* label);
     // アームを上げる前に車体を止め切り、揺れが収まるのを待つ
     void stopAndSettleBeforeArm();
-    // 接続の診断を貯める・出す。走行中はsyslogせず、止まった後でまとめて出す
-    void recordTraceEntry(const char* label, const char* result, int mm, int ms, int heading10,
-                          int firstReflection, int lastReflection, int stable,
-                          float firstP, float firstI, float firstD, bool deferred);
-    void printTraceEntryRecords();
-    // 高速側の最初の制御の直後に呼ぶ。低速の最後の制御からの時間を記録に書き戻す
-    void noteFirstFastControl();
-
     // 線検出直後は低速でエッジを掴み、連続安定してから高速区間へ渡す。
-    // 成功しても必ず止めてから返す（呼び出し側が止まった状態で高速設定へ進む）
     bool acquireTraceEntry(Tracer& tracer, const char* label);
 
     // 確定後にまとめてログへ出すための、最後に読んだボトルの生値
@@ -156,21 +113,7 @@ private:
     void diagonalMoveUntilImuTurn(bool isOuterLeft, int outerPwm, float startHeading, float turnDeg);
 
     // 進行方向を変える前に、ブレーキで速度が落ちるまで待つ（惰性と逆向き指令の喧嘩を避ける）
-    // 整定の結果。成功の意味は「両輪が閾値未満まで落ちた」であって、完全静止でも姿勢安定でもない
-    enum class SettleResult { STOPPED,
-                              TIMEOUT,
-                              CANCELLED };
-    struct SettleOutcome {
-        SettleResult result = SettleResult::STOPPED;
-        int elapsedMs = 0;
-        int leftSpeed = 0;   // 最後に読んだ左右の速度[deg/s]
-        int rightSpeed = 0;
-        bool ok() const { return result == SettleResult::STOPPED; }
-    };
-    // abortOnTimeout=falseなら、閾値に届かなくてもabortedを立てない（結果は返す）
-    SettleOutcome brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs, const char* label, bool abortOnTimeout = true);
-    void releaseDriveAfterFailedSettle(SettleOutcome& outcome);
-    void logSettleOutcome(const char* label, const SettleOutcome& outcome);
+    void brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs);
 
     // デューティ上限（＝トルク上限）を落として直進/後退する。distanceMmが負なら後退。上限は関数内で必ず元に戻す
     int driveStraightWithDutyLimit(int distanceMm, int speedDegPerSec, int dutyLimit);  // 戻り値は実際に走った距離[mm]
@@ -196,20 +139,7 @@ private:
 
     // コーナー検知の1周期分の更新。ライントレースのループから毎周期呼ぶ。
     // labelはログの接頭辞（行き/帰りの区別用）
-    CornerUpdate updateCornerDetection(CornerState& state, bool isLeftTurn, float minTurnDeg, bool isOnBlue, const char* label);
-
-    // 往路の詳細ログを、止まっている場所で一度だけ出す
-    void printOutboundDiagnostics(BlueStats& beforeCorner, BlueStats& afterCorner);
-    // 配置の開始位置の比較。往路の詳細ログの設定に関わらず出す
-    void printPlacementDiagnostics();
-    // コーナー後の最初の制御の内訳。走行中は採るだけ
-    void armPostCornerSample(const char* label, int reason, int pwm);
-    void capturePostCornerSample(Tracer& tracer);
-    void printPostCornerSamples();
-    // コーナー完了後の次区間の設定。完了の経路によってPIDの引き継ぎ方を変える
-    void applyPostCornerTracerConfig(Tracer& tracer, int pwm);
-    // 新しいピボットへ入る前に、古い確認状態を残さない
-    void clearCornerConfirm(CornerState& state);
+    void updateCornerDetection(CornerState& state, bool isLeftTurn, float minTurnDeg, Tracer& tracer, bool isOnBlue, const char* label);
 };
 
 #endif  // !DELIVERYTASK_H_
