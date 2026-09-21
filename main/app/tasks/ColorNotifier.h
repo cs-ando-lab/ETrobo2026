@@ -21,7 +21,8 @@ public:
                        GAP,
                        DONE };
 
-    ColorNotifier(int toneMs, int gapMs) : toneMs(toneMs), gapMs(gapMs) {}
+    ColorNotifier(int toneMs, int gapMs)
+        : toneMs(toneMs), gapMs(gapMs) {}
 
     // 鳴らす回数を決める。0以下なら何も鳴らさずDONEになる
     void start(int count, int nowMs) {
@@ -40,12 +41,14 @@ public:
                 startedCount++;
                 return Action::START_TONE;
             case Phase::TONE:
-                if(nowMs < deadlineMs) return Action::NONE;
+                if(nowMs < deadlineMs)
+                    return Action::NONE;
                 phase = remaining > 0 ? Phase::GAP : Phase::DONE;
                 deadlineMs = nowMs + gapMs;
                 return Action::STOP_TONE;
             case Phase::GAP:
-                if(nowMs < deadlineMs) return Action::NONE;
+                if(nowMs < deadlineMs)
+                    return Action::NONE;
                 phase = Phase::TONE;
                 deadlineMs = nowMs + toneMs;
                 remaining--;

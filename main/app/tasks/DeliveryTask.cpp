@@ -11,7 +11,7 @@
 
 namespace {
     // ── ライントレース速度 ──────────────────────────────
-    constexpr int kApproachPwm = 50;         // ボトル接近中。Config::DELIVERY_TRACER_PWM(30)だとカーブ減速でほぼ動けなくなる
+    constexpr int kApproachPwm = 50;  // ボトル接近中。Config::DELIVERY_TRACER_PWM(30)だとカーブ減速でほぼ動けなくなる
     // 超音波が反応しなくても、低速接近開始からこの距離で初回アーム動作へ進む。
     // 仮値。実機でユーザーが調整する [mm]。
     constexpr int kApproachFallbackDistanceMm = 190;
@@ -656,9 +656,9 @@ void DeliveryTask::turnInPlaceByImu(int leftPwm, int rightPwm, float turnDeg) {
     brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs);
     robot.stop();
     // 止まり切らなくても中断しない。この後は低速の線探索なので、残留回転は記録だけして進む
-    const int settledLeft=robot.getLeftMotor().getSpeed(), settledRight=robot.getRightMotor().getSpeed();
+    const int settledLeft = robot.getLeftMotor().getSpeed(), settledRight = robot.getRightMotor().getSpeed();
     if(std::abs(settledLeft) >= kSettleSpeedDegPerSec || std::abs(settledRight) >= kSettleSpeedDegPerSec) {
-        syslog(LOG_NOTICE,"[AreaTurn] settle incomplete: speed %d/%d; continuing to line search",settledLeft,settledRight);
+        syslog(LOG_NOTICE, "[AreaTurn] settle incomplete: speed %d/%d; continuing to line search", settledLeft, settledRight);
     }
     syslog(LOG_NOTICE, "[AreaTurn] command10 %d settled10 %d ms %d",
            (int)(commandTurn * 10), (int)((robot.getImuHeading() - startHeading) * 10), nowMs() - startedMs);
@@ -1053,7 +1053,10 @@ bool DeliveryTask::run() {
     // 惰性が残ったまま上げると車体がピッチ方向に傾き、アームの地面に対する向きがずれる
     logPosture("before stop");
     stopAndSettleBeforeArm();
-    if(aborted) { robot.stop(); return false; }
+    if(aborted) {
+        robot.stop();
+        return false;
+    }
     logPosture("before raise 1");
 
     // 起点は初回だけ固定。リトライでも同じ物理モーター位置を目標にする。
@@ -1076,18 +1079,21 @@ bool DeliveryTask::run() {
         // アームの位置決めが届かなくても競技を終わらせない。未達は記録して読み直しへ進む
         // （回数はkBottleRetryMaxCountで止まる。届かないまま読めなければUNKNOWNで停止する）
         if(!robot.positionDeliveryArm(armHomeCount, Config::ARM_LOWER_SPEED_DEG_PER_SEC, "lower-retry")) {
-            syslog(LOG_NOTICE,"Bottle retry %d/%d: lower-retry did not reach the target; continuing",retry,kBottleRetryMaxCount);
+            syslog(LOG_NOTICE, "Bottle retry %d/%d: lower-retry did not reach the target; continuing", retry, kBottleRetryMaxCount);
         }
         // 距離対策は変更しない。従来の再試行5mmのみ維持し、上げ動作とは分離して原因を切り分ける。
         const int moved = robot.driveStraight(kBottleRetryAdvanceMm, kBottleRetryAdvanceSpeedDegPerSec);
-        if(robot.isCenterButtonPressed()) { aborted=true; break; }
+        if(robot.isCenterButtonPressed()) {
+            aborted = true;
+            break;
+        }
         // 前進が5mmに届かなくても中断しない。同じ位置から読み直すだけになるので記録して続ける
         if(moved < kBottleRetryAdvanceMm) {
-            syslog(LOG_NOTICE,"Bottle retry %d/%d: advanced only %d of %d mm; continuing",retry,kBottleRetryMaxCount,moved,kBottleRetryAdvanceMm);
+            syslog(LOG_NOTICE, "Bottle retry %d/%d: advanced only %d of %d mm; continuing", retry, kBottleRetryMaxCount, moved, kBottleRetryAdvanceMm);
         }
-        syslog(LOG_NOTICE,"Bottle retry %d/%d: same arm target %d",retry,kBottleRetryMaxCount,armTargetCount);
+        syslog(LOG_NOTICE, "Bottle retry %d/%d: same arm target %d", retry, kBottleRetryMaxCount, armTargetCount);
         if(!robot.positionDeliveryArm(armTargetCount, Config::ARM_RAISE_SPEED_DEG_PER_SEC, "raise-retry")) {
-            syslog(LOG_NOTICE,"Bottle retry %d/%d: raise-retry did not reach the target; continuing",retry,kBottleRetryMaxCount);
+            syslog(LOG_NOTICE, "Bottle retry %d/%d: raise-retry did not reach the target; continuing", retry, kBottleRetryMaxCount);
         }
         bottleColor = readBottleColorAfterRaise(Config::ARM_RAISE_DEG + kBottleRetryExtraArmDeg);
     }
@@ -1096,7 +1102,7 @@ bool DeliveryTask::run() {
         syslog(LOG_NOTICE, "ABORTED during bottle color judgement. Stopping.");
         return false;
     }
-    int targetBlueLineCount = 0;  // 目標の青ライン通過回数
+    int targetBlueLineCount = 0;     // 目標の青ライン通過回数
     int pendingNotifyToneCount = 0;  // 通知で鳴らす回数。鳴らすのは下のアーム下降後の直進中
     const int colorDecidedMs = nowMs();
 
@@ -1135,7 +1141,10 @@ bool DeliveryTask::run() {
     if(!robot.positionDeliveryArm(armHomeCount, Config::ARM_LOWER_SPEED_DEG_PER_SEC, "lower-final")) {
         syslog(LOG_NOTICE, "lower-final did not reach the target; continuing to the line");
     }
-    if(robot.isCenterButtonPressed()) { robot.stop(); return false; }
+    if(robot.isCenterButtonPressed()) {
+        robot.stop();
+        return false;
+    }
 
     // 5. 左35・右40のパワーでkAfterArmStraightSec秒直進してラインに復帰する（蛇行探索より速く、実機ではこれで十分だった）。
     // 色の通知音はこの移動に重ねる。移動の時間も出力も変えず、音のための待ちは入れない
@@ -1147,24 +1156,32 @@ bool DeliveryTask::run() {
         if(robot.isCenterButtonPressed()) {
             aborted = true;
             // 自分が鳴らした音は必ず止めてから抜ける
-            if(notifier.cancel() == ColorNotifier::Action::STOP_TONE) robot.stopBeep();
+            if(notifier.cancel() == ColorNotifier::Action::STOP_TONE)
+                robot.stopBeep();
             robot.stop();
             return false;
         }
         robot.setMotorPower(kAfterArmStraightLeftPwm, kAfterArmStraightRightPwm);
         // 音の更新は出力の後。診断として制御周期の最大間隔も見る
         const int loopMs = nowMs();
-        if(i > 0 && loopMs - straightLastMs > straightMaxGapMs) straightMaxGapMs = loopMs - straightLastMs;
+        if(i > 0 && loopMs - straightLastMs > straightMaxGapMs)
+            straightMaxGapMs = loopMs - straightLastMs;
         straightLastMs = loopMs;
         switch(notifier.update(loopMs)) {
-            case ColorNotifier::Action::START_TONE: robot.startBeepNonBlocking(); break;
-            case ColorNotifier::Action::STOP_TONE: robot.stopBeep(); break;
-            default: break;
+            case ColorNotifier::Action::START_TONE:
+                robot.startBeepNonBlocking();
+                break;
+            case ColorNotifier::Action::STOP_TONE:
+                robot.stopBeep();
+                break;
+            default:
+                break;
         }
         dly_tsk(Config::MOTION_POLL_INTERVAL_US);
     }
     // 区間の終わり。鳴り終わっていなくても移動は延ばさず、鳴っていれば止める
-    if(notifier.cancel() == ColorNotifier::Action::STOP_TONE) robot.stopBeep();
+    if(notifier.cancel() == ColorNotifier::Action::STOP_TONE)
+        robot.stopBeep();
     robot.stop();
     syslog(LOG_NOTICE, "[Notify] tones %d/%d, colorDecided->lowerStart %d ms, straight maxGap %d ms",
            notifier.getStartedCount(), pendingNotifyToneCount, lowerStartMs - colorDecidedMs, straightMaxGapMs);
@@ -1596,10 +1613,16 @@ bool DeliveryTask::run() {
     // 前進は立ち上がりが遅くボトルネックだったため廃止し、斜め移動の弧だけでエリアまで運ぶ
     syslog(LOG_NOTICE, "Diagonal move into area");
     diagonalMoveUntilImuTurn(isLeftCourse, kDiagonalPwmHigh, robot.getImuHeading(), kDiagonalTurnDeg);
-    if(aborted) { robot.stop(); return false; }
+    if(aborted) {
+        robot.stop();
+        return false;
+    }
 
     brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs);
-    if(aborted) { robot.stop(); return false; }
+    if(aborted) {
+        robot.stop();
+        return false;
+    }
 
     syslog(LOG_NOTICE, "Driving backward %dmm (duty limit %d)", kAreaBackwardMm, kAreaBackwardDutyLimit);
     // Robot::driveStraight()は先頭でresetMotorCounts()するので、外側で車輪距離の差を取ると原点が変わる。
@@ -1610,7 +1633,10 @@ bool DeliveryTask::run() {
     brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs);
     const int backwardOverrunMm = wheelDistanceMm() - backwardCommandEndMm;
     syslog(LOG_NOTICE, "Backward: commanded %d mm, driven %d mm, overrun %d mm, total %d mm", kAreaBackwardMm, backwardDrivenMm, backwardOverrunMm, backwardDrivenMm + backwardOverrunMm);
-    if(aborted) { robot.stop(); return false; }
+    if(aborted) {
+        robot.stop();
+        return false;
+    }
 
     syslog(LOG_NOTICE, "Turning %d degrees in place", (int)kAreaTurnDeg);
     turnInPlaceByImu(isLeftCourse ? kAreaTurnPwm : -kAreaTurnPwm, isLeftCourse ? -kAreaTurnPwm : kAreaTurnPwm, kAreaTurnDeg);
@@ -1633,8 +1659,9 @@ bool DeliveryTask::run() {
     // 11. 左エッジでライントレースを再開
     syslog(LOG_NOTICE, "Resuming line trace on LEFT edge");
     tracer.setEdge(isLeftCourse ? Tracer::Edge::LEFT : Tracer::Edge::RIGHT);
-    const int returnEntryStartMs=nowMs(), returnEntryStartMm=wheelDistanceMm();
-    if(!acquireTraceEntry(tracer,"area-return")) return false;
+    const int returnEntryStartMs = nowMs(), returnEntryStartMm = wheelDistanceMm();
+    if(!acquireTraceEntry(tracer, "area-return"))
+        return false;
     tracer.setPwm(kReturnTracePwm);
     const int placementElapsedMs = nowMs() - placementStartMs;
     static DeliveryTraceLog returnLog("area-to-corner"), finishLog("return-after-corner");

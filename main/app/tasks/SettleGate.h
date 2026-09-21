@@ -26,9 +26,12 @@ struct SettleGate {
 
     // 1周期ぶんの判定。中断が最優先で、TIMEOUTを停止成功として返さない
     SettleStep step(int loopIndex, bool buttonPressed, int leftSpeed, int rightSpeed) const {
-        if(buttonPressed) return SettleStep::CANCELLED;
-        if(loopIndex >= timeoutLoops) return SettleStep::TIMEOUT;
-        if(isStopped(leftSpeed, rightSpeed)) return SettleStep::STOPPED;
+        if(buttonPressed)
+            return SettleStep::CANCELLED;
+        if(loopIndex >= timeoutLoops)
+            return SettleStep::TIMEOUT;
+        if(isStopped(leftSpeed, rightSpeed))
+            return SettleStep::STOPPED;
         return SettleStep::CONTINUE;
     }
 };

@@ -19,16 +19,21 @@ public:
 
     // 同じ周期に両方成立したら超音波を理由として返す（どちらでも動作は同じで、記録だけ分ける）
     static Reason decide(int ultrasonicMm, int ultrasonicTargetMm, int movedMm, int fallbackMm) {
-        if(ultrasonicMm > 0 && ultrasonicMm <= ultrasonicTargetMm) return Reason::ULTRASONIC;
-        if(movedMm >= fallbackMm) return Reason::DISTANCE;
+        if(ultrasonicMm > 0 && ultrasonicMm <= ultrasonicTargetMm)
+            return Reason::ULTRASONIC;
+        if(movedMm >= fallbackMm)
+            return Reason::DISTANCE;
         return Reason::NONE;
     }
 
     static const char* reasonName(Reason reason) {
         switch(reason) {
-            case Reason::ULTRASONIC: return "ULTRASONIC";
-            case Reason::DISTANCE: return "DISTANCE";
-            default: return "NONE";
+            case Reason::ULTRASONIC:
+                return "ULTRASONIC";
+            case Reason::DISTANCE:
+                return "DISTANCE";
+            default:
+                return "NONE";
         }
     }
 };
