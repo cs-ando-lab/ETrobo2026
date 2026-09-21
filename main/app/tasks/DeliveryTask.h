@@ -2,6 +2,7 @@
 #define DELIVERYTASK_H_
 
 #include "ColorNotifier.h"
+#include "EarlyEdgeHandoff.h"
 #include "Robot.h"
 
 class Tracer;
@@ -122,6 +123,8 @@ private:
 
     // Deliveryでは原点をリセットしない。初回上げ前のカウントを差し引いて比較する。
     int armAbsoluteBaseDeg = 0;
+    // raiseArm/lowerArmの前に呼び、それまでの移動量を積算に取り込む
+    void commitArmMovement();
     int armAbsoluteDeg() const;
 
     // 診断: 車体の姿勢（IMUの加速度・角速度）とアーム角度をログに出す
@@ -135,6 +138,12 @@ private:
         // 成功したら止めずに、低速の制御出力を保ったまま高速区間へ渡す。
         // falseなら従来どおり成功時もstop()してその場でログを出す
         bool continuousHandoff = false;
+        // 青を読んだ周期では安定の連続数を積まない（青の上で「安定した」と判定しない）。
+        // 青が来るまで待つ設計にはしない。青が無ければ従来どおり成立する
+        bool rejectBlue = false;
+        // 失敗したときにDelivery全体を中断する。falseなら結果を返すだけで、
+        // 呼び出し側が線探索などの復帰へ進める
+        bool abortOnFailure = true;
     };
 
     // 接続の診断を貯める・出す。走行中はsyslogせず、止まった後でまとめて出す
@@ -175,7 +184,8 @@ private:
         int rightSpeed = 0;
         bool ok() const { return result == SettleResult::STOPPED; }
     };
-    SettleOutcome brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs, const char* label);
+    // abortOnTimeout=falseなら、閾値に届かなくてもabortedを立てない（結果は返す）
+    SettleOutcome brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs, const char* label, bool abortOnTimeout = true);
     void releaseDriveAfterFailedSettle(SettleOutcome& outcome);
     void logSettleOutcome(const char* label, const SettleOutcome& outcome);
 
@@ -203,7 +213,19 @@ private:
 
     // コーナー検知の1周期分の更新。ライントレースのループから毎周期呼ぶ。
     // labelはログの接頭辞（行き/帰りの区別用）
-    CornerUpdate updateCornerDetection(CornerState& state, bool isLeftTurn, float minTurnDeg, Tracer& tracer, bool isOnBlue, const char* label);
+    CornerUpdate updateCornerDetection(CornerState& state, bool isLeftTurn, float minTurnDeg, bool isOnBlue, const char* label);
+    // 早期持ち替えの横切り移動。成功でtrue。上限・証拠不足・中断はfalse
+    bool runEarlyTransfer(Tracer& tracer, EarlyEdgeHandoff& early, BlueStats& stats, int curveStartMm);
+    // 早期持ち替えが失敗したときの復帰。低速で線を掴み直す。成功でtrue
+    bool recoverEarlyHandoff(Tracer& tracer, bool isLeftCourse);
+    // 早期持ち替えの診断。走行中は貯めるだけ
+    void recordEarlySample(Tracer& tracer, bool tracerDriving);
+    void printEarlyDiagnostics();
+    // 直前の色読みの値（診断サンプルでセンサーを読み足さないために持つ）
+    mutable int lastLineReflection = -1;
+    mutable int lastLineSaturation = -1;
+    mutable bool lastLineBlue = false;
+
     // 往路の詳細ログを、止まっている場所で一度だけ出す
     void printOutboundDiagnostics(BlueStats& beforeCorner, BlueStats& afterCorner);
     // 配置の開始位置の比較。往路の詳細ログの設定に関わらず出す

@@ -2,6 +2,7 @@
 #include "AreaBlueGate.h"
 #include "ColorNotifier.h"
 #include "Blue1Transition.h"
+#include "EarlyEdgeHandoff.h"
 #include "SettleGate.h"
 #include "TraceEntryLog.h"
 #include "Tracer.h"
@@ -210,6 +211,39 @@ namespace {
     constexpr int kAreaFastPwm = 97;
     constexpr int kAreaApproachPwm = 65;
 
+    // ── 青1を待たない早期エッジ持ち替え（early-edge-handoff-design.md）────
+    // 既定はOBSERVE_ONLY。候補の成立を記録するだけで、制御も出力も変えない。
+    // 横切り移動の出力・上限は現在のログから根拠を出せない（70度地点の横位置も、
+    // そこを直進して線を横切れるかも測れていない）ため、EARLYは人が選んだときだけ動く。
+    // 下の値はすべて初期比較値で、実機で確認するまで確定値として扱わないこと
+    enum class EarlyHandoffMode { LEGACY,
+                                  OBSERVE_ONLY,
+                                  EARLY };
+    constexpr EarlyHandoffMode kEarlyHandoffMode = EarlyHandoffMode::OBSERVE_ONLY;
+
+    // 進み角。実測の青1検知は基準方位から68〜75度だったので、その手前側を狙う初期候補
+    constexpr int kEarlyStartProgressDeg10 = 700;
+    constexpr int kEarlyCandidateRunCount = 5;  // 50ms連続。一瞬の角度越えで始めないため。未検証
+    // 受付範囲（曲線開始からの距離）。実測は曲線減速408〜411mm、青1通過確定956〜1023mm。
+    // 青1検知は通過確定の約90mm手前なので866〜923mm付近。その前後を挟む仮の範囲
+    constexpr int kEarlyAcceptStartMm = 600;
+    constexpr int kEarlyAcceptEndMm = 1100;
+    // 横切り移動。ほぼ直進を第一候補とし、旧弧の65/39の大きな左右差は引き継がない。
+    // 出力・上限はいずれも根拠となる実測が無い（未検証）
+    constexpr int kEarlyTransferLeftPwm = 40;
+    constexpr int kEarlyTransferRightPwm = 40;
+    constexpr int kEarlyTransferMaxMm = 60;   // 旧弧は31〜37mmで黒に当たっていた。未検証
+    constexpr int kEarlyTransferMaxMs = 400;  // 未検証
+    constexpr int kEarlyTransferHeadingLimitDeg10 = 100;  // 未検証
+    constexpr int kEarlyDarkReflection = 35;    // 既存のkAfterBlue1BlackReflectionと同値
+    constexpr int kEarlyBrightReflection = 60;  // 目標反射率と同値。未検証
+    constexpr int kEarlyDarkRunCount = 3;
+    constexpr int kEarlyBrightRunCount = 3;
+    constexpr int kEarlyMinCrossMm = 10;            // 未検証
+    constexpr int kEarlyMinCrossMmStartedDark = 25;  // 開始時に黒なら厚く要求する。未検証
+    constexpr int kEarlySampleIntervalMs = 20;  // 診断サンプルの間隔
+    constexpr int kEarlyFastRecordMm = 150;     // 高速へ移った後、ここまで記録する
+
     // ── 直角コーナー対策 ───────────────────────────────
     // Tracerのカーブ減速はEMA(TRACER_CURVE_TURN_FILTER_ALPHA=0.05 → 時定数約200ms)で
     // ステップ状の変化には間に合わないため、白の連続で「線を見失った」を検知しピボット旋回で曲がり直す
@@ -326,6 +360,67 @@ namespace {
     PostCornerSample postCornerSamples[2];
     bool postCornerSamplesPrinted = false;
 
+    // 早期持ち替えの診断。曲線終盤の直近ぶん（リング）と、候補成立以降（追記）を分けて持つ。
+    // 走行中は貯めるだけで、出すのは止まってから
+    struct EarlySample {
+        int ms = 0, mm = 0, deg10 = 0, reflection = -1, saturation = -1;
+        int leftPwm = 0, rightPwm = 0, leftSpeed = 0, rightSpeed = 0;
+        int p100 = 0, i100 = 0, d100 = 0;
+        bool blue = false, tracerValid = false;
+    };
+    // 区間ごとに枠を分ける。候補の直前はリングで直近だけ、それ以降は区間別に追記する。
+    // 1つの枠を使い切っても、後ろの区間の記録が落ちないようにするため
+    constexpr int kEarlyPreSampleMax = 16;       // 候補より前（古いものから上書き）
+    constexpr int kEarlyTransferSampleMax = 16;  // 横切り移動
+    constexpr int kEarlyAcquireSampleMax = 24;   // 低速の接続
+    constexpr int kEarlyFastSampleMax = 16;      // 高速へ移った後
+    enum class EarlySection { PRE,
+                              TRANSFER,
+                              ACQUIRE,
+                              FAST };
+    EarlySection earlySection = EarlySection::PRE;
+    EarlySample earlyPreSamples[kEarlyPreSampleMax];
+    int earlyPreCount = 0, earlyPreNext = 0;
+    EarlySample earlyTransferSamples[kEarlyTransferSampleMax];
+    int earlyTransferCount = 0, earlyTransferDropped = 0;
+    EarlySample earlyAcquireSamples[kEarlyAcquireSampleMax];
+    int earlyAcquireCount = 0, earlyAcquireDropped = 0;
+    EarlySample earlyFastSamples[kEarlyFastSampleMax];
+    int earlyFastCount = 0, earlyFastDropped = 0;
+    int earlyLastSampleMs = -1000;
+    // サンプルの位置・角度を出すための原点（run()の曲線開始で入れる）
+    float earlyBaselineHeading = 0.0f, earlyCourseSign = 1.0f;
+    int earlyCurveStartMm = 0;
+
+    // 早期持ち替えのイベント。止まってから出す
+    struct EarlyEvent {
+        bool pending = false;
+        int mode = 0, phase = 0, missed = 0, abortReason = 0;
+        int candidateMm = -1, candidateDeg10 = 0, windowOpenDeg10 = 0, maxRun = 0;
+        int transferStartMs = -1, transferStartMm = 0, transferStartReflection = -1;
+        int startedDark = 0, startedBlue = 0, blueSamples = 0;
+        int crossedMm = -1, crossedMs = -1;
+        int acquireOriginMm = -1, fastStartMs = -1, fastStartMm = 0;
+    };
+    EarlyEvent earlyEvent;
+
+    // 1サンプルぶんの出力。syslogの引数上限5個に合わせて分ける
+    void printEarlySample(const char* section, int index, const EarlySample& sample) {
+        stoppedDiagnosticLog(LOG_NOTICE, "[EarlyS] %s %d t %d mm %d deg10 %d",
+                             section, index, sample.ms, sample.mm, sample.deg10);
+        stoppedDiagnosticLog(LOG_NOTICE, "[EarlyS] %s %d refl %d sat %d blue %d",
+                             section, index, sample.reflection, sample.saturation, sample.blue ? 1 : 0);
+        stoppedDiagnosticLog(LOG_NOTICE, "[EarlyS] %s %d speed %d/%d tracer %d",
+                             section, index, sample.leftSpeed, sample.rightSpeed, sample.tracerValid ? 1 : 0);
+        if(sample.tracerValid) {
+            stoppedDiagnosticLog(LOG_NOTICE, "[EarlyS] %s %d pwm %d/%d p100 %d",
+                                 section, index, sample.leftPwm, sample.rightPwm, sample.p100);
+            stoppedDiagnosticLog(LOG_NOTICE, "[EarlyS] %s %d i100 %d d100 %d",
+                                 section, index, sample.i100, sample.d100);
+        }
+    }
+
+
     // 接続の診断。成功時は走りながら貯めて、止まった後でまとめて出す。
     // タスクスタック(4KiB)を食わないようここに置く。走行ごとにrun()の先頭で初期化する
     TraceEntryLogBuffer<4> traceEntryLog;
@@ -440,6 +535,11 @@ ColorJudge::Color DeliveryTask::judgeBottleColor() const {
 }
 
 
+// raiseArm/lowerArmはエンコーダ原点を動作ごとに作り直すので、その前に積算しておく
+void DeliveryTask::commitArmMovement() {
+    armAbsoluteBaseDeg += robot.getArmCount();
+}
+
 // 1回目の上げ直前を原点とした、アームの積算角度[度]（負が上げ側）
 int DeliveryTask::armAbsoluteDeg() const {
     return armAbsoluteBaseDeg + robot.getArmCount();
@@ -456,9 +556,11 @@ void DeliveryTask::logPosture(const char* label) {
 
 // 車体を止め切ってから、揺れが収まるのを待つ。アームを上げる前に使う
 void DeliveryTask::stopAndSettleBeforeArm() {
-    // 止まり切っていなければアームを上げない（車体が動いたまま上げると読む向きがずれる）
-    if(!brakeUntilStopped(kBottleStopSpeedDegPerSec, kBottleStopTimeoutMs, "before arm").ok()) {
-        return;
+    // アームの前は、時間切れでは止めない（元の挙動）。中断のときだけabortedが立つ。
+    // 止まり切らないまま上げると読む向きがずれるが、ここで打ち切ると読めるはずの回まで落とすため
+    const SettleOutcome outcome = brakeUntilStopped(kBottleStopSpeedDegPerSec, kBottleStopTimeoutMs, "before arm", false);
+    if(outcome.result == SettleResult::TIMEOUT) {
+        syslog(LOG_NOTICE, "[Settle] before arm: not settled, continuing anyway");
     }
     robot.stop();
     if(aborted) {
@@ -562,6 +664,11 @@ bool DeliveryTask::isBlueReading(BlueStats& stats) const {
     }
     bool inBlueHue = (hueDiff <= Config::COLOR_HUE_TOLERANCE);
     bool isBlue = inBlueHue && (reading.hsv.s >= kBlueLineMinSaturation);
+
+    // 同じ1回の読みを診断サンプルでも使う（サンプルのためにセンサーを読み足さない）
+    lastLineReflection = reading.reflection;
+    lastLineSaturation = (int)reading.hsv.s;
+    lastLineBlue = isBlue;
 
     // 診断。彩度が惜しかったのか、そもそも青の色相すら見えていないのかを後から切り分ける
     if(inBlueHue && reading.hsv.s > stats.maxSaturationInHue) {
@@ -671,7 +778,7 @@ void DeliveryTask::diagonalMoveUntilImuTurn(bool isOuterLeft, int outerPwm, floa
 
 // 進行方向を変える前に、ブレーキで速度を落とし切る。惰性が残ったまま逆を指令すると
 // 減速と加速が同じ制御に混ざり、初速が出ない（実測で後退に785ms掛かっていた）
-DeliveryTask::SettleOutcome DeliveryTask::brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs, const char* label) {
+DeliveryTask::SettleOutcome DeliveryTask::brakeUntilStopped(int speedThresholdDegPerSec, int timeoutMs, const char* label, bool abortOnTimeout) {
     SettleOutcome outcome;
     // 既に中断しているならブレーキループごと飛ばす。空振りの時間を積まない
     if(aborted) {
@@ -715,7 +822,8 @@ DeliveryTask::SettleOutcome DeliveryTask::brakeUntilStopped(int speedThresholdDe
     }
     outcome.result = SettleResult::TIMEOUT;
     outcome.elapsedMs = timeoutMs;
-    aborted = true;  // 止まり切っていないまま次の動作へ進ませない
+    // 止まり切っていないまま次の動作へ進ませない。ただし呼び出し側が明示的に許す場所もある
+    if(abortOnTimeout) aborted = true;
     releaseDriveAfterFailedSettle(outcome);
     logSettleOutcome(label, outcome);
     return outcome;
@@ -804,8 +912,12 @@ bool DeliveryTask::acquireTraceEntry(Tracer& tracer, const char* label, const Tr
     const int startMs=nowMs(), startMm=wheelDistanceMm();
     const float startHeading=robot.getImuHeading();
     int stable=0, firstReflection=-1, lastReflection=-1;
+    int blueCycles=0;  // 青を読んだ周期数（診断）
     float firstP=0.0f, firstI=0.0f, firstD=0.0f;
     bool sampled=false;
+    // 青判定の集計は接続専用に持つ（走行本体の集計を汚さない）
+    static BlueStats entryBlueStats;
+    if(options.rejectBlue) entryBlueStats=BlueStats{};
     SYSTIM lastControl=0;
     const char* result="timeout";
     bool ok=false;
@@ -823,6 +935,13 @@ bool DeliveryTask::acquireTraceEntry(Tracer& tracer, const char* label, const Tr
         lastReflection=(int)std::lround(Config::TRACER_TARGET_REFLECTION-tracer.getLastP()/0.30f);
         if(firstReflection<0)firstReflection=lastReflection;
         stable=std::abs(lastReflection-Config::TRACER_TARGET_REFLECTION)<=15?stable+1:0;
+        // 青の上は「線に乗って安定した」ではない。反射率だけでは黒と区別できないので色で弾く。
+        // 待つのではなく積ませないだけなので、青が無ければ従来どおり成立する
+        if(options.rejectBlue && isBlueReading(entryBlueStats)) {
+            stable=0;
+            blueCycles++;
+        }
+        recordEarlySample(tracer,true);  // 接続中も記録する（区間ごとの枠に入る）
         if(mm>=20 && stable>=8) {ok=true;result="stable";break;}
         dly_tsk(Config::LINE_TRACE_POLL_INTERVAL_US);
     }
@@ -846,8 +965,10 @@ bool DeliveryTask::acquireTraceEntry(Tracer& tracer, const char* label, const Tr
     robot.stop();
     recordTraceEntry(label,result,mm,ms,heading10,firstReflection,lastReflection,stable,
                      firstP,firstI,firstD,false);
+    if(blueCycles>0) syslog(LOG_NOTICE,"[Handoff] %s blue cycles %d (not counted as stable)",label,blueCycles);
     if(!ok) {
-        aborted=true;
+        // 中断するかどうかは呼び出し側が決める。早期持ち替えの失敗＝競技終了にしない
+        if(options.abortOnFailure) aborted=true;
         printTraceEntryRecords();
     }
     return ok;
@@ -1078,6 +1199,171 @@ DeliveryTask::CornerResult DeliveryTask::turnAtCorner(bool isLeftTurn, float sta
 
 // コーナー検知の1周期分。ライントレースのループから毎周期呼ぶ。
 // 行き・帰りで状態を別に持つだけで、判定そのものは共通
+// 横切り移動。ほぼ直進で横位置を変え、黒帯を越えて反対の境界へ抜けたことを確認する。
+// 旧弧の「開始時に黒なら移動を省略」は流用しない（旧エッジで黒を読んでいるだけでも成立するため）
+bool DeliveryTask::runEarlyTransfer(Tracer& tracer, EarlyEdgeHandoff& early, BlueStats& stats,
+                                    int curveStartMm) {
+    // 直前のtracer.run()が出した出力が残っているので、判定の前に切る
+    robot.stop();
+    earlySection = EarlySection::TRANSFER;
+    const float headingBefore = robot.getImuHeading();
+    const int startMs = nowMs(), startMm = wheelDistanceMm();
+    const bool startBlue = isBlueReading(stats);
+    early.beginTransfer(lastLineReflection, startBlue);
+    earlyEvent.transferStartMs = startMs;
+    earlyEvent.transferStartMm = startMm - curveStartMm;
+    earlyEvent.transferStartReflection = lastLineReflection;
+    earlyEvent.startedDark = early.wasStartedDark() ? 1 : 0;
+    earlyEvent.startedBlue = startBlue ? 1 : 0;
+    syslog(LOG_NOTICE, "[Early] transfer start at %d mm (refl %d, blue %d)",
+           startMm - curveStartMm, lastLineReflection, startBlue ? 1 : 0);
+
+    EarlyEdgeHandoff::Step step = EarlyEdgeHandoff::Step::NONE;
+    while(true) {
+        if(robot.isCenterButtonPressed()) {
+            aborted = true;
+            break;
+        }
+        const bool rawBlue = isBlueReading(stats);
+        const int movedMm = wheelDistanceMm() - startMm;
+        const int movedMs = nowMs() - startMs;
+        const int headingChange10 = (int)((robot.getImuHeading() - headingBefore) * 10.0f);
+        step = early.updateTransfer(movedMm, movedMs, headingChange10, lastLineReflection, rawBlue);
+        // Tracerは動かしていないので、P/I/Dは無効として記録する
+        recordEarlySample(tracer, false);
+        if(step != EarlyEdgeHandoff::Step::NONE) break;
+        robot.setMotorPower(kEarlyTransferLeftPwm, kEarlyTransferRightPwm);
+        dly_tsk(Config::MOTION_POLL_INTERVAL_US);
+    }
+    robot.stop();
+
+    earlyEvent.blueSamples = early.getBlueSamples();
+    earlyEvent.crossedMm = early.getCrossedMm();
+    earlyEvent.crossedMs = early.getCrossedMs();
+    earlyEvent.phase = (int)early.getPhase();
+    earlyEvent.abortReason = (int)early.getAbortReason();
+    if(aborted) return false;
+    if(step != EarlyEdgeHandoff::Step::CROSSED) {
+        // 反対エッジへ渡った証拠が取れていない。角度や距離だけを根拠に高速へ進まない
+        syslog(LOG_NOTICE, "[Early] transfer FAILED: phase %d abort %d at %d mm",
+               (int)early.getPhase(), (int)early.getAbortReason(), wheelDistanceMm() - startMm);
+        return false;
+    }
+    syslog(LOG_NOTICE, "[Early] crossing candidate at %d mm / %d ms (heading10 %d)",
+           early.getCrossedMm(), early.getCrossedMs(), (int)((robot.getImuHeading() - headingBefore) * 10.0f));
+    return true;
+}
+
+// 早期持ち替えが失敗したときの復帰。Delivery全体は止めず、低速で線を掴み直す。
+// 位置が変わっているので、元の弧移動はやり直さない
+bool DeliveryTask::recoverEarlyHandoff(Tracer& tracer, bool isLeftCourse) {
+    earlySection = EarlySection::ACQUIRE;
+    TraceEntryOptions options;
+    options.explicitRestart = true;
+    options.rejectBlue = true;
+    options.abortOnFailure = false;  // ここで失敗してもまだ打ち切らない
+    syslog(LOG_NOTICE, "[Early] recovering: low-speed entry on the target edge");
+    if(acquireTraceEntry(tracer, "early-recover", options)) return true;
+    if(aborted) return false;  // ボタン
+
+    // 掴めなかった。反射率で線を探してからもう一度だけ接続する
+    syslog(LOG_NOTICE, "[Early] recovering: searching the line by reflection");
+    if(!pivotUntilReflectionBelow(kSearchReflectionThreshold, kSearchPwm, isLeftCourse) || aborted) {
+        return false;
+    }
+    earlySection = EarlySection::ACQUIRE;
+    return acquireTraceEntry(tracer, "early-recover2", options);
+}
+
+// 早期持ち替えの診断サンプル。候補より前はリングで直近だけ残し、候補以降は追記する。
+// 色は直前のisBlueReading()の値を使い、ここではセンサーを読み足さない
+void DeliveryTask::recordEarlySample(Tracer& tracer, bool tracerDriving) {
+    if(earlyEvent.mode == (int)EarlyHandoffMode::LEGACY) return;
+    if(earlySection == EarlySection::PRE && wheelDistanceMm() - earlyCurveStartMm < kEarlyAcceptStartMm) return;
+    earlyEvent.pending = true;  // 候補を逃した走行でも、理由とサンプルは出す
+    const int ms = nowMs();
+    if(ms - earlyLastSampleMs < kEarlySampleIntervalMs) return;
+    earlyLastSampleMs = ms;
+
+    EarlySample sample;
+    sample.ms = ms;
+    sample.mm = wheelDistanceMm() - earlyCurveStartMm;
+    sample.deg10 = (int)(-(robot.getImuHeading() - earlyBaselineHeading) * earlyCourseSign * 10.0f);
+    sample.reflection = lastLineReflection;
+    sample.saturation = lastLineSaturation;
+    sample.blue = lastLineBlue;
+    sample.leftSpeed = robot.getLeftMotor().getSpeed();
+    sample.rightSpeed = robot.getRightMotor().getSpeed();
+    sample.tracerValid = tracerDriving;
+    if(tracerDriving) {
+        // 移動指令中はTracerが動いていない。前の値を今の制御値として残さない
+        sample.leftPwm = tracer.getLastLeftPwm();
+        sample.rightPwm = tracer.getLastRightPwm();
+        sample.p100 = (int)std::lround(tracer.getLastP() * 100);
+        sample.i100 = (int)std::lround(tracer.getLastI() * 100);
+        sample.d100 = (int)std::lround(tracer.getLastD() * 100);
+    }
+
+    switch(earlySection) {
+        case EarlySection::PRE:
+            // 候補より前は直近だけ残す
+            earlyPreSamples[earlyPreNext] = sample;
+            earlyPreNext = (earlyPreNext + 1) % kEarlyPreSampleMax;
+            if(earlyPreCount < kEarlyPreSampleMax) earlyPreCount++;
+            return;
+        case EarlySection::TRANSFER:
+            if(earlyTransferCount >= kEarlyTransferSampleMax) { earlyTransferDropped++; return; }
+            earlyTransferSamples[earlyTransferCount++] = sample;
+            return;
+        case EarlySection::ACQUIRE:
+            if(earlyAcquireCount >= kEarlyAcquireSampleMax) { earlyAcquireDropped++; return; }
+            earlyAcquireSamples[earlyAcquireCount++] = sample;
+            return;
+        default:
+            if(earlyFastCount >= kEarlyFastSampleMax) { earlyFastDropped++; return; }
+            earlyFastSamples[earlyFastCount++] = sample;
+            return;
+    }
+}
+
+void DeliveryTask::printEarlyDiagnostics() {
+    if(!earlyEvent.pending) return;
+    earlyEvent.pending = false;
+    const EarlyEvent& event = earlyEvent;
+    // mode 0=LEGACY 1=OBSERVE_ONLY 2=EARLY / phase 0=CURVE 1=TRANSFER 2=ACQUIRE 3=FAST 4=FAILED
+    stoppedDiagnosticLog(LOG_NOTICE, "[Early] mode %d phase %d missed %d abort %d",
+                         event.mode, event.phase, event.missed, event.abortReason);
+    stoppedDiagnosticLog(LOG_NOTICE, "[Early] candidate mm %d deg10 %d windowOpenDeg10 %d maxRun %d",
+                         event.candidateMm, event.candidateDeg10, event.windowOpenDeg10, event.maxRun);
+    if(event.transferStartMs >= 0) {
+        stoppedDiagnosticLog(LOG_NOTICE, "[Early] transfer start mm %d refl %d dark %d blue %d",
+                             event.transferStartMm, event.transferStartReflection, event.startedDark, event.startedBlue);
+        stoppedDiagnosticLog(LOG_NOTICE, "[Early] crossed mm %d ms %d blueSamples %d",
+                             event.crossedMm, event.crossedMs, event.blueSamples);
+    }
+    if(event.acquireOriginMm >= 0) {
+        stoppedDiagnosticLog(LOG_NOTICE, "[Early] acquire origin mm %d, fast start t=%d mm %d",
+                             event.acquireOriginMm, event.fastStartMs, event.fastStartMm);
+    }
+    stoppedDiagnosticLog(LOG_NOTICE, "[Early] samples pre %d transfer %d acquire %d fast %d",
+                         earlyPreCount, earlyTransferCount, earlyAcquireCount, earlyFastCount);
+    stoppedDiagnosticLog(LOG_NOTICE, "[Early] dropped transfer %d acquire %d fast %d (cap %d)",
+                         earlyTransferDropped, earlyAcquireDropped, earlyFastDropped, kEarlyAcquireSampleMax);
+    // リングは古いものから順に出す
+    for(int i = 0; i < earlyPreCount; i++) {
+        const int index = (earlyPreCount < kEarlyPreSampleMax) ? i : (earlyPreNext + i) % kEarlyPreSampleMax;
+        printEarlySample("pre", i, earlyPreSamples[index]);
+    }
+    for(int i = 0; i < earlyTransferCount; i++) printEarlySample("transfer", i, earlyTransferSamples[i]);
+    for(int i = 0; i < earlyAcquireCount; i++) printEarlySample("acquire", i, earlyAcquireSamples[i]);
+    for(int i = 0; i < earlyFastCount; i++) printEarlySample("fast", i, earlyFastSamples[i]);
+    earlyPreCount = earlyPreNext = 0;
+    earlyTransferCount = earlyTransferDropped = 0;
+    earlyAcquireCount = earlyAcquireDropped = 0;
+    earlyFastCount = earlyFastDropped = 0;
+}
+
+
 // 往路の詳細ログ。走りながらではなく、止まっている場所で一度だけ出す。
 // 早期returnの出し忘れを防ぐため、run()のガードのデストラクタからも呼ぶ（2回目は何もしない）
 void DeliveryTask::printOutboundDiagnostics(BlueStats& beforeCorner, BlueStats& afterCorner) {
@@ -1168,21 +1454,18 @@ void DeliveryTask::printPostCornerSamples() {
     }
 }
 
-// コーナーを曲がりきった後の次区間の設定。引き継ぎ方は曲がり方で変える。
-// ピボットで直接完了した場合は車体が振られているので履歴を捨て、初回はPだけで始める。
-// Tracerが追従したまま完了した場合は直前の実測履歴が使えるので、そのまま引き継ぐ
+// コーナーを曲がりきった後の次区間の設定。完了の仕方では分けず、行き・帰りとも同じにする。
+// 経路別の引き継ぎ（ピボット完了はrestart／追従完了は履歴維持）は挙動を比較できる形へ戻すため撤回した。
+// 旧方式ではsetConfig()の後にresetPid()を呼ぶので、再開直後の1回にD項が出ることがある。
+// これは戻す対象そのものなので、ここで再びゼロ化しない。reasonは診断のためだけに受け取る
 void DeliveryTask::applyPostCornerTracerConfig(Tracer& tracer, CornerDoneReason reason, int pwm) {
-    if(reason == CornerDoneReason::TRACE_CONFIRMED) {
-        tracer.setConfigKeepingTrackingState(0.30f, 0.01f, 0.02f, Config::TRACER_TARGET_REFLECTION, pwm);
-        syslog(LOG_NOTICE, "[Corner] post-corner config: keep tracking state (pwm %d)", pwm);
-        return;
-    }
     tracer.setConfig(0.30f, 0.01f, 0.02f, Config::TRACER_TARGET_REFLECTION, pwm);
-    tracer.restartFromNextSample();
-    syslog(LOG_NOTICE, "[Corner] post-corner config: restart from next sample (pwm %d)", pwm);
+    tracer.resetPid();
+    // 1=ピボットから直接 2=Tracerの追従中。方式は同じでも、どちらで曲がりきったかは後で分けて見る
+    syslog(LOG_NOTICE, "[Corner] post-corner config: LEGACY reset (pwm %d, reason %d)", pwm, (int)reason);
 }
 
-DeliveryTask::CornerUpdate DeliveryTask::updateCornerDetection(CornerState& state, bool isLeftTurn, float minTurnDeg, Tracer& tracer, bool isOnBlue, const char* label) {
+DeliveryTask::CornerUpdate DeliveryTask::updateCornerDetection(CornerState& state, bool isLeftTurn, float minTurnDeg, bool isOnBlue, const char* label) {
     // 1. 中断と完了を最優先。完了後は状態も進めない
     if(aborted) {
         return CornerUpdate::ABORTED;
@@ -1302,9 +1585,8 @@ DeliveryTask::CornerUpdate DeliveryTask::updateCornerDetection(CornerState& stat
         state.confirming = true;
         state.confirmStartMs = nowMs();
         state.confirmDeadlineMs = state.confirmStartMs + kCornerConfirmTimeoutMs;
-        // ピボットも振り戻しも車体を動かしているので、その前の偏差・微分の履歴は意味を持たない。
-        // 追従を再開する最初の1回だけ、現在の反射率から始め直す（接近側の設定はそのまま使う）
-        tracer.restartFromNextSample();
+        // ここではPIDを触らない。旧方式にはreset()もrestart()も無く、ピボット直後の偏差・微分を
+        // そのまま持ったまま追従へ戻る。代わりにreset()を入れると旧挙動の復元にならないので入れない
         syslog(LOG_NOTICE, "%s reacquired line (%d deg) t=%d ms. Waiting for tracer.", label, (int)turnedDeg, state.confirmStartMs);
         return CornerUpdate::REACQUIRED;
     }
@@ -1330,12 +1612,30 @@ void DeliveryTask::run() {
     // 今回の走行で何が有効か。早期returnでも残るよう先頭で出す
     syslog(LOG_NOTICE, "[Config] notifyMode %d, deferDiag %d, blue1MoveExit %d ms, blue1Handoff %d",
            (int)kColorNotifyMode, kDeferOutboundDiagnostics ? 1 : 0, kBlue1MoveExitConfirmMs, 1);
+    // コーナーを曲がりきった後のPIDの引き継ぎ方式。LEGACY=setConfig→resetPidで、REACQUIREDでは何もしない
+    syslog(LOG_NOTICE, "[Config] cornerPid=LEGACY");
+    // 早期持ち替えの選択と仮定数。どれも実機未検証なので、ログから設定を取り違えないよう全部出す
+    syslog(LOG_NOTICE, "[Config] early mode %d, startDeg10 %d, run %d, accept %d..",
+           (int)kEarlyHandoffMode, kEarlyStartProgressDeg10, kEarlyCandidateRunCount, kEarlyAcceptStartMm);
+    syslog(LOG_NOTICE, "[Config] early acceptEnd %d, pwm %d/%d, maxMm %d, maxMs %d",
+           kEarlyAcceptEndMm, kEarlyTransferLeftPwm, kEarlyTransferRightPwm, kEarlyTransferMaxMm, kEarlyTransferMaxMs);
+    syslog(LOG_NOTICE, "[Config] early headingLimit10 %d, dark %d, bright %d, minCross %d/%d",
+           kEarlyTransferHeadingLimitDeg10, kEarlyDarkReflection, kEarlyBrightReflection,
+           kEarlyMinCrossMm, kEarlyMinCrossMmStartedDark);
     aborted = false;
     // 静的領域なので、前の走行の値を必ず捨てる（条件付きでしか埋めない項目が残る）
     outboundSummary = OutboundSummary{};
     placementSummary = PlacementSummary{};
     for(PostCornerSample& sample : postCornerSamples) sample = PostCornerSample{};
     postCornerSamplesPrinted = false;
+    earlyEvent = EarlyEvent{};
+    earlyEvent.mode = (int)kEarlyHandoffMode;
+    earlyPreCount = earlyPreNext = 0;
+    earlyTransferCount = earlyTransferDropped = 0;
+    earlyAcquireCount = earlyAcquireDropped = 0;
+    earlyFastCount = earlyFastDropped = 0;
+    earlySection = EarlySection::PRE;
+    earlyLastSampleMs = -1000;
     traceEntryLog.clear();
     traceEntryPendingIndex = -1;
     const int deliveryStartMs = nowMs();
@@ -1385,32 +1685,27 @@ void DeliveryTask::run() {
     if(aborted) { robot.stop(); return; }
     logPosture("before raise 1");
 
-    // 起点は初回だけ固定。リトライでも同じ物理モーター位置を目標にする。
-    const int armHomeCount = robot.getArmCount();
-    armAbsoluteBaseDeg = -armHomeCount;
-    const int armTargetCount = armHomeCount - (Config::ARM_RAISE_DEG + kBottleRetryExtraArmDeg);
-    if(!robot.positionDeliveryArm(armTargetCount, Config::ARM_RAISE_SPEED_DEG_PER_SEC, "raise-first")) {
-        robot.stop(); return;
-    }
+    // 上げ角の上乗せ分。下げるときも同じだけ下げる。1回目から再試行と同じ角度で上げる
+    int armExtraDeg = kBottleRetryExtraArmDeg;
+    // raiseArm/lowerArmは動作の開始時にエンコーダ原点を作り直すので、診断の積算角度は動作の前に足す
+    armAbsoluteBaseDeg = 0;
+    commitArmMovement();
+    robot.raiseArm(armExtraDeg);
 
     // 3. ボトルの色を判定。読めなければアームを下げ、少し前に出ながら上げ直して読み直す
-    ColorJudge::Color bottleColor = readBottleColorAfterRaise(Config::ARM_RAISE_DEG + kBottleRetryExtraArmDeg);
+    ColorJudge::Color bottleColor = readBottleColorAfterRaise(Config::ARM_RAISE_DEG + armExtraDeg);
     for(int retry = 1; bottleColor == ColorJudge::Color::UNKNOWN && !aborted && retry <= kBottleRetryMaxCount; retry++) {
         if(robot.isCenterButtonPressed()) {
             aborted = true;
             break;
         }
-        if(!robot.positionDeliveryArm(armHomeCount, Config::ARM_LOWER_SPEED_DEG_PER_SEC, "lower-retry")) {
-            aborted=true; break;
-        }
-        // 距離対策は変更しない。従来の再試行5mmのみ維持し、上げ動作とは分離して原因を切り分ける。
-        const int moved = robot.driveStraight(kBottleRetryAdvanceMm, kBottleRetryAdvanceSpeedDegPerSec);
-        if(robot.isCenterButtonPressed() || moved < kBottleRetryAdvanceMm) { aborted=true; break; }
-        syslog(LOG_NOTICE,"Bottle retry %d/%d: same arm target %d",retry,kBottleRetryMaxCount,armTargetCount);
-        if(!robot.positionDeliveryArm(armTargetCount, Config::ARM_RAISE_SPEED_DEG_PER_SEC, "raise-retry")) {
-            aborted=true; break;
-        }
-        bottleColor = readBottleColorAfterRaise(Config::ARM_RAISE_DEG + kBottleRetryExtraArmDeg);
+        commitArmMovement();
+        robot.lowerArm(armExtraDeg);
+        armExtraDeg += kBottleRetryExtraArmDeg;
+        syslog(LOG_NOTICE, "Bottle color unknown. Retry %d/%d: advance %dmm while raising to %d deg", retry, kBottleRetryMaxCount, kBottleRetryAdvanceMm, Config::ARM_RAISE_DEG + armExtraDeg);
+        commitArmMovement();
+        robot.raiseArmWhileDriving(kBottleRetryAdvanceMm, kBottleRetryAdvanceSpeedDegPerSec, armExtraDeg);
+        bottleColor = readBottleColorAfterRaise(Config::ARM_RAISE_DEG + armExtraDeg);
     }
     if(aborted) {
         robot.stop();
@@ -1454,9 +1749,8 @@ void DeliveryTask::run() {
            nowMs() - colorDecidedMs, (int)kColorNotifyMode, pendingNotifyToneCount);
 
     // 4. アームを下げる（Robotクラスに移譲）
-    if(!robot.positionDeliveryArm(armHomeCount, Config::ARM_LOWER_SPEED_DEG_PER_SEC, "lower-final")) {
-        robot.stop(); return;
-    }
+    commitArmMovement();
+    robot.lowerArm(armExtraDeg);
     if(robot.isCenterButtonPressed()) { robot.stop(); return; }
 
     // 5. 左35・右40のパワーでkAfterArmStraightSec秒直進してラインに復帰する（蛇行探索より速く、実機ではこれで十分だった）。
@@ -1520,6 +1814,10 @@ void DeliveryTask::run() {
     tracer.setCurveDecelGain(2.3f);
     const int curveStartMm = wheelDistanceMm();
     const float curveStartHeading = robot.getImuHeading();
+    // 早期持ち替えの診断サンプルの原点（角度は接近基準から、距離は曲線開始から）
+    earlyCurveStartMm = curveStartMm;
+    earlyBaselineHeading = baselineHeading;
+    earlyCourseSign = courseSign;
     bool curveActive=true, curveSlowed=false;
     int curveSlowMm=-1, curveSlowMs=-1;
     float traceKp=0.38f;
@@ -1567,6 +1865,7 @@ void DeliveryTask::run() {
             task->printOutboundDiagnostics(*beforeCorner, *afterCorner);
             task->printPlacementDiagnostics();
             task->printPostCornerSamples();
+            task->printEarlyDiagnostics();
             drainStoppedDiagnostics();
         }
     } outboundDiagnosticsGuard{ this, &blueStatsBeforeCorner, &blueStatsAfterCorner };
@@ -1583,6 +1882,23 @@ void DeliveryTask::run() {
     // （共用して挙動を壊したことがあるため）
     Blue1Transition blue1(blue1MoveExitCount, bluePassedConfirmCount, kBlue1OvershootWhiteRunCount);
 
+    // 青1を待たない早期持ち替え。LEGACY/OBSERVE_ONLYでは制御を変えない
+    EarlyEdgeHandoff::Limits earlyLimits;
+    earlyLimits.startProgressDeg10 = kEarlyStartProgressDeg10;
+    earlyLimits.candidateRunCount = kEarlyCandidateRunCount;
+    earlyLimits.acceptStartMm = kEarlyAcceptStartMm;
+    earlyLimits.acceptEndMm = kEarlyAcceptEndMm;
+    earlyLimits.crossMaxMm = kEarlyTransferMaxMm;
+    earlyLimits.crossMaxMs = kEarlyTransferMaxMs;
+    earlyLimits.crossHeadingLimitDeg10 = kEarlyTransferHeadingLimitDeg10;
+    earlyLimits.darkReflection = kEarlyDarkReflection;
+    earlyLimits.brightReflection = kEarlyBrightReflection;
+    earlyLimits.darkRunCount = kEarlyDarkRunCount;
+    earlyLimits.brightRunCount = kEarlyBrightRunCount;
+    earlyLimits.minCrossMm = kEarlyMinCrossMm;
+    earlyLimits.minCrossMmStartedDark = kEarlyMinCrossMmStartedDark;
+    EarlyEdgeHandoff early(static_cast<EarlyEdgeHandoff::Mode>(kEarlyHandoffMode), earlyLimits);
+    bool legacyHandoffStarted = false;  // 旧青1経路（通常・踏み越え回復）へ入ったか
     bool isBlueIgnored = false;  // 踏み越え後、青1本目を二重に数えないための無視期間
     int blueIgnoreEndMs = 0;
 
@@ -1617,6 +1933,7 @@ void DeliveryTask::run() {
     // 右エッジのトレースに切り替え、手前での減速を予約する（通常時・踏み越え時で共通）。
     // コーナー判定は減速するまで始めない（姿勢の乱れによる誤検知を避けるため）
     auto startRightEdgeTrace = [&](int slowdownStartMm, const TraceEntryOptions& entryOptions) {
+        legacyHandoffStarted = true;
         tracer.setEdge(isLeftCourse ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT);
         curveLog.end(nowMs(),wheelDistanceMm());
         curveActive=false; traceKp=0.30f;
@@ -1629,6 +1946,10 @@ void DeliveryTask::run() {
         syslog(LOG_NOTICE, "Corner trace start t=%d ms", outboundCorner.armedMs);
         if(!acquireTraceEntry(tracer,"blue1",entryOptions)) return;
         tracer.setPwm(kCornerTracePwm); // 安定後はPID履歴を引き継ぐ
+        if(earlyEvent.fastStartMm <= 0) {  // 旧経路で高速へ移った位置。診断の記録範囲に使う
+            earlyEvent.fastStartMs = nowMs();
+            earlyEvent.fastStartMm = wheelDistanceMm();
+        }
         outLog.begin(nowMs(),wheelDistanceMm(),robot.getImuHeading());
     };
 
@@ -1649,7 +1970,7 @@ void DeliveryTask::run() {
 
         // 青1本目の上で線を踏み越えたら、通過を待たずに基準角度から80度へ旋回して右エッジで進む。
         // 白の連続を見るのは青1を確定してから持ち替えを始めるまでの間だけ（Blue1Transitionが持つ）
-        if(!outboundCorner.done && detectedBlueCount == 1 && !isBlueIgnored) {
+        if(!outboundCorner.done && detectedBlueCount == 1 && !isBlueIgnored && !early.isCommitted()) {
             if(blue1.updateWhite(reflection >= kCornerWhiteReflection)) {
                 curveLog.end(nowMs(),wheelDistanceMm());
                 const int detectedMs = nowMs();
@@ -1673,6 +1994,96 @@ void DeliveryTask::run() {
                 // 接続の再開方法は通常経路から段階的に入れるため、ここは従来どおり
                 startRightEdgeTrace(kCornerSlowdownStartMmAfterOvershoot, TraceEntryOptions{});
                 if(aborted) break;
+            }
+        }
+
+        // 青1を待たない早期持ち替え。踏み越え回復と同じ周期なら、上の回復が先に実行される。
+        // OBSERVE_ONLYでは候補の成立を記録するだけで、出力も制御カウンタも変えない
+        if(!outboundCorner.done && kEarlyHandoffMode != EarlyHandoffMode::LEGACY) {
+            const int progressDeg10 = (int)(-(robot.getImuHeading() - baselineHeading) * courseSign * 10.0f);
+            const int curveMm = wheelDistanceMm() - curveStartMm;
+            // 高速へ移った後は150mmまで記録して止める（旧経路で移った場合も同じ扱い）
+            const bool recordDone = earlyEvent.fastStartMm > 0 &&
+                                    wheelDistanceMm() - earlyEvent.fastStartMm > kEarlyFastRecordMm;
+            if(!recordDone) recordEarlySample(tracer, true);
+            if(!legacyHandoffStarted && !early.isCommitted()) {
+                const EarlyEdgeHandoff::Step step = early.updateCurve(progressDeg10, curveMm);
+                if(step == EarlyEdgeHandoff::Step::CANDIDATE_READY || step == EarlyEdgeHandoff::Step::START_TRANSFER) {
+                    earlyEvent.pending = true;
+                    earlyEvent.candidateMm = early.getCandidateMm();
+                    earlyEvent.candidateDeg10 = early.getCandidateDeg10();
+                    earlyEvent.windowOpenDeg10 = early.getWindowOpenDeg10();
+                    earlyEvent.maxRun = early.getMaxCandidateRun();
+                }
+                if(step == EarlyEdgeHandoff::Step::START_TRANSFER) {
+                    // ここから新経路。旧青1の弧・踏み越え回復は動かさない
+                    blue1.markSuperseded();
+                    curveLog.end(nowMs(), wheelDistanceMm());
+                    curveActive = false;
+
+                    // 横切り移動。失敗しても走行は続け、低速で線を掴み直す（元の弧はやり直さない）
+                    bool crossed = runEarlyTransfer(tracer, early, blueStatsBeforeCorner, curveStartMm);
+                    bool recovered = false;
+                    if(!crossed && !aborted) {
+                        recovered = recoverEarlyHandoff(tracer, isLeftCourse);
+                        if(!recovered && !aborted) {
+                            // 低速の探索でも線を掴めなかった。ここで初めて打ち切る
+                            aborted = true;
+                            syslog(LOG_NOTICE, "[Early] recovery failed; no line to follow");
+                        }
+                    }
+                    if(aborted) { robot.stop(); break; }
+
+                    // 反対エッジで接続してから高速へ渡す
+                    tracer.setEdge(isLeftCourse ? Tracer::Edge::RIGHT : Tracer::Edge::LEFT);
+                    traceKp = 0.30f;
+                    // コーナー接近の距離原点はここで一度だけ取る。高速開始では取り直さない
+                    const int acquireOriginMm = wheelDistanceMm();
+                    earlyEvent.acquireOriginMm = acquireOriginMm;
+                    outboundCorner.armedMs = nowMs();
+                    outboundCorner.armedMm = acquireOriginMm;
+                    isCornerSlowdownPending = true;
+                    cornerSlowdownStartMm = kCornerSlowdownStartMm;
+                    syslog(LOG_NOTICE, "Early handoff: acquire from %d mm, slowdown at +%d mm (crossed %d, recovered %d)",
+                           acquireOriginMm, cornerSlowdownStartMm, crossed ? 1 : 0, recovered ? 1 : 0);
+
+                    bool connected = recovered;  // 復帰経路は既に接続済み
+                    if(!connected) {
+                        earlySection = EarlySection::ACQUIRE;
+                        TraceEntryOptions earlyOptions;
+                        earlyOptions.explicitRestart = true;
+                        earlyOptions.continuousHandoff = true;
+                        earlyOptions.rejectBlue = true;      // 青の上で「安定した」としない
+                        earlyOptions.abortOnFailure = false;  // 失敗しても打ち切らない
+                        connected = acquireTraceEntry(tracer, "early", earlyOptions);
+                        if(!connected && !aborted) {
+                            // 接続だけ失敗。線探索からやり直す
+                            connected = recoverEarlyHandoff(tracer, isLeftCourse);
+                            if(!connected && !aborted) {
+                                aborted = true;
+                                syslog(LOG_NOTICE, "[Early] entry failed and recovery failed");
+                            }
+                        }
+                    }
+                    if(aborted) { robot.stop(); break; }
+
+                    // 接続中にコーナー接近の距離へ達していたら、97へは上げない。
+                    // 止めはせず、減速したままコーナー判定へ引き継ぐ
+                    if(wheelDistanceMm() - acquireOriginMm >= cornerSlowdownStartMm) {
+                        early.markFailed(EarlyEdgeHandoff::AbortReason::DISTANCE);
+                        syslog(LOG_NOTICE, "[Early] already at the corner slowdown distance; staying slow");
+                    } else {
+                        tracer.setPwm(kCornerTracePwm);
+                        early.markFast();
+                    }
+                    earlySection = EarlySection::FAST;
+                    earlyEvent.fastStartMs = nowMs();
+                    earlyEvent.fastStartMm = wheelDistanceMm();
+                    outLog.begin(nowMs(), wheelDistanceMm(), robot.getImuHeading());
+                }
+                earlyEvent.phase = (int)early.getPhase();
+                earlyEvent.missed = (int)early.getMissed();
+                earlyEvent.abortReason = (int)early.getAbortReason();
             }
         }
 
@@ -1754,22 +2165,32 @@ void DeliveryTask::run() {
                     syslog(LOG_NOTICE, "Blue %d entry: +%d ms / +%d mm since corner cleared", detectedBlueCount, nowMs() - outboundCornerClearedMs, wheelDistanceMm() - outboundCornerClearedMm);
                 }
                 if(detectedBlueCount == 1) {
-                    // 青1本目の上に乗っている間（判定しなくなるまで）は速度を落とす
-                    tracer.setPwm(kOnFirstBlueLinePwm);
-                    blue1.acceptBlue();
-                    syslog(LOG_NOTICE, "[Blue1] entry t=%d ms, heading %d", nowMs(), headingFromBaseline());
+                    // 早期持ち替え後は、青を観測しても旧設定（78）や旧弧へは戻さない。
+                    // 本数と位置の記録だけ続ける
+                    if(!early.isCommitted()) {
+                        // 青1本目の上に乗っている間（判定しなくなるまで）は速度を落とす
+                        tracer.setPwm(kOnFirstBlueLinePwm);
+                        blue1.acceptBlue();
+                    }
+                    syslog(LOG_NOTICE, "[Blue1] entry t=%d ms, heading %d (early %d)",
+                           nowMs(), headingFromBaseline(), early.isCommitted() ? 1 : 0);
                 }
-                // 指定回数に達したら、その場ですぐに終了する
+                // 指定回数に達したら、その場ですぐに終了する。
+                // 早期移行後は青を観測にしか使わないので、旧カウンタに走行を終わらせる権限を渡さない
                 if(detectedBlueCount >= targetBlueLineCount) {
-                    // 配置はコーナー後の距離窓内の実検知だけで開始する。
-                    aborted=true;
-                    robot.stop();
-                    syslog(LOG_NOTICE, "Unexpected blue count before corner. Stopping without placement.");
-                    break;
+                    if(early.isCommitted()) {
+                        syslog(LOG_NOTICE, "Blue count reached before corner (early path; observation only).");
+                    } else {
+                        // 配置はコーナー後の距離窓内の実検知だけで開始する。
+                        aborted=true;
+                        robot.stop();
+                        syslog(LOG_NOTICE, "Unexpected blue count before corner. Stopping without placement.");
+                        break;
+                    }
                 }
             }
             isOnBlueForCorner = isCurrentlyOnBlue;
-        } else if(detectedBlueCount == 1) {
+        } else if(detectedBlueCount == 1 && !early.isCommitted()) {
             // 青1本目の上にいる。再受付（次の青を数え直す）と持ち替えの開始を別々に判断する
             BlueStats& blueStats = outboundCorner.done ? blueStatsAfterCorner : blueStatsBeforeCorner;
             const Blue1Transition::Action blue1Action = blue1.updateBlue(isBlueReading(blueStats));
@@ -1882,7 +2303,7 @@ void DeliveryTask::run() {
         }
 
         // Lコースでは左90度コーナーなので左へ回す
-        const CornerUpdate cornerUpdate = updateCornerDetection(outboundCorner, isLeftCourse, kCornerPivotMinTurnDeg, tracer, isOnBlueForCorner, "Corner");
+        const CornerUpdate cornerUpdate = updateCornerDetection(outboundCorner, isLeftCourse, kCornerPivotMinTurnDeg, isOnBlueForCorner, "Corner");
         if(aborted) break;
         (void)cornerUpdate;
         if(outboundCorner.done && outboundCornerClearedMm < 0) {
@@ -1984,7 +2405,9 @@ void DeliveryTask::run() {
     diagonalMoveUntilImuTurn(isLeftCourse, kDiagonalPwmHigh, robot.getImuHeading(), kDiagonalTurnDeg);
     if(aborted) { robot.stop(); return; }
 
-    if(!brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs, "after diagonal").ok()) { robot.stop(); return; }
+    // 時間切れでは止めない（ボタンのときだけabortedが立つ）。結果はログに残す
+    brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs, "after diagonal", false);
+    if(aborted) { robot.stop(); return; }
 
     syslog(LOG_NOTICE, "Driving backward %dmm (duty limit %d)", kAreaBackwardMm, kAreaBackwardDutyLimit);
     // Robot::driveStraight()は先頭でresetMotorCounts()するので、外側で車輪距離の差を取ると原点が変わる。
@@ -1992,10 +2415,10 @@ void DeliveryTask::run() {
     const int backwardDrivenMm = driveStraightWithDutyLimit(kAreaBackwardMm, kAreaBackwardSpeedDegPerSec, kAreaBackwardDutyLimit);
     const int backwardCommandEndMm = wheelDistanceMm();
     // driveStraight()の末尾はstop()（coast）なので、指令が終わった後も惰性で進む。行き過ぎの本体はここ
-    const bool backwardSettled = brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs, "after backward").ok();
+    brakeUntilStopped(kSettleSpeedDegPerSec, kSettleTimeoutMs, "after backward", false);
     const int backwardOverrunMm = wheelDistanceMm() - backwardCommandEndMm;
     syslog(LOG_NOTICE, "Backward: commanded %d mm, driven %d mm, overrun %d mm, total %d mm", kAreaBackwardMm, backwardDrivenMm, backwardOverrunMm, backwardDrivenMm + backwardOverrunMm);
-    if(!backwardSettled || aborted) { robot.stop(); return; }
+    if(aborted) { robot.stop(); return; }
 
     syslog(LOG_NOTICE, "Turning %d degrees in place", (int)kAreaTurnDeg);
     turnInPlaceByImu(isLeftCourse ? kAreaTurnPwm : -kAreaTurnPwm, isLeftCourse ? -kAreaTurnPwm : kAreaTurnPwm, kAreaTurnDeg);
@@ -2033,6 +2456,9 @@ void DeliveryTask::run() {
 
     static BlueStats returnBlueStats;
     returnBlueStats=BlueStats{};
+    // 青の位置を、コーナーの距離と同じ原点（帰りのトレース開始）で出す。
+    // 原点が違うと「青が判定窓の中に入ったか」をログから読めない
+    returnBlueStats.distanceOriginMm=returnEntryStartMm;
     CornerState returnCorner;
     // 帰りにも直角コーナーが1つある。行きは左折だったが帰りは右折になる（Lコース基準）。
     // 判定の開始と減速は、トレース開始からの距離で行う（位置はボトル色で決まる）
@@ -2044,6 +2470,7 @@ void DeliveryTask::run() {
     const int returnCornerSlowdownStartMm = kReturnCornerSlowdownStartMmYellow + kReturnCornerColorStepMm * returnColorSteps;
     bool isReturnCornerDetectStartPending = true;
     bool isReturnCornerSlowdownPending = true;
+    bool isReturnFastTraceDone = false;  // 直線用の最速トレースが終わって減速に入ったか
     syslog(LOG_NOTICE, "Return trace start t=%d ms: slowdown at %d mm, corner detection at %d mm", returnCorner.armedMs, returnCornerSlowdownStartMm, returnCornerDetectStartMm);
 
     // 曲がりきった地点。終了までの距離の起点。-1はまだ曲がりきっていない
@@ -2059,26 +2486,33 @@ void DeliveryTask::run() {
         if(isReturnCornerSlowdownPending && returnTracedMm >= returnCornerSlowdownStartMm) {
             isReturnCornerSlowdownPending = false;
             if(!returnCorner.done) {
+                isReturnFastTraceDone = true;
                 returnLog.end(nowMs(),wheelDistanceMm());
                 tracer.setConfig(0.38f,0.01f,0.02f,Config::TRACER_TARGET_REFLECTION,kCornerApproachPwm);
                 // 曲がりきると下でkReturnAfterCornerFastPwmに上書きする
                 syslog(LOG_NOTICE, "Return corner slowdown to pwm %d t=%d ms (+%d mm since trace start)", kCornerApproachPwm, nowMs(), returnTracedMm);
             }
         }
-        if(isReturnCornerDetectStartPending && returnTracedMm >= returnCornerDetectStartMm) {
+        // 白の連続を数え始めるのは、直線用の最速トレースが終わって減速に入ってから。
+        // 高速のまま揺れている区間で数え始めない。距離の下限も併せて残す
+        // （時間で始めていた頃、エリア付近の揺れで白が9回続き黄の356mmで誤検知した）
+        if(isReturnCornerDetectStartPending && isReturnFastTraceDone && returnTracedMm >= returnCornerDetectStartMm) {
             isReturnCornerDetectStartPending = false;
             returnCorner.pending = true;
             returnCorner.enableLoop = returnCorner.loopCount;  // 次の周期から有効
+            syslog(LOG_NOTICE, "Return corner detection armed after slowdown (+%d mm since trace start)", returnTracedMm);
         }
 
-        // コーナー判定の抑制（青を跨ぐときの脇の白）にだけ青判定を使う。終了条件には使わない
-        bool isOnBlueForCorner = false;
+        // エリア配置より後は、青を行動に一切使わない。
+        // 以前はコーナー判定の抑制（青を跨ぐときの脇の白）に使っていたが、
+        // 抑制が入るとコーナーの完了時刻＝ラリーへの引き渡し時刻まで青に左右される。
+        // 読むのは診断のためだけで、制御へは渡さない
         if(!returnCorner.done) {
-            isOnBlueForCorner = isBlueReading(returnBlueStats);
+            isBlueReading(returnBlueStats);
         }
 
-        // 帰りはLコースで右90度コーナーなので、行きとは逆の右へ回す
-        const CornerUpdate returnCornerUpdate = updateCornerDetection(returnCorner, !isLeftCourse, kCornerPivotReturnMinTurnDeg, tracer, isOnBlueForCorner, "Return corner");
+        // 帰りはLコースで右90度コーナーなので、行きとは逆の右へ回す。青は渡さない（常にfalse）
+        const CornerUpdate returnCornerUpdate = updateCornerDetection(returnCorner, !isLeftCourse, kCornerPivotReturnMinTurnDeg, false, "Return corner");
 
         if(aborted) break;
         (void)returnCornerUpdate;
@@ -2112,6 +2546,7 @@ void DeliveryTask::run() {
     printOutboundDiagnostics(blueStatsBeforeCorner, blueStatsAfterCorner);
     printPlacementDiagnostics();
     printPostCornerSamples();
+    printEarlyDiagnostics();
     returnLog.print();finishLog.print();
     printTraceEntryRecords();
     logBlueStats("return", returnBlueStats);
