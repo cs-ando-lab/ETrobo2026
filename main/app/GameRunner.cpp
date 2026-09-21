@@ -23,9 +23,9 @@ void GameRunner::run() {
     }
 
     // モード管理用の配列と変数
-    const char modeChars[] = { 'O', 'D', 'R', 'T' };
-    const int MODE_MAX = 3;
-    int startMode = 0;  // 0:本番(O), 1:デリバリー(D), 2:ラリー(R), 3:テスト(T)
+    const char modeChars[] = { 'O', 'D', 'R', 'T', 'B' };
+    const int MODE_MAX = 4;
+    int startMode = 0;  // 0:本番(O), 1:デリバリー(D), 2:ラリー(R), 3:テスト(T), 4:デリバリーのみ(B)
 
     // 試走会用のモード切替
     robot.showChar(modeChars[startMode]);
@@ -67,9 +67,14 @@ void GameRunner::run() {
             return;
         }
 
-        // ボトルデリバリー
+        // ボトルデリバリー。
+        // ラリーへ進めるのは、帰りの90度コーナーを曲がりきってから規定距離を走り終えた場合だけ。
+        // 中断・失敗・早期returnはすべてここで終える（青の検知や配置の完了では進めない）
         DeliveryTask delivery(robot);
-        delivery.run();
+        if(!delivery.run()) {
+            syslog(LOG_ALERT, "DELIVERY DID NOT COMPLETE THE RETURN RUN; NOT STARTING THE RALLY");
+            return;
+        }
 
         // ETラリー
         RallyTask rally(robot);
@@ -84,13 +89,17 @@ void GameRunner::run() {
         return;
     }
 
-    // 1. LAPゲートまでライントレース → ボトルデリバリー
+    // 1. LAPゲートまでライントレース → ボトルデリバリー（この後ラリーへ続く）
     if(startMode <= 1) {
         if(!lineTraceUntilLap()) {
             return;
         }
+        // 下のラリーへ落ちてよいのは、Deliveryが正常に帰還した場合だけ
         DeliveryTask delivery(robot);
-        delivery.run();
+        if(!delivery.run()) {
+            syslog(LOG_ALERT, "DELIVERY DID NOT COMPLETE THE RETURN RUN; NOT STARTING THE RALLY");
+            return;
+        }
     }
 
     // 2. ETラリー
@@ -104,6 +113,15 @@ void GameRunner::run() {
     if(startMode <= 3) {
         Test test(robot);
         test.run();
+        return;
+    }
+
+    // 4. デリバリーのみ。LAPゲートまでのライントレースも、その後のラリーも行わない（調整用）。
+    // 正常に帰還してもラリーへは移らない
+    if(startMode <= 4) {
+        DeliveryTask delivery(robot);
+        const bool returnCompleted = delivery.run();
+        syslog(LOG_NOTICE, "Delivery-only mode finished (returnCompleted %d). Not starting the rally.", returnCompleted ? 1 : 0);
         return;
     }
 

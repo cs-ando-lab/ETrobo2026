@@ -23,8 +23,19 @@ public:
     // deltaSec: 前回計算してからの経過時間[秒]（省略時は10ms周期を想定）
     float calculate(float currentValue, float deltaSec = 0.01f);
 
-    // 積分値・微分値の内部状態をリセットする（目標値を大きく変える時などに使う）
+    // 積分値・微分値の内部状態をリセットする（目標値を大きく変える時などに使う）。
+    // restartFromNextSample()の予約が残っていれば取り消す（初期化の方法をどちらか一方に決める）
     void reset();
+
+    // 次のcalculate()を、その時の現在値から始め直す。reset()は前回偏差を0にするため、
+    // 再開直後の微分が「現在偏差 - 0」として計算され、センサー値が動いていなくてもD項が出る。
+    // こちらは初回の前回偏差を今回の偏差そのもので初期化し、初回のI・Dを0にする。
+    // 2回目からは通常の台形積分・微分フィルタに戻る。ゲインや目標値を設定した後に呼ぶこと
+    void restartFromNextSample();
+
+    // 再開の予約が残っているか。予約中に「状態を保ったままゲインを変える」ような操作をすると、
+    // 次の1回で黙って初期化されてしまうため、呼び出し側が検出できるようにする
+    bool hasPendingRestart() const { return pendingRestart; }
 
     // 積分値だけをリセットする。reset()は前回偏差と微分フィルタまでゼロにするため、
     // 「積分の持ち越しだけを消す」試験には使えない（次周期の微分が「現在偏差−0」から計算されてしまう）
@@ -45,6 +56,7 @@ private:
     float prevDeviation = 0.0f;       // 前回の偏差
     float integral = 0.0f;            // 偏差の累積(積分項)
     float filteredDerivative = 0.0f;  // ローパスフィルタをかけた微分項
+    bool pendingRestart = false;      // restartFromNextSample()の予約。次のcalculate()で消費する
     float lastP = 0.0f;               // 診断用。直近のP/I/Dの内訳
     float lastI = 0.0f;
     float lastD = 0.0f;

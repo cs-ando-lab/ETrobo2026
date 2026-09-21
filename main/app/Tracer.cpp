@@ -54,6 +54,33 @@ void Tracer::setConfig(float newKp, float newKi, float newKd, int32_t newTarget,
     updateConfig(newConfig);
 }
 
+void Tracer::setConfigKeepingTrackingState(float newKp, float newKi, float newKd, int32_t newTarget, int newPwm) {
+    if(newTarget < 0 || newTarget > 100) {
+        syslog(LOG_ERROR, "invalid target value : target must be 0 ~ 100");
+        return;
+    }
+    if(newPwm < 0 || newPwm > 100) {
+        syslog(LOG_ERROR, "invalid pwm : pwm must be 0 ~ 100");
+        return;
+    }
+    if(newTarget != pidConfig.targetReflection) {
+        syslog(LOG_ERROR, "keep-state config : target must stay the same");
+        return;
+    }
+    if(pid.hasPendingRestart()) {
+        // 予約が残ったまま続けると、次の1回で履歴が黙って消える
+        syslog(LOG_ERROR, "keep-state config : restart is pending");
+        return;
+    }
+
+    // 前回偏差と微分フィルタは残す。新しいKdで次の周期のDを計算する。
+    // 積分だけは旧経路のリセットと同じく0へ戻し、次の周期から積み直す
+    pidConfig = PidConfig{ newKp, newKi, newKd, newTarget, newPwm };
+    pid.setGain(newKp, newKi, newKd);
+    pid.setTarget(newTarget);
+    pid.resetIntegral();
+}
+
 void Tracer::setTarget(int32_t newTarget) {
     if(newTarget < 0 || newTarget > 100) {
         syslog(LOG_ERROR, "invalid target value : target must be 0 ~ 100");
@@ -80,6 +107,11 @@ void Tracer::setLeftMotorOffset(int newOffset) {
 
 void Tracer::resetPid() {
     pid.reset();
+}
+
+void Tracer::restartFromNextSample() {
+    pid.restartFromNextSample();
+    filteredTurnMag = 0.0f;
 }
 
 void Tracer::resetPidIntegral() {

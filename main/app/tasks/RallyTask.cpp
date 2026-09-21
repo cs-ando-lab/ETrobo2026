@@ -41,17 +41,17 @@ void RallyTask::run() {
 
     // [2] - 格子点移動フェーズ
     /* 青ラインの右端から1/4の地点まで行く : runStraight(青ライン1/4[mm] - (秒速[mm/s] * 2 * 0.01[s])[mm]) */
-    turnToDirection(RallyTypes::Direction::WEST, Config::ETRALLY_SLOW_TURN_SPEED);
+    turnToDirection(RallyTypes::Direction::WEST, Config::ETRALLY_DEFAULT_TURN_SPEED);
     moveToDirection(Config::DISTANCE_FROM_COLORCENSOR_TO_WHEEL
                         + (Config::BLUE_LINE_LENGTH_MM / 4.0f),
                     RallyTypes::Direction::WEST,
-                    Config::ETRALLY_SLOW_DRIVE_SPEED);
+                    Config::ETRALLY_DEFAULT_DRIVE_SPEED);
     /* 開始格子点まで行く : 90°右転回 → 開始格子点までの距離[mm]直進 */
-    turnToDirection(RallyTypes::Direction::NORTH, Config::ETRALLY_SLOW_TURN_SPEED);
+    turnToDirection(RallyTypes::Direction::NORTH, Config::ETRALLY_DEFAULT_TURN_SPEED);
     moveToDirection(Config::BLUE_LINE_WIDTH_MM
                         + Config::START_GRID_POINT_TO_START_LINE_MM,
                     RallyTypes::Direction::NORTH,
-                    Config::ETRALLY_SLOW_DRIVE_SPEED);
+                    Config::ETRALLY_DEFAULT_DRIVE_SPEED);
 
     // [3-1] - ルート算出フェーズ
     /* 格子上のルートを求める */

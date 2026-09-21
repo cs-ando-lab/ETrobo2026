@@ -13,7 +13,11 @@ using namespace spikeapi;
 class DeliveryTask {
 public:
     DeliveryTask(Robot& robot);
-    void run();
+    // 戻り値は「帰りの90度コーナーを曲がりきってから規定距離を走り終え、正常に帰還した」か。
+    // trueを返せるのは帰りのループをその距離条件で抜けた場合だけで、中断・失敗・早期returnは
+    // すべてfalse。ラリーへ移ってよいかの判断にはこの値だけを使うこと（aborted==falseや
+    // 「run()から戻った」ことを根拠にしない）
+    bool run();
 
 private:
     Robot& robot;

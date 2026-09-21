@@ -759,6 +759,15 @@ void Robot::beep(int ms) {
     speaker.playTone(NOTE_A4, ms);
 }
 
+void Robot::startBeepNonBlocking() {
+    // SOUND_MANUAL_STOPを渡すと待たずに戻る（spike-rtのhub_speaker_play_tone）
+    speaker.playTone(NOTE_A4, SOUND_MANUAL_STOP);
+}
+
+void Robot::stopBeep() {
+    speaker.stop();
+}
+
 void Robot::resetMotorCounts() {
     leftMotor.resetCount();
     rightMotor.resetCount();
