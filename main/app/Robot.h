@@ -133,7 +133,11 @@ public:
     void showChar(char c);                        // ディスプレイに1文字表示
     void showImage(const uint8_t image[25]);      // ディスプレイに5x5の輝度パターン(0～100)を表示
     void off();                                   // ディスプレイを消灯
-    void beep(int ms = Config::BEEP_DEFAULT_MS);  // ビープ音
+    void beep(int ms = Config::BEEP_DEFAULT_MS);  // ビープ音（鳴り終わるまで戻らない）
+    // beep()と同じ音を、鳴り終わるのを待たずに開始する。走行ループの中から鳴らす用。
+    // 自動では止まらないので、鳴らし始めた側が必ずstopBeep()で止めること
+    void startBeepNonBlocking();
+    void stopBeep();  // 再生中の音を止める（鳴っていなければ何も起きない）
 
     // ── エンコーダー（距離計算に使う）───────────────────
     void resetMotorCounts();         // カウントをリセット

@@ -1,6 +1,7 @@
 #ifndef DELIVERYTASK_H_
 #define DELIVERYTASK_H_
 
+#include "ColorNotifier.h"
 #include "Robot.h"
 
 class Tracer;
@@ -29,6 +30,25 @@ private:
         FAILED       // 正方向・振り戻しとも線を発見できなかった
     };
 
+    // コーナーを曲がりきった理由。PIDの引き継ぎ方が経路ごとに変わるので区別する
+    enum class CornerDoneReason {
+        NONE,
+        PIVOT_CLEARED,   // ピボット／振り戻しの直後に完了角度へ届いていた
+        TRACE_CONFIRMED  // 線に復帰した後、Tracerが追従したまま完了角度へ届いた
+    };
+
+    // コーナー判定の1周期の結果
+    enum class CornerUpdate {
+        IDLE,             // 判定していない（完了済み・受付前）
+        TRACKING,         // 通常追従。白の連続を見ているだけ
+        CONFIRMING,       // 線に復帰済みで、Tracerが曲がりきるのを待っている
+        REACQUIRED,       // この周期でピボットから線に復帰した
+        PIVOT_FAILED,     // この周期のピボットが線を見つけられなかった
+        DONE_PIVOT,       // ピボットから直接完了した
+        DONE_TRACE,       // Tracerの追従中に完了した
+        ABORTED
+    };
+
     // 青判定の診断集計。制御で使ったのと同じ読み取り値だけを渡す（診断のためにセンサーを追加で読まない）
     struct BlueStats {
         int maxSaturationInHue = 0;  // 青の色相範囲内で見えた最大彩度
@@ -52,12 +72,23 @@ private:
         bool enabled = false;     // 白の連続を数えている
         bool confirming = false;  // 線には復帰した。Tracerが残りを曲がりきるのを待っている
         bool done = false;        // 曲がりきった。以降は一切判定しない
+        CornerDoneReason doneReason = CornerDoneReason::NONE;
         int whiteRun = 0;
         int suppressCount = 0;
         int loopCount = 0;
         int enableLoop = 0;
-        int confirmDeadlineLoop = 0;
+        // 確認の期限は周期数ではなく内部時計で持つ。青や再検知の抑制で無期限に延びないようにする
+        int confirmStartMs = -1;
+        int confirmDeadlineMs = -1;
         float startHeading = 0.0f;  // コーナーを検知した時点の方位
+
+        // 診断専用。完了の経路と、そのときの状況
+        int doneMs = -1;
+        int doneTurnDeg = 0;
+        int doneReflection = -1;
+        int doneSuppressRemaining = 0;   // 完了時に残っていた再検知の抑制数
+        int confirmedWhileSuppressed = 0;  // 抑制が残ったまま完了できた回数（今回の分離が効いたか）
+        int confirmExpiredCount = 0;       // 確認の期限切れ回数
 
         // 診断専用。検知に使われた白連続（＝しきい値に達したもの）は除いて最大値を取るので、
         // 「直線部でどこまで白が続くか」＝しきい値までのマージンがそのまま読める
@@ -81,8 +112,10 @@ private:
     // 上記を連続一致で確定させる。決まらなければUNKNOWN
     ColorJudge::Color confirmBottleColor();
 
-    // 判定した色を鳴らして知らせる。回数は色ごと（黄1・青2・赤3）
-    void notifyBottleColor(int beepCount);
+    // 色の通知音。走行ループの中から、鳴り終わりを待たずに鳴らす
+    void applyNotifierAction(ColorNotifier::Action action);
+    void logColorNotify(const ColorNotifier& notifier, int plannedCount, int startMs, const char* reason,
+                        int maxIntervalMs, int loopCount);
 
     // アームを上げた直後に色を読む一式（整定待ち・診断ログ・確定）
     ColorJudge::Color readBottleColorAfterRaise(int targetDeg);
@@ -170,7 +203,19 @@ private:
 
     // コーナー検知の1周期分の更新。ライントレースのループから毎周期呼ぶ。
     // labelはログの接頭辞（行き/帰りの区別用）
-    void updateCornerDetection(CornerState& state, bool isLeftTurn, float minTurnDeg, Tracer& tracer, bool isOnBlue, const char* label);
+    CornerUpdate updateCornerDetection(CornerState& state, bool isLeftTurn, float minTurnDeg, Tracer& tracer, bool isOnBlue, const char* label);
+    // 往路の詳細ログを、止まっている場所で一度だけ出す
+    void printOutboundDiagnostics(BlueStats& beforeCorner, BlueStats& afterCorner);
+    // 配置の開始位置の比較。往路の詳細ログの設定に関わらず出す
+    void printPlacementDiagnostics();
+    // コーナー後の最初の制御の内訳。走行中は採るだけ
+    void armPostCornerSample(const char* label, int reason);
+    void capturePostCornerSample(Tracer& tracer);
+    void printPostCornerSamples();
+    // コーナー完了後の次区間の設定。完了の経路によってPIDの引き継ぎ方を変える
+    void applyPostCornerTracerConfig(Tracer& tracer, CornerDoneReason reason, int pwm);
+    // 新しいピボットへ入る前に、古い確認状態を残さない
+    void clearCornerConfirm(CornerState& state);
 };
 
 #endif  // !DELIVERYTASK_H_

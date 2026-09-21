@@ -26,6 +26,7 @@ void Pid::resetIntegral() {
 }
 
 void Pid::reset() {
+    pendingRestart = false;
     prevDeviation = 0.0f;
     integral = 0.0f;
     filteredDerivative = 0.0f;

@@ -70,6 +70,54 @@ int main() {
         assert(near(pid.getLastI(), 0.0f));
     }
 
+    // reset()は再開の予約を取り消す。初期化の方法が二重に掛からない。
+    {
+        Pid pid(kKp, kKi, kKd, kTarget);
+        pid.restartFromNextSample();
+        assert(pid.hasPendingRestart());
+        pid.reset();
+        assert(!pid.hasPendingRestart());
+        pid.calculate(15.0f, kDt);
+        assert(pid.getLastD() > 0.0f);  // 予約は消えているので旧reset()どおりの初回D
+    }
+
+    // 逆順（reset→予約）なら予約が残る。
+    {
+        Pid pid(kKp, kKi, kKd, kTarget);
+        pid.reset();
+        pid.restartFromNextSample();
+        assert(pid.hasPendingRestart());
+        pid.calculate(15.0f, kDt);
+        assert(near(pid.getLastD(), 0.0f));
+        assert(!pid.hasPendingRestart());
+    }
+
+    // 追従を続けたままゲインを変える経路（Tracer::setConfigKeepingTrackingStateが行う操作）。
+    // 前回偏差と微分フィルタは残り、積分だけが0に戻る。
+    {
+        Pid keep(kKp, kKi, kKd, kTarget), reference(kKp, kKi, kKd, kTarget);
+        for(int i = 0; i < 50; ++i) {
+            keep.calculate(50.0f, kDt);
+            reference.calculate(50.0f, kDt);
+        }
+        assert(keep.getLastI() > 0.0f);
+
+        keep.setGain(0.30f, 0.01f, 0.02f);
+        keep.setTarget(kTarget);
+        keep.resetIntegral();
+        const float after = keep.calculate(45.0f, kDt);
+
+        // 同じ履歴のまま積分だけ捨てたのと一致する（前回偏差・微分フィルタが残っている証拠）
+        reference.setGain(0.30f, 0.01f, 0.02f);
+        reference.resetIntegral();
+        const float expected = reference.calculate(45.0f, kDt);
+        assert(near(after, expected));
+        assert(keep.getLastD() > 0.0f);           // 実際に5だけ動いたぶんのDが出る
+        // 積分はこの周期ぶんだけ。台形なので前回偏差(60-50)が残っていることもここで効く
+        const float trapezoid = ((kTarget - 45.0f) + (kTarget - 50.0f)) * kDt / 2.0f;
+        assert(near(keep.getLastI(), kKi * trapezoid));
+    }
+
     // dtが0以下のときの既存の保護（0.01秒として扱う）は変わらない。
     {
         Pid a(kKp, kKi, kKd, kTarget), b(kKp, kKi, kKd, kTarget);

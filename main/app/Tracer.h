@@ -46,6 +46,13 @@ public:
     // カーブ減速のEMAもここで0にし、初回の実際の操舵量から通常どおり積み上げ直す
     void restartFromNextSample();
 
+    // 追従したままゲイン・PWMを切り替える。setConfig()はゲインが変わるとPIDと減速フィルタを
+    // リセットするため、区間をまたいで実測の履歴を引き継ぎたい場面では使えない。
+    // 前回偏差・微分フィルタ・カーブ減速のEMAを保持し、積分だけを0に戻す。
+    // 目標反射率が今と違う場合、値が不正な場合、再開が予約されている場合は何も変えない。
+    // エッジを変える切り替えには使わないこと（履歴の意味が変わる）
+    void setConfigKeepingTrackingState(float newKp, float newKi, float newKd, int32_t newTarget, int newPwm);
+
     // PIDの内部状態（積分・微分）をリセットする。ゲインを途中で変えるときに、
     // 前の区間で溜まった積分がそのまま効いてしまうのを防ぐ。
     // 微分の履歴まで消えるので、積分だけを消したいときはresetPidIntegral()を使う
