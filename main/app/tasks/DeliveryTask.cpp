@@ -1,5 +1,6 @@
 #include "DeliveryTask.h"
 #include "AreaBlueGate.h"
+#include "ColorNotifier.h"
 #include "Tracer.h"
 #include "Config.h"
 #include "CourseConfig.h"
@@ -60,6 +61,10 @@ namespace {
     constexpr int kBottleColorTimeoutMs = 1000;
 
     // ── アームを下げた直後の直進（これだけでラインへ復帰させる）──
+    // 色の通知音。アームを下げた後の固定移動に重ねて鳴らす（鳴らすために走行を待たせない）
+    constexpr int kColorToneMs = 100;
+    constexpr int kColorGapMs = 100;
+
     constexpr int kAfterArmStraightLeftPwm = 35;
     constexpr int kAfterArmStraightRightPwm = 40;
     constexpr float kAfterArmStraightSec = 1.0f;
@@ -1024,30 +1029,26 @@ bool DeliveryTask::run() {
         return false;
     }
     int targetBlueLineCount = 0;  // 目標の青ライン通過回数
+    int pendingNotifyToneCount = 0;  // 通知で鳴らす回数。鳴らすのは下のアーム下降後の直進中
+    const int colorDecidedMs = nowMs();
 
-    // 判定結果に応じてビープ音を鳴らし、目標通過回数を設定
+    // 判定結果に応じて目標通過回数と通知回数を決める。ここでは鳴らさず、待ちも置かない
     switch(bottleColor) {
         case ColorJudge::Color::YELLOW:
             syslog(LOG_NOTICE, "Bottle Color: YELLOW");
-            robot.beep(100);
+            pendingNotifyToneCount = 1;
             targetBlueLineCount = 2;
             break;
 
         case ColorJudge::Color::BLUE:
             syslog(LOG_NOTICE, "Bottle Color: BLUE");
-            robot.beep(100);
-            dly_tsk(100 * 1000);
-            robot.beep(100);
+            pendingNotifyToneCount = 2;
             targetBlueLineCount = 3;
             break;
 
         case ColorJudge::Color::RED:
             syslog(LOG_NOTICE, "Bottle Color: RED");
-            robot.beep(100);
-            dly_tsk(100 * 1000);
-            robot.beep(100);
-            dly_tsk(100 * 1000);
-            robot.beep(100);
+            pendingNotifyToneCount = 3;
             targetBlueLineCount = 4;
             break;
 
@@ -1062,23 +1063,43 @@ bool DeliveryTask::run() {
 
     // 4. アームを下げる（Robotクラスに移譲）。
     // 下げ切れなくても走行自体は続けられるので、未達は記録するだけにする
+    const int lowerStartMs = nowMs();
     if(!robot.positionDeliveryArm(armHomeCount, Config::ARM_LOWER_SPEED_DEG_PER_SEC, "lower-final")) {
         syslog(LOG_NOTICE, "lower-final did not reach the target; continuing to the line");
     }
     if(robot.isCenterButtonPressed()) { robot.stop(); return false; }
 
-    // 5. 左35・右40のパワーでkAfterArmStraightSec秒直進してラインに復帰する（蛇行探索より速く、実機ではこれで十分だった）
+    // 5. 左35・右40のパワーでkAfterArmStraightSec秒直進してラインに復帰する（蛇行探索より速く、実機ではこれで十分だった）。
+    // 色の通知音はこの移動に重ねる。移動の時間も出力も変えず、音のための待ちは入れない
+    ColorNotifier notifier(kColorToneMs, kColorGapMs);
+    notifier.start(pendingNotifyToneCount, nowMs());
     int afterArmStraightLoopCount = static_cast<int>(kAfterArmStraightSec * 1000 * 1000 / Config::MOTION_POLL_INTERVAL_US);
+    int straightMaxGapMs = 0, straightLastMs = nowMs();
     for(int i = 0; i < afterArmStraightLoopCount; i++) {
         if(robot.isCenterButtonPressed()) {
             aborted = true;
+            // 自分が鳴らした音は必ず止めてから抜ける
+            if(notifier.cancel() == ColorNotifier::Action::STOP_TONE) robot.stopBeep();
             robot.stop();
             return false;
         }
         robot.setMotorPower(kAfterArmStraightLeftPwm, kAfterArmStraightRightPwm);
+        // 音の更新は出力の後。診断として制御周期の最大間隔も見る
+        const int loopMs = nowMs();
+        if(i > 0 && loopMs - straightLastMs > straightMaxGapMs) straightMaxGapMs = loopMs - straightLastMs;
+        straightLastMs = loopMs;
+        switch(notifier.update(loopMs)) {
+            case ColorNotifier::Action::START_TONE: robot.startBeepNonBlocking(); break;
+            case ColorNotifier::Action::STOP_TONE: robot.stopBeep(); break;
+            default: break;
+        }
         dly_tsk(Config::MOTION_POLL_INTERVAL_US);
     }
+    // 区間の終わり。鳴り終わっていなくても移動は延ばさず、鳴っていれば止める
+    if(notifier.cancel() == ColorNotifier::Action::STOP_TONE) robot.stopBeep();
     robot.stop();
+    syslog(LOG_NOTICE, "[Notify] tones %d/%d, colorDecided->lowerStart %d ms, straight maxGap %d ms",
+           notifier.getStartedCount(), pendingNotifyToneCount, lowerStartMs - colorDecidedMs, straightMaxGapMs);
 
     // 6. 左エッジでライントレースを再開
     syslog(LOG_NOTICE, "Resuming line trace on LEFT edge (Slow Speed)");
