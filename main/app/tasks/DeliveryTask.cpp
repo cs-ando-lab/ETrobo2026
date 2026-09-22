@@ -14,7 +14,7 @@ namespace {
     constexpr int kApproachPwm = 50;  // ボトル接近中。Config::DELIVERY_TRACER_PWM(30)だとカーブ減速でほぼ動けなくなる
     // 超音波が反応しなくても、低速接近開始からこの距離で初回アーム動作へ進む。
     // 仮値。実機でユーザーが調整する [mm]。
-    constexpr int kApproachFallbackDistanceMm = 190;
+    constexpr int kApproachFallbackDistanceMm = 180;
     constexpr int kReacquireLinePwm = 50;    // ライン復帰直後。ラインに対するズレが大きくカーブ減速が効きやすいので高め
     constexpr int kPostSlowTracePwm = 93;    // 曲線前半。後半は78/Kp0.55
     constexpr int kOnFirstBlueLinePwm = 78;  // 青1本目に乗っている間だけ落とす速度
@@ -1146,7 +1146,7 @@ bool DeliveryTask::run() {
         return false;
     }
 
-    // 5. 左35・右40のパワーでkAfterArmStraightSec秒直進してラインに復帰する（蛇行探索より速く、実機ではこれで十分だった）。
+    // 5. Lで調整した左35・右40を、Rでは左右反転してkAfterArmStraightSec秒移動しラインに復帰する。
     // 色の通知音はこの移動に重ねる。移動の時間も出力も変えず、音のための待ちは入れない
     ColorNotifier notifier(kColorToneMs, kColorGapMs);
     notifier.start(pendingNotifyToneCount, nowMs());
@@ -1161,7 +1161,8 @@ bool DeliveryTask::run() {
             robot.stop();
             return false;
         }
-        robot.setMotorPower(kAfterArmStraightLeftPwm, kAfterArmStraightRightPwm);
+        robot.setMotorPower(isLeftCourse ? kAfterArmStraightLeftPwm : kAfterArmStraightRightPwm,
+                            isLeftCourse ? kAfterArmStraightRightPwm : kAfterArmStraightLeftPwm);
         // 音の更新は出力の後。診断として制御周期の最大間隔も見る
         const int loopMs = nowMs();
         if(i > 0 && loopMs - straightLastMs > straightMaxGapMs)

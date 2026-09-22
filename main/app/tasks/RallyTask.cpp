@@ -48,7 +48,7 @@ void RallyTask::run() {
                     Config::ETRALLY_DEFAULT_DRIVE_SPEED);
     /* 開始格子点まで行く : 90°右転回 → 開始格子点までの距離[mm]直進 */
     turnToDirection(RallyTypes::Direction::NORTH, Config::ETRALLY_DEFAULT_TURN_SPEED);
-    moveToDirection(Config::BLUE_LINE_WIDTH_MM
+    moveToDirection(Config::BLUE_LINE_WIDTH_MM - 10
                         + Config::START_GRID_POINT_TO_START_LINE_MM,
                     RallyTypes::Direction::NORTH,
                     Config::ETRALLY_DEFAULT_DRIVE_SPEED);
