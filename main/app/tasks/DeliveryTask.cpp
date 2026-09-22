@@ -14,7 +14,7 @@ namespace {
     constexpr int kApproachPwm = 50;  // ボトル接近中。Config::DELIVERY_TRACER_PWM(30)だとカーブ減速でほぼ動けなくなる
     // 超音波が反応しなくても、低速接近開始からこの距離で初回アーム動作へ進む。
     // 仮値。実機でユーザーが調整する [mm]。
-    constexpr int kApproachFallbackDistanceMm = 190;
+    constexpr int kApproachFallbackDistanceMm = 180;
     constexpr int kReacquireLinePwm = 50;    // ライン復帰直後。ラインに対するズレが大きくカーブ減速が効きやすいので高め
     constexpr int kPostSlowTracePwm = 93;    // 曲線前半。後半は78/Kp0.55
     constexpr int kOnFirstBlueLinePwm = 78;  // 青1本目に乗っている間だけ落とす速度

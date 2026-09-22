@@ -136,21 +136,21 @@ public:
 
     // ─ 赤ゲート(Lコース) ─
     static constexpr int ETRALLY_L_RED_GATE_LEFT_X = 2;
-    static constexpr int ETRALLY_L_RED_GATE_LEFT_Y = 5;
+    static constexpr int ETRALLY_L_RED_GATE_LEFT_Y = 3;
     static constexpr int ETRALLY_L_RED_GATE_RIGHT_X = 3;
-    static constexpr int ETRALLY_L_RED_GATE_RIGHT_Y = 5;
+    static constexpr int ETRALLY_L_RED_GATE_RIGHT_Y = 3;
 
     // ─ 青ゲート(Lコース) ─
-    static constexpr int ETRALLY_L_BLUE_GATE_LEFT_X = 5;
-    static constexpr int ETRALLY_L_BLUE_GATE_LEFT_Y = 3;
-    static constexpr int ETRALLY_L_BLUE_GATE_RIGHT_X = 5;
-    static constexpr int ETRALLY_L_BLUE_GATE_RIGHT_Y = 4;
+    static constexpr int ETRALLY_L_BLUE_GATE_LEFT_X = 1;
+    static constexpr int ETRALLY_L_BLUE_GATE_LEFT_Y = 1;
+    static constexpr int ETRALLY_L_BLUE_GATE_RIGHT_X = 1;
+    static constexpr int ETRALLY_L_BLUE_GATE_RIGHT_Y = 2;
 
     // ─ 黄ゲート(Lコース) ─
-    static constexpr int ETRALLY_L_YELLOW_GATE_LEFT_X = 1;
-    static constexpr int ETRALLY_L_YELLOW_GATE_LEFT_Y = 2;
-    static constexpr int ETRALLY_L_YELLOW_GATE_RIGHT_X = 2;
-    static constexpr int ETRALLY_L_YELLOW_GATE_RIGHT_Y = 2;
+    static constexpr int ETRALLY_L_YELLOW_GATE_LEFT_X = 3;
+    static constexpr int ETRALLY_L_YELLOW_GATE_LEFT_Y = 5;
+    static constexpr int ETRALLY_L_YELLOW_GATE_RIGHT_X = 4;
+    static constexpr int ETRALLY_L_YELLOW_GATE_RIGHT_Y = 5;
 
     // ─ 赤ゲート(Rコース) ─
     static constexpr int ETRALLY_R_RED_GATE_LEFT_X = 2;
@@ -159,16 +159,16 @@ public:
     static constexpr int ETRALLY_R_RED_GATE_RIGHT_Y = 5;
 
     // ─ 青ゲート(Rコース) ─
-    static constexpr int ETRALLY_R_BLUE_GATE_LEFT_X = 5;
-    static constexpr int ETRALLY_R_BLUE_GATE_LEFT_Y = 3;
-    static constexpr int ETRALLY_R_BLUE_GATE_RIGHT_X = 5;
-    static constexpr int ETRALLY_R_BLUE_GATE_RIGHT_Y = 4;
+    static constexpr int ETRALLY_R_BLUE_GATE_LEFT_X = 1;
+    static constexpr int ETRALLY_R_BLUE_GATE_LEFT_Y = 2;
+    static constexpr int ETRALLY_R_BLUE_GATE_RIGHT_X = 1;
+    static constexpr int ETRALLY_R_BLUE_GATE_RIGHT_Y = 3;
 
     // ─ 黄ゲート(Rコース) ─
-    static constexpr int ETRALLY_R_YELLOW_GATE_LEFT_X = 1;
-    static constexpr int ETRALLY_R_YELLOW_GATE_LEFT_Y = 2;
-    static constexpr int ETRALLY_R_YELLOW_GATE_RIGHT_X = 2;
-    static constexpr int ETRALLY_R_YELLOW_GATE_RIGHT_Y = 2;
+    static constexpr int ETRALLY_R_YELLOW_GATE_LEFT_X = 5;
+    static constexpr int ETRALLY_R_YELLOW_GATE_LEFT_Y = 3;
+    static constexpr int ETRALLY_R_YELLOW_GATE_RIGHT_X = 4;
+    static constexpr int ETRALLY_R_YELLOW_GATE_RIGHT_Y = 3;
 
     // ─ 基準ジャイロ角調整用ライントレース ─
     static constexpr float ETRALLY_TRACE_BACK_DISTANCE = 300.0f;  // [mm] 走行体の基準ジャイロ角調整用ライントレースのための距離
