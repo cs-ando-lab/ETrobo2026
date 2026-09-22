@@ -1078,7 +1078,8 @@ bool DeliveryTask::run() {
         }
         // アームの位置決めが届かなくても競技を終わらせない。未達は記録して読み直しへ進む
         // （回数はkBottleRetryMaxCountで止まる。届かないまま読めなければUNKNOWNで停止する）
-        if(!robot.positionDeliveryArm(armHomeCount, Config::ARM_LOWER_SPEED_DEG_PER_SEC, "lower-retry")) {
+        // 位置目標が下降方向を決める。速度は上昇と同じ大きさに揃え、未達でも再試行を続ける。
+        if(!robot.positionDeliveryArm(armHomeCount, std::abs(Config::ARM_RAISE_SPEED_DEG_PER_SEC), "lower-retry")) {
             syslog(LOG_NOTICE, "Bottle retry %d/%d: lower-retry did not reach the target; continuing", retry, kBottleRetryMaxCount);
         }
         // 距離対策は変更しない。従来の再試行5mmのみ維持し、上げ動作とは分離して原因を切り分ける。
@@ -1138,7 +1139,8 @@ bool DeliveryTask::run() {
     // 4. アームを下げる（Robotクラスに移譲）。
     // 下げ切れなくても走行自体は続けられるので、未達は記録するだけにする
     const int lowerStartMs = nowMs();
-    if(!robot.positionDeliveryArm(armHomeCount, Config::ARM_LOWER_SPEED_DEG_PER_SEC, "lower-final")) {
+    // 上昇と同じ位置制御・速度で初期位置へ戻す。共有の下降設定は他タスク用に変更しない。
+    if(!robot.positionDeliveryArm(armHomeCount, std::abs(Config::ARM_RAISE_SPEED_DEG_PER_SEC), "lower-final")) {
         syslog(LOG_NOTICE, "lower-final did not reach the target; continuing to the line");
     }
     if(robot.isCenterButtonPressed()) {
