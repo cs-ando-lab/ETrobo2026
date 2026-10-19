@@ -4,9 +4,129 @@
 
 ## 目次
 
+- [Gitとは](#gitとは)
+- [Gitのインストールと初期設定](#gitのインストールと初期設定)
+- [基本用語](#基本用語)
+- [基本的な使い方](#基本的な使い方)
 - [ブランチ戦略](#ブランチ戦略)
 - [コミットフロー](#コミットフロー)
 - [よくある質問](#よくある質問)
+
+## Gitとは
+
+Gitは**分散型のバージョン管理システム**です。各開発者が自分のPCにソースコードの全履歴を持ち、「いつ・誰が・どこを・なぜ変更したか」を記録しながら開発できます。
+
+- **履歴管理・バックアップ**: 過去の状態にいつでも戻せる
+- **複数人での同時開発**: 同じファイルを複数人が編集しても、多くの場合は自動で統合される
+- **ブランチによる並行作業**: 他の人の作業に影響を与えずに機能追加や実験ができる
+
+### GitとGitHubの違い
+
+- **Git**: バージョン管理を行うツール本体（自分のPC上で動く）
+- **GitHub**: Gitのリポジトリをインターネット上に置いて共有するWebサービス。プルリクエストやイシューなど、チーム開発向けの機能もある
+
+## Gitのインストールと初期設定
+
+### 1. GitHubアカウントを作成する
+
+[GitHub](https://github.com/) でアカウントを登録し、チームのOrganizationに招待してもらいます。
+
+### 2. Gitをインストールする
+
+- **Windows**: [公式サイト](https://git-scm.com/) から Git for Windows のインストーラーをダウンロードして実行する（設定は基本的にデフォルトのままでよい）。インストール後は Git Bash が使える
+- **Linux / WSL（Ubuntu等）**: 
+
+```bash
+sudo apt update
+sudo apt install git
+```
+
+- **macOS**: `brew install git`（またはXcode Command Line Toolsに含まれるものを使う）
+
+### 3. 動作確認とユーザー情報の設定
+
+インストールできたかをバージョン表示で確認し、コミットに記録される名前とメールアドレスを設定します。
+
+```bash
+git --version
+git config --global user.name  "<GitHubのユーザー名>"
+git config --global user.email "<GitHubに登録したメールアドレス>"
+
+# 設定内容の確認
+git config --global --list
+```
+
+### 4. リポジトリをクローンする
+
+```bash
+git clone <リポジトリのURL>
+```
+
+クローンすると、リモートリポジトリの全履歴が手元にコピーされます。このプロジェクトでは `~/etrobo/workspace/` 配下にクローンする前提です（詳細は [CONTRIBUTING.md](CONTRIBUTING.md)）。
+
+## 基本用語
+
+### リポジトリ関連
+
+| 用語 | 意味 |
+|---|---|
+| リポジトリ | ファイルとその変更履歴を保存する場所の総称 |
+| リモートリポジトリ | GitHub等のサーバー上にあるリポジトリ。チームで共有する |
+| ローカルリポジトリ | 自分のPC上にあるリポジトリ。ここで開発し、リモートへ反映する |
+| クローン | リモートリポジトリを手元のPCに丸ごと取得すること |
+
+### 変更・共有関連
+
+| 用語 | 意味 |
+|---|---|
+| ステージ（add） | 次のコミットに含める変更を選ぶこと |
+| コミット | ステージした変更を、メッセージ付きでローカルリポジトリに記録すること |
+| プッシュ（push） | ローカルのコミットをリモートリポジトリに送ること |
+| プル（pull） | リモートの最新の変更をローカルに取り込むこと |
+| ブランチ | 本流（`main`）から枝分かれした作業用の履歴。他のブランチに影響しない |
+| マージ | あるブランチの変更を別のブランチに取り込むこと |
+| コンフリクト | 同じ箇所を別々に変更したために自動統合できない状態。手動で解消する必要がある |
+| プルリクエスト（PR） | 「このブランチを`main`にマージしてほしい」というレビュー依頼 |
+| イシュー（Issue） | バグやタスクを管理する仕組み。PRやコミットと紐づけられる |
+
+## 基本的な使い方
+
+### 開発の全体像
+
+```
+クローン → ブランチ作成 → 編集 → ステージ → コミット → プッシュ → PR作成 → レビュー → マージ
+```
+
+1. 最新の`main`を取り込む（`git pull`）
+2. 作業用ブランチを作る（命名規則は後述）
+3. ファイルを編集する
+4. 変更をステージしてコミットする（1コミット＝1つの変更内容に絞る）
+5. リモートにプッシュする
+6. GitHub上でPRを作成し、レビューを依頼する
+7. 指摘があれば修正して再度プッシュし、承認されたらマージする
+
+### よく使うコマンド
+
+```bash
+git status                       # 変更されたファイルの状態を確認
+git diff                         # まだステージしていない変更の差分を表示
+git log --oneline                # コミット履歴を1行ずつ表示
+
+git switch main                  # ブランチを切り替える
+git pull origin main             # リモートのmainの最新を取り込む
+git switch -c feat/your-feature  # 新しいブランチを作って切り替える
+
+git add <ファイル>               # 変更をステージする
+git commit -m "feat: 〇〇を追加"  # コミットする
+git push -u origin feat/your-feature  # 初回プッシュ（以降は git push のみ）
+```
+
+### 注意点
+
+- `main`ブランチで直接作業・プッシュしない（必ずブランチを切る）
+- 作業を始める前に`git pull`で最新を取り込み、コンフリクトを減らす
+- このリポジトリでは`format-check`が自動整形コミットを追加することがあるため、push後に作業を再開する前は`git pull`する
+- コンフリクトが起きたら、該当ファイルの `<<<<<<<` `=======` `>>>>>>>` で囲まれた部分を手動で直してから、再度コミットする
 
 ## ブランチ戦略
 
@@ -27,7 +147,6 @@
 
 **Type の種類:**
 
-(一般的なものをとりあえず並べただけなので開発を進めていくうちに追加や削除を行いましょう)
 - `feat/` - 新機能の追加
 - `fix/` - バグ修正
 - `docs/` - ドキュメントの変更
@@ -39,8 +158,8 @@
 **例:**
 
 ```bash
-feat/add-blog-search
-fix/header-responsive-issue
+feat/add-delivery-task
+fix/line-trace-overshoot
 docs/update-readme
 ```
 
@@ -69,11 +188,10 @@ docs/update-readme
 **例:**
 
 ```bash
-git commit -m "feat: ブログ検索機能を追加"
-git commit -m "fix: レスポンシブ表示の不具合を修正"
+git commit -m "feat: Deliveryのアーム下降処理を追加"
+git commit -m "fix: ライントレースの急カーブでの脱線を修正"
 git commit -m "docs: READMEに環境構築手順を追加"
 ```
-
 
 ### マージ
 
@@ -81,7 +199,7 @@ git commit -m "docs: READMEに環境構築手順を追加"
 - **マージ後**: ローカルのmainブランチを更新
 
 ```bash
-git checkout main
+git switch main
 git pull origin main
 git branch -d feat/your-feature-name
 ```
@@ -104,7 +222,7 @@ git push --force-with-lease origin your-branch-name
 # 直前のコミットを取り消し（変更は残る）
 git reset --soft HEAD~1
 
-# 直前のコミットを完全に取り消し（変更も削除）
+# 直前のコミットを完全に取り消し（変更も削除。元に戻せないので注意）
 git reset --hard HEAD~1
 ```
 
@@ -112,4 +230,3 @@ git reset --hard HEAD~1
 
 - [Conventional Commits](https://www.conventionalcommits.org/ja/)
 - [GitHub Flow](https://docs.github.com/ja/get-started/quickstart/github-flow)
-- [Semantic Versioning](https://semver.org/lang/ja/)
